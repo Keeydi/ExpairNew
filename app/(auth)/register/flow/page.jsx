@@ -15,6 +15,19 @@ export default function RegisterFlow() {
   const [step, setStep] = useState(1);
   const router = useRouter();
 
+  // hold step data
+  const [step1Data, setStep1Data] = useState({
+    firstName: "", lastName: "", email: "", username: "", password: "",
+  });
+  const [step2Data, setStep2Data] = useState({
+    searchQuery: "", marker: null,
+  });
+
+  const [step5Data, setStep5Data] = useState([]);
+
+  const handleStep1Submit = (data) => setStep1Data(data);
+  const handleStep2Submit = (data) => setStep2Data(data);
+
   const nextStep = () => setStep((prev) => prev + 1);
   const prevStep = () => setStep((prev) => prev - 1);
   const completeRegistration = () => router.push("/home");
@@ -22,12 +35,27 @@ export default function RegisterFlow() {
 
   return (
     <div>
-      {step === 1 && <Step1 onNext={nextStep} />}
-      {step === 2 && <Step2 onNext={nextStep} onPrev={prevStep} />}
-      {step === 3 && <Step3 onNext={nextStep} onPrev={prevStep} />}
+      {step === 1 && <Step1 onDataSubmit={handleStep1Submit} onNext={nextStep} />}
+      {step === 2 && <Step2 onDataSubmit={handleStep2Submit} onNext={nextStep} onPrev={prevStep} />}
+      {step === 3 && <Step3 step1Data={step1Data} step2Data={step2Data} onNext={nextStep} onPrev={prevStep} />}
       {step === 4 && <Step4 onNext={nextStep} onPrev={prevStep} />}
-      {step === 5 && <Step5 onNext={nextStep} onPrev={prevStep} />}
-      {step === 6 && <Step6 onComplete={goToOnboarding} onPrev={prevStep} />}
+      {step === 5 && (
+        <Step5
+          onPrev={prevStep}
+          onNext={(ranked) => {        
+            setStep5Data(ranked);
+            nextStep();
+          }}
+        />
+      )}
+      {step === 6 && (
+        <Step6
+          selectedSkills={step5Data}
+          onNext={goToOnboarding}
+          onPrev={prevStep}
+        />
+      )}
+
       {step === 7 && <Onboarding1 onNext={() => setStep(8)} onPrev={() => setStep(6)} />}
       {step === 8 && <Onboarding2 onNext={completeRegistration} onPrev={() => setStep(7)} />}
     </div>

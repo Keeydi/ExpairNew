@@ -5,6 +5,7 @@ import { Button } from "../../../../../components/ui/button";
 import { Inter } from "next/font/google";
 import { Search, Filter, ArrowUpDown, MoreHorizontal, Star, X, EyeOff } from "lucide-react";
 import { StarIcon } from "../../../../../components/icons/star-icon";
+import Image from "next/image";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -245,10 +246,8 @@ export default function Onboarding2({ onNext, onPrev }) {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center ${inter.className} relative overflow-hidden`}
-      style={{ 
-        background: "#050015",
-      }}
+      className={`flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
+      style={{ backgroundImage: "url('/assets/bg_register2.png')" }}
     >
       {/* Confirmation Modal */}
       {showConfirmModal && (
@@ -329,24 +328,22 @@ export default function Onboarding2({ onNext, onPrev }) {
           </div>
         </div>
       )}
-      
-      {/* Background glows */}
-      <div className="absolute w-[673px] h-[673px] left-[-611.5px] top-[-502px] bg-[#FB9696] opacity-50 blur-[200px]"></div>
-      <div className="absolute w-[673px] h-[673px] right-[-350px] bottom-[853px] bg-[#6DDFFF] opacity-50 blur-[200px]"></div>
-      <div className="absolute w-[673px] h-[673px] left-[calc(50%-336.5px)] bottom-[1042px] bg-[#906EFF] opacity-50 blur-[200px]"></div>
-      <div className="absolute w-[673px] h-[673px] left-[calc(50%+383.5px-673px)] bottom-[992px] bg-[#0038FF] opacity-50 blur-[200px]"></div>
-      <div className="absolute w-[673px] h-[673px] left-[calc(50%-383.5px-673px/2)] bottom-[992px] bg-[#D78DE5] opacity-50 blur-[200px]"></div>
-      
-      <div className="relative z-10 w-full max-w-[983px] flex flex-col items-center py-[40px]">
+         
+      <div className="relative z-10 w-full max-w-[983px] flex flex-col items-center pt-[111px]">
         {/* Header Section */}
         <div className="flex flex-col items-start gap-[44px] w-full">
           <div className="w-full">
-            <div className="flex flex-col items-center gap-[25px] w-full">
+            <div className="text-left flex flex-col items-start gap-[19px] w-full">
               <div className="flex flex-col items-start gap-[15px] w-full">
                 <div className="flex justify-between items-center w-full">
                   <div className="flex items-center gap-[15px]">
-                    <StarIcon className="w-[38.33px] h-[38.33px]" />
-                    <h2 className="text-[25px] font-semibold text-white">Here's what we found</h2>
+                    <Image
+                      src="/assets/logos/Colored=Logo XS.png"
+                      alt="Colored Logo"
+                      width={38}
+                      height={38}
+                    />
+                    <h2 className="text-[25px] font-[600] text-white">Here's what we found</h2>
                   </div>
                   
                   <div className="flex items-center gap-4">
@@ -479,21 +476,28 @@ export default function Onboarding2({ onNext, onPrev }) {
                 </div>
               </div>
               
-              <p className="text-[16px] text-white/40">Browse your potential trade partners</p>
+              <p className="text-[16px] text-left text-white/40">Browse your potential trade partners</p>
             </div>
           </div>
           
           {/* Search Input */}
           <div className="w-full">
-            <div className="w-full h-[50px] bg-[#120A2A] rounded-[15px] px-[14px] py-[8px] flex items-center">
-              <Search className="w-6 h-6 text-white mr-2" />
-              <input
-                type="text"
-                placeholder="Enter a service you need"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-full bg-transparent text-[16px] text-white outline-none"
-              />
+            <div 
+              className="rounded-[15px] p-[2px]" 
+              style={{ 
+                background: 'linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)' 
+              }}
+            >
+              <div className="w-full h-[50px] bg-[#120A2A] rounded-[13px] px-[14px] py-[8px] flex items-center">
+                <Search className="w-6 h-6 text-white mr-2" />
+                <input
+                  type="text"
+                  placeholder="Enter a service you need"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-full bg-transparent text-[16px] text-white outline-none"
+                />
+              </div>
             </div>
           </div>
           
@@ -508,94 +512,124 @@ export default function Onboarding2({ onNext, onPrev }) {
             <div className="flex flex-wrap gap-[25px] w-full">
               {filteredAndSortedPartners.length > 0 ? (
                 filteredAndSortedPartners.map((partner, index) => (
-                <div 
-                  key={partner.id}
-                  className="w-[311px] h-[240px] p-[25px] flex flex-col justify-center items-center gap-[15px] rounded-[20px] border-[3px] border-[#284CCC]/80"
-                  style={{
-                    background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
-                    boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)"
-                  }}
-                >
-                  <div className="flex flex-col justify-center items-center gap-[15px] w-[261px]">
-                    {/* Partner Header */}
-                    <div className="flex justify-between items-start w-full">
-                      <div className="flex items-start gap-[10px]">
-                        <div className="w-[25px] h-[25px] rounded-full bg-gray-400"></div>
-                        <div className="flex flex-col items-start gap-[5px]">
-                          <span className="text-[16px] text-white">{partner.name}</span>
-                          <div className="flex items-center gap-[15px]">
-                            <div className="flex items-center gap-[5px]">
-                              <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF] flex-shrink-0" />
-                              <span className="text-[13px]"><span className="font-bold">{partner.rating.toFixed(1)}</span> <span className="text-white">({partner.reviews})</span></span>
-                            </div>
-                            <div className="flex items-center gap-[5px]">
-                              <div className="w-3 h-3 rounded-[5px] bg-[radial-gradient(50.76%_54.89%_at_50%_50%,#933BFF_40%,#34188D_100%)]"></div>
-                              <span className="text-[13px] text-white">LVL {partner.level}</span>
+                  <div
+                    key={partner.id}
+                    className="w-[311px] h-[240px] p-[25px] flex flex-col justify-between rounded-[20px] border-[3px] border-[#284CCC]/80"
+                    style={{
+                      background:
+                        "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
+                      boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)",
+                    }}
+                  >
+                    {/* Top content */}
+                    <div className="flex flex-col gap-[15px]">
+                      {/* Partner Header */}
+                      <div className="flex justify-between items-start w-full">
+                        <div className="flex items-start gap-[10px]">
+                        <Image src="/defaultavatar.png" alt="Default Avatar" width={25} height={25} className="rounded-full object-cover" />
+                          <div className="flex flex-col items-start gap-[5px]">
+                            <span className="text-[16px] text-white">{partner.name}</span>
+                            <div className="flex items-center gap-[15px]">
+                              <div className="flex items-center gap-[5px]">
+                                <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
+                                <span className="text-[13px]">
+                                  <span className="font-bold">
+                                    {partner.rating.toFixed(1)}
+                                  </span>{" "}
+                                  <span className="text-white">
+                                    ({partner.reviews})
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-[5px]">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z" fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5"/><defs><radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)"><stop offset="0.4" stopColor="#933BFF"/><stop offset="1" stopColor="#34188D"/></radialGradient><linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse"><stop stopColor="white"/><stop offset="0.5" stopColor="#999999"/><stop offset="1" stopColor="white"/></linearGradient></defs></svg>
+                                <span className="text-[13px] text-white">
+                                  LVL {partner.level}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
+                        <div
+                          className="relative"
+                          ref={(el) => (menuRefs.current[index] = el)}
+                        >
+                          <button
+                            onClick={() =>
+                              setOpenMenuIndex(index === openMenuIndex ? null : index)
+                            }
+                          >
+                            <MoreHorizontal className="w-6 h-6 text-white cursor-pointer hover:text-gray-300 transition-colors" />
+                          </button>
+                          {openMenuIndex === index && (
+                            <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
+                              <button
+                                onClick={() => handleNotInterested(partner.id)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
+                              >
+                                <EyeOff className="w-4 h-4 text-white" />
+                                Not Interested
+                              </button>
+                              <button
+                                onClick={() => handleReport(partner.id)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
+                              >
+                                <X className="w-4 h-4 text-white" />
+                                Report
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="relative" ref={el => menuRefs.current[index] = el}>
-                        <button onClick={() => setOpenMenuIndex(index === openMenuIndex ? null : index)}>
-                          <MoreHorizontal className="w-6 h-6 text-white cursor-pointer hover:text-gray-300 transition-colors" />
-                        </button>
-                        {openMenuIndex === index && (
-                          <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                            <button 
-                              onClick={() => handleNotInterested(partner.id)}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
-                            >
-                              <EyeOff className="w-4 h-4 text-white" />
-                              Not Interested
-                            </button>
-                            <button 
-                              onClick={() => handleReport(partner.id)}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
-                            >
-                              <X className="w-4 h-4 text-white" />
-                              Report
-                            </button>
+
+                      {/* Needs/Offers Section */}
+                      <div className="flex justify-between w-full">
+                        {/* Needs */}
+                        <div className="flex flex-col gap-[5px] items-start">
+                          <span className="text-[13px] text-white">Needs</span>
+                          <div className="inline-flex px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px]">
+                            <span className="text-[12px] text-white leading-tight">
+                              {partner.needs}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Needs/Offers Section */}
-                    <div className="flex justify-between items-start w-full space-x-4">
-                      <div className="flex flex-col justify-center items-start gap-[10px] flex-1">
-                        <span className="text-[13px] text-white">Needs</span>
-                        <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px] max-w-full">
-                          <span className="text-[12px] text-white leading-tight line-clamp-2">{partner.needs}</span>
+                        </div>
+
+                        {/* Can Offer */}
+                        <div className="flex flex-col gap-[5px] items-end">
+                          <span className="text-[13px] text-white">Can offer</span>
+                          <div className="inline-flex px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px]">
+                            <span className="text-[12px] text-white leading-tight">
+                              {partner.offers}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col justify-center items-end gap-[10px] flex-1">
-                        <span className="text-[13px] text-white">Can offer</span>
-                        <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px] max-w-full">
-                          <span className="text-[12px] text-white leading-tight line-clamp-2">{partner.offers}</span>
-                        </div>
+
+                      {/* Date */}
+                      <div className="flex justify-end items-center w-full">
+                        <span className="text-[13px] text-white/60">
+                          until {partner.until}
+                        </span>
                       </div>
                     </div>
-                    
-                    {/* Date and Button */}
-                    <div className="flex justify-end items-center w-full">
-                      <span className="text-[13px] text-white/60">until {partner.until}</span>
-                    </div>
-                    
-                    <button 
-                      className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors"
+
+                    {/* Bottom Button */}
+                    <button
+                      className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors self-center"
                       onClick={() => handleInterested(partner)}
                     >
                       <span className="text-[13px] text-white">I'm interested</span>
                     </button>
                   </div>
-                </div>
-              ))
+                ))
               ) : (
                 <div className="w-full py-10 flex flex-col items-center justify-center">
                   <div className="w-16 h-16 rounded-full bg-[#1A0F3E] flex items-center justify-center mb-4">
                     <Search className="w-8 h-8 text-white/50" />
                   </div>
-                  <h3 className="text-xl font-medium text-white mb-2">No matches found</h3>
+                  <h3 className="text-xl font-medium text-white mb-2">
+                    No matches found
+                  </h3>
                   <p className="text-white/60 text-center max-w-md">
                     Try adjusting your filters or search criteria to see more results
                   </p>
@@ -606,7 +640,7 @@ export default function Onboarding2({ onNext, onPrev }) {
         </div>
         
         {/* Skip Button */}
-        <div className="mt-[50px]">
+        <div className="mt-[50px] mb-[100px]">
           <button 
             className="text-[20px] font-medium text-[#0038FF] underline cursor-pointer hover:text-[#1a4dff] transition-colors"
             onClick={onNext}

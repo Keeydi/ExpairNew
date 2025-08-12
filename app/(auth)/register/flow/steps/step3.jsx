@@ -1,65 +1,102 @@
 "use client";
 
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export default function Step3({ onNext, onPrev }) {
+export default function Step3({ step1Data, step2Data, onNext, onPrev }) {
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [profilePreview, setProfilePreview] = useState("/defaultavatar.png");
+  const [userIDFile, setUserIDFile] = useState(null);
   const [introduction, setIntroduction] = useState("");
-  const [photo, setPhoto] = useState("/defaultavatar.png");
-  const [links, setLinks] = useState([""]);
+  const [links, setLinks] = useState([""]); // must be array for the map below
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhoto(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleContinue = () => {
-    onNext();
-  };
-
-  const handleSocialSignUp = (platform) => {
-    alert(`Signing up with ${platform}`);
-  };
+  // preview when a profile picture is selected
+  useEffect(() => {
+    if (!profilePicFile) return setProfilePreview("/defaultavatar.png");
+    const url = URL.createObjectURL(profilePicFile);
+    setProfilePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [profilePicFile]);
 
   const handleAddLink = () => {
-    setLinks([...links, ""]);
+    setLinks((prev) => [...prev, ""]);
   };
 
   const handleLinkChange = (index, value) => {
-    const updatedLinks = [...links];
-    updatedLinks[index] = value;
-    setLinks(updatedLinks);
+    const updated = [...links];
+    updated[index] = value;
+    setLinks(updated);
   };
 
   const handleRemoveLink = (index) => {
-    const updatedLinks = links.filter((_, i) => i !== index);
-    setLinks(updatedLinks);
+    setLinks(links.filter((_, i) => i !== index));
   };
+
+const handleContinue = async () => {
+  const formData = new FormData();
+  formData.append("first_Name", step1Data.firstName);
+  formData.append("last_Name", step1Data.lastName);
+  formData.append("emailAdd", step1Data.email);
+  formData.append("username", step1Data.username);
+  formData.append("password", step1Data.password);
+
+  // Step 2: full address string
+  formData.append("location", step2Data?.searchQuery || "");
+
+  // Step 3: files + optional fields
+  if (profilePicFile) formData.append("profilePic", profilePicFile);          // image/*
+  if (userIDFile)     formData.append("userVerifyID", userIDFile);            // image/* or application/pdf
+  formData.append("bio", introduction || "");
+  formData.append("links", Array.isArray(links) ? links.join(",") : (links || "")); // if you kept links as array of inputs
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/api/accounts/register/", { method: "POST", body: formData });
+
+    let data;
+    let text = await res.text();            // read as text first
+    try { data = JSON.parse(text); } catch { data = text; }
+
+    if (!res.ok) {
+      console.error("❌ Registration failed:", data);
+      alert("Registration failed: " + (typeof data === "string" ? data : JSON.stringify(data)));
+      return;
+    }
+
+
+    // ✅ save the id for Step 4
+    if (data && data.user_id) {
+      localStorage.setItem("user_id", String(data.user_id));
+    }
+
+    console.log("✅ Registered successfully:", data);
+    onNext(); // proceed to Step 4
+  } catch (err) {
+    console.error("❌ Network error:", err);
+    alert("Network error. Is the backend running?");
+  }
+};
+
 
   return (
     <div
-      className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className} relative`}
+      className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
-      {/* Disclaimer - Positioned at the bottom left edge of screen, aligned with pagination */}
-      <div className="fixed bottom-[60px] left-[40px] max-w-[422px] text-[13px] text-white/40 text-left z-50">
-        Disclaimer: By linking your social media accounts, you agree to share selected public information for verification purposes. Expair will not post on your behalf or access private data. Use caution when linking accounts. Expair is not liable for third-party misuse.
+      {/* Disclaimer */}
+      <div className="fixed bottom-[20px] sm:bottom-[60px] left-4 sm:left-[40px] max-w-xs sm:max-w-[422px] text-[11px] sm:text-[13px] text-white/40 text-left z-50">
+        Disclaimer: By linking your social media accounts, you agree to share
+        selected public information for verification purposes. Expair will not
+        post on your behalf or access private data. Use caution when linking
+        accounts. Expair is not liable for third-party misuse.
       </div>
-      
-      <div className="relative z-10 w-full max-w-4xl text-center px-4">
+
+      <div className="relative z-10 w-full max-w-6xl text-center px-4">
         {/* Header */}
         <div className="flex flex-col items-center">
           <Image
@@ -67,34 +104,36 @@ export default function Step3({ onNext, onPrev }) {
             alt="Logo"
             width={250}
             height={76}
-            className="rounded-full mb-[30px]"
+            className="rounded-full mb-[30px] w-[180px] sm:w-[250px]"
           />
-          <h1 className="font-[600] text-[25px] text-center mb-[40px]">
+          <h1 className="font-[600] text-[18px] sm:text-[25px] text-center mb-[40px] sm:mb-[70px]">
             Customize your profile for further verification.
           </h1>
         </div>
-        
+
         {/* Main content */}
-        <div className="flex justify-center gap-[30px] mb-[40px]">
+        <div className="flex flex-col lg:flex-row justify-center gap-[40px] lg:gap-[100px] mb-[40px]">
           {/* Left column - Photo upload */}
-          <div className="flex flex-col items-center w-[220px]">
-            <p className="text-white font-normal mb-[8px] text-center w-full">Upload a photo</p>
-            <div className="relative w-[200px] h-[200px] mb-[30px]">
+          <div className="flex flex-col items-center min-w-[250px]">
+            <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[20px] sm:mb-[30px] text-center w-full">
+                Upload a photo
+            </p>
+            <div className="relative w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] mb-[30px] sm:mb-[41px]">
               <label htmlFor="photo-upload" className="cursor-pointer">
-                <div className="w-[200px] h-[200px] bg-[#120A2A] rounded-full shadow-[0px_20px_60px_rgba(0,0,0,0.35)] relative">
+                <div className="w-full h-full bg-[#120A2A] rounded-full shadow-[0px_20px_60px_rgba(0,0,0,0.35)] relative">
                   <Image
-                    src={photo}
+                    src={profilePreview}
                     alt="Profile Photo"
                     width={200}
                     height={200}
                     className="object-cover w-full h-full rounded-full"
                   />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-[60px] h-[60px] rounded-full bg-[#0038FF] flex items-center justify-center shadow-[0px_0px_15px_#284CCC]">
-                      <Upload className="w-8 h-8 text-white" />
+                    <div className="w-[50px] h-[50px] sm:w-[60px] sm:h-[60px] rounded-full bg-[#0038FF] flex items-center justify-center shadow-[0px_0px_15px_#284CCC]">
+                      <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                     </div>
                   </div>
-                  <div className="absolute inset-0 border-[3px] border-white/80 rounded-full"></div>
+                  <div className="absolute inset-0 border-[4px] sm:border-[5px] border-white/80 rounded-full"></div>
                 </div>
               </label>
               <input
@@ -102,12 +141,14 @@ export default function Step3({ onNext, onPrev }) {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={handlePhotoChange}
+                onChange={(e) => setProfilePicFile(e.target.files[0] || null)}
               />
             </div>
-            
-            <p className="text-white font-normal mb-[8px] text-left w-full">Connect your socials</p>
-            <div className="flex gap-[15px]">
+
+            <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[12px] sm:mb-[15px] text-center w-full">
+              Connect your socials
+            </p>
+            <div className="flex gap-[20px] sm:gap-[40px] flex-wrap justify-center">
               {[
                 { src: "/assets/google.png", alt: "Google" },
                 { src: "/assets/linkedin.png", alt: "LinkedIn" },
@@ -120,48 +161,75 @@ export default function Step3({ onNext, onPrev }) {
                   height={40}
                   alt={alt}
                   className="cursor-pointer rounded-[10px]"
-                  onClick={() => handleSocialSignUp(alt)}
+                  onClick={() => alert(`Signing up with ${alt}`)}
                 />
               ))}
             </div>
-          </div>
-          
-          {/* Middle and Right columns */}
-          <div className="flex flex-col gap-[30px]">
-            {/* Top row with ID upload and website links */}
-            <div className="flex gap-[30px]">
+          </div> 
+
+          {/* Middle + Right columns */}
+          <div className="flex flex-col lg:flex-row gap-[40px] lg:gap-[100px] w-full">
+            {/* ID upload + Links */}
+            <div className="flex flex-col gap-[20px] sm:gap-[25px] w-full lg:w-[400px]">
               {/* ID upload */}
-              <div className="w-[350px]">
-                <p className="text-white font-normal mb-[8px] text-left">Get verified by uploading an ID</p>
+              <div>
+                <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[12px] sm:mb-[15px] text-left">
+                  Get verified by uploading an ID
+                </p>
                 <div className="relative">
-                  <div className="w-full h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] px-4 flex items-center justify-between cursor-pointer">
-                    <span className="text-[#413663] text-[16px]">Upload file or photo</span>
-                    <Upload className="text-white" />
+                  <div className="w-full h-[45px] sm:h-[50px] rounded-[12px] sm:rounded-[15px] border border-white/40 bg-[#120A2A] px-4 flex items-center justify-between cursor-pointer">
+                    <span className="text-[#413663] text-[14px] sm:text-[16px]">
+                      Upload file or photo
+                    </span>
+                    <Upload className="text-white w-5 h-5 sm:w-6 sm:h-6" />
                     <Input
                       type="file"
                       accept="image/*,application/pdf"
                       className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                      onChange={(e) => setUserIDFile(e.target.files[0] || null)}
                     />
                   </div>
                 </div>
               </div>
-              
-              {/* Links */}
-              <div className="w-[350px]">
-                <p className="text-white font-normal mb-[8px] text-left">Add a website or a link</p>
-                <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
+
+              {/* Introduction */}
+            <div>
+                <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[15px] sm:mb-[25px] text-left">
+                  Write a stellar introduction
+                </p>
+              <div className="relative">
+                <textarea
+                  rows={4}
+                  maxLength={500}
+                  className="w-full h-[150px] sm:h-[207px] rounded-[12px] sm:rounded-[15px] px-3 sm:px-4 py-2 sm:py-3 text-white bg-[#120A2A] border border-white/40 resize-none placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[16px]"
+                  placeholder="Tell us more about yourself"
+                  value={introduction}
+                  onChange={(e) => setIntroduction(e.target.value)}
+                />
+                  <span className="absolute bottom-2 right-3 sm:bottom-3 sm:right-4 text-[10px] sm:text-xs text-gray-400">
+                  {500 - introduction.length} characters left
+                </span>
+              </div>
+            </div>
+          </div>
+            {/* Right side: links */}
+            <div className="flex-1 min-w-[200px] sm:min-w-[400px] text-left">
+              <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[12px] sm:mb-[15px] text-left">
+                Add a website or a link
+              </p>
+                <div className="max-h-[200px] sm:max-h-[310px] overflow-y-auto custom-scrollbar">
                   {links.map((link, index) => (
-                    <div key={index} className="relative mb-[10px]">
+                  <div key={index} className="relative mb-[12px] sm:mb-[15px]">
                       <Input
                         type="url"
                         value={link}
                         onChange={(e) => handleLinkChange(index, e.target.value)}
                         placeholder="Link here"
-                        className="bg-[#120A2A] text-white border border-white/40 rounded-[15px] w-full pr-10 h-[50px] placeholder-[#413663] placeholder:text-[16px]"
+                      className="bg-[#120A2A] text-white border border-white/40 rounded-[12px] sm:rounded-[15px] w-full pr-8 sm:pr-10 h-[45px] sm:h-[50px] placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[16px]"
                       />
                       {index > 0 && (
                         <X
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70 cursor-pointer"
+                          className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-white/70 cursor-pointer"
                           onClick={() => handleRemoveLink(index)}
                         />
                       )}
@@ -171,59 +239,41 @@ export default function Step3({ onNext, onPrev }) {
                 <button
                   type="button"
                   onClick={handleAddLink}
-                  className="text-sm text-[#6DDFFF] hover:underline text-left mt-1"
+                  className="font-[400] text-[14px] sm:text-[16px] text-[#0038FF] hover:underline text-left mt-1"
                 >
                   + Add another link
                 </button>
               </div>
             </div>
-            
-            {/* Introduction - Same width as ID upload */}
-            <div className="w-[350px]">
-              <p className="text-white font-normal mb-[8px] text-left">Write a stellar introduction</p>
-              <div className="relative">
-                <textarea
-                  rows={6}
-                  maxLength={500}
-                  className="w-full h-[200px] rounded-[15px] px-4 py-3 text-white bg-[#120A2A] border border-white/40 resize-none placeholder-[#413663] placeholder:text-[16px]"
-                  placeholder="Tell us more about yourself"
-                  value={introduction}
-                  onChange={(e) => setIntroduction(e.target.value)}
-                />
-                <span className="absolute bottom-3 right-4 text-xs text-gray-400">
-                  {500 - introduction.length} characters left
-                </span>
-              </div>
-            </div>
           </div>
-        </div>
-        
+
         {/* Continue Button */}
-        <div className="flex justify-center mb-[25px]">
+        <div className="flex justify-center mb-[47.5px]">
           <Button
-            className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-normal transition rounded-[15px]"
+            className="cursor-pointer flex w-[180px] sm:w-[240px] h-[45px] sm:h-[50px] justify-center items-center px-[24px] sm:px-[38px] py-[10px] sm:py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-[14px] sm:text-[20px] font-normal transition rounded-[12px] sm:rounded-[15px]"
             onClick={handleContinue}
           >
             Continue
           </Button>
         </div>
-        
-        {/* Skip for now */}
-        <p className="underline text-center text-sm text-[16px] mb-[25px]">
-          <a href="/signin" className="text-[#6DDFFF]">
-            Skip for now
-          </a>
+
+        {/* Skip */}
+        <p
+          onClick={onNext}
+          className="underline text-center font-[500] text-[16px] sm:text-[20px] mb-[25px] text-[#0038FF] cursor-pointer"
+        >
+          Skip for now
         </p>
-        
-        {/* Pagination - Centered at bottom */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60">
+
+        {/* Pagination */}
+        <div className="flex justify-center items-center gap-2 text-[12px] sm:text-sm text-white opacity-60">
           <ChevronLeft
-            className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
+            className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={onPrev}
           />
           <span>3 of 6</span>
           <ChevronRight
-            className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
+            className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={onNext}
           />
         </div>

@@ -1,201 +1,199 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "../../../../../components/ui/button";
-import { ChevronLeft, Check, X } from "lucide-react";
+import { ChevronLeft, ChevronDown, X } from "lucide-react";  // <-- Added X icon import
 import Image from "next/image";
 import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export default function Step6({ onComplete, onPrev }) {
-  // Categories with subcategories
-  const categories = [
-    {
-      name: "Creative & Design",
-      subcategories: [
-        "Graphic Design",
-        "UI/UX Design",
-        "Web Design",
-        "Animation",
-        "Photography",
-        "Video Production"
-      ]
-    },
-    {
-      name: "Education & Training",
-      subcategories: [
-        "Academic Tutoring",
-        "Professional Training",
-        "Language Teaching",
-        "Skill Development",
-        "Course Creation"
-      ]
-    },
-    {
-      name: "Home & Lifestyle",
-      subcategories: [
-        "Interior Design",
-        "Gardening",
-        "Cooking",
-        "Organization",
-        "DIY Projects"
-      ]
-    },
-    {
-      name: "Sports & Fitness",
-      subcategories: [
-        "Personal Training",
-        "Sports Coaching",
-        "Yoga Instruction",
-        "Nutrition Planning",
-        "Fitness Programs"
-      ]
-    },
-    {
-      name: "Arts & Performance",
-      subcategories: [
-        "Music Lessons",
-        "Dance Instruction",
-        "Acting Coaching",
-        "Visual Arts",
-        "Creative Writing"
-      ]
+const allCategories = [
+  { id: 1, name: "Creative & Design", subcategories: ["Graphic Design", "Photography", "Video Editing", "Illustration", "Animation"] },
+  { id: 2, name: "Technical & IT", subcategories: ["Web Development", "Software Development", "IT Support", "Network Administration", "Cybersecurity"] },
+  { id: 3, name: "Business & Management", subcategories: ["Project Management", "Business Consulting", "Human Resources", "Operations Management", "Marketing Strategy"] },
+  { id: 4, name: "Communication & Interpersonal", subcategories: ["Customer Service", "Public Relations", "Copywriting", "Multilingual Communication", "Online Community Engagement"] },
+  { id: 5, name: "Health & Wellness", subcategories: ["Nutrition Coaching", "Personal Training", "Mental Health Counseling", "Yoga Instruction", "Fitness Coaching"] },
+  { id: 6, name: "Education & Training", subcategories: ["Tutoring", "Language Instruction", "Corporate Training", "Curriculum Development", "Test Preparation"] },
+  { id: 7, name: "Home & Lifestyle", subcategories: ["Interior Decorating", "Cleaning Services", "Gardening", "Event Planning", "Personal Assistance"] },
+  { id: 8, name: "Handiwork & Maintenance", subcategories: ["Furniture Assembly", "Sewing & Alterations", "Handyman Services", "Painting & Decorating", "Crafting"] },
+  { id: 9, name: "Digital & Social Media", subcategories: ["Social Media Management", "Content Creation", "SEO", "Digital Advertising", "Email Marketing"] },
+  { id: 10, name: "Languages & Translation", subcategories: ["Translation", "Interpretation", "Language Tutoring", "Transcription", "Localization"] },
+  { id: 11, name: "Financial & Accounting", subcategories: ["Bookkeeping", "Tax Preparation", "Financial Planning", "Payroll Services", "Auditing"] },
+  { id: 12, name: "Sports & Fitness", subcategories: ["Personal Training", "Group Fitness Instruction", "Sports Coaching", "Nutrition for Athletes", "Physical Therapy"] },
+  { id: 13, name: "Arts & Performance", subcategories: ["Music Lessons", "Dance Instruction", "Acting Coaching", "Visual Arts", "Creative Writing"] },
+  { id: 14, name: "Culture & Diversity", subcategories: ["Diversity Training", "Cultural Consulting", "Language & Cultural Exchange", "Community Outreach", "Inclusion Workshops"] },
+  { id: 15, name: "Research & Critical Thinking", subcategories: ["Market Research", "Data Analysis", "Academic Research", "Competitive Analysis", "Strategic Planning"] },
+];
+
+export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
+  
+  const [openDropdowns, setOpenDropdowns] = useState({});  // { [genId]: boolean }
+  const [errorMessage, setErrorMessage] = useState("");    // UI error text
+  const [checkedOptions, setCheckedOptions] = useState({}); // { [genId]: number[] } -> specskills_ids
+  const [specByGen, setSpecByGen] = useState({});          // { [genId]: [{id, name}] } from backend
+  const [loadingSpecs, setLoadingSpecs] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false); // <-- Added modal state
+
+  const safeSelected = Array.isArray(selectedSkills) ? selectedSkills : [];
+  const selectedCategoryIds = useMemo(() => {
+    return safeSelected
+      .map((s) => {
+        if (typeof s === "number") return s;
+        if (typeof s === "string" && !isNaN(Number(s))) return Number(s);
+        return s?.category_id ?? s?.genskills_id ?? null;
+      })
+      .filter(Boolean);
+  }, [safeSelected]);
+
+  const categories = useMemo(
+    () => allCategories.filter((c) => selectedCategoryIds.includes(c.id)),
+    [selectedCategoryIds]
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+    async function run() {
+      if (!selectedCategoryIds.length) return;
+      setLoadingSpecs(true);
+      try {
+        const entries = await Promise.all(
+          selectedCategoryIds.map(async (gid) => {
+            try {
+              const r = await fetch(`http://127.0.0.1:8000/api/accounts/skills/specific/?genskills_id=${gid}`);
+              const data = await r.json();
+              const list = (Array.isArray(data) ? data : []).map((s) => ({
+                id: Number(s.specSkills_id ?? s.id),
+                name: s.specName ?? s.name,
+              }));
+              return [gid, list];
+            } catch {
+              return [gid, []];
+            }
+          })
+        );
+        if (!isCancelled) setSpecByGen(Object.fromEntries(entries));
+      } finally {
+        if (!isCancelled) setLoadingSpecs(false);
+      }
     }
-  ];
+    run();
+    return () => { isCancelled = true; };
+  }, [selectedCategoryIds]);
 
-  // State for dropdown selections and checkbox selections
-  const [selectedSubcategories, setSelectedSubcategories] = useState({
-    "Creative & Design": "",
-    "Education & Training": "",
-    "Home & Lifestyle": "",
-    "Sports & Fitness": "",
-    "Arts & Performance": []
-  });
-
-  // Toggle dropdown visibility
-  const [openDropdown, setOpenDropdown] = useState({
-    "Creative & Design": false,
-    "Education & Training": false,
-    "Home & Lifestyle": false,
-    "Sports & Fitness": false,
-    "Arts & Performance": false
-  });
-
-  // Handle dropdown selection
-  const handleDropdownSelect = (category, subcategory) => {
-    setSelectedSubcategories(prev => ({
+  const toggleDropdown = (categoryId) => {
+    setOpenDropdowns(prev => ({
       ...prev,
-      [category]: subcategory
-    }));
-    setOpenDropdown(prev => ({
-      ...prev,
-      [category]: false
+      [categoryId]: !prev[categoryId]
     }));
   };
 
-  // Toggle dropdown visibility
-  const toggleDropdown = (category) => {
-    setOpenDropdown(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
-
-  // Handle checkbox selection for Arts & Performance
-  const toggleCheckbox = (subcategory) => {
-    setSelectedSubcategories(prev => {
-      const currentSelections = [...prev["Arts & Performance"]];
+  const toggleCheckbox = (categoryId, option) => {
+    setCheckedOptions(prev => {
+      const currentOptions = prev[categoryId] || [];
       
-      if (currentSelections.includes(subcategory)) {
-        return {
+      if (currentOptions.includes(option)) {
+        const newOptions = {
           ...prev,
-          "Arts & Performance": currentSelections.filter(item => item !== subcategory)
+          [categoryId]: currentOptions.filter(item => item !== option)
         };
+        
+        // Clear error if there's at least one selection across all categories
+        const hasSelections = Object.values(newOptions).some(arr => arr && arr.length > 0);
+        if (hasSelections) {
+          setErrorMessage("");
+        }
+        
+        return newOptions;
       } else {
+        setErrorMessage(""); // Clear error when adding a selection
         return {
           ...prev,
-          "Arts & Performance": [...currentSelections, subcategory]
+          [categoryId]: [...currentOptions, option]
         };
       }
     });
   };
-
-  // Modal state
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const isOptionChecked = (genId, specId) => (checkedOptions[genId] || []).includes(specId);
 
   const handleContinue = () => {
-    // Show confirmation modal instead of completing registration
+    const missing = categories
+      .filter((cat) => !(checkedOptions[cat.id] && checkedOptions[cat.id].length > 0))
+      .map((cat) => `• ${cat.name}`);
+
+    if (missing.length) {
+      setErrorMessage(
+        "Please select at least one specialization for each chosen category:\n" +
+        missing.join("\n")
+      );
+      return;
+    }
+
+    const user_id = Number(localStorage.getItem("user_id") || 0);
+    if (!user_id) {
+      setErrorMessage("Missing user id. Please go back to Step 3 and complete registration.");
+      return;
+    }
+
+    // Show the confirmation modal
     setShowConfirmModal(true);
   };
 
-  const handleConfirm = () => {
-    // Save selected specializations if needed
+  const handleConfirm = async () => {
     setShowConfirmModal(false);
-    onComplete();
+
+    const user_id = Number(localStorage.getItem("user_id") || 0);
+    const items = categories.map((cat) => ({
+      genskills_id: cat.id,
+      specskills_ids: (checkedOptions[cat.id] || []).map(Number),
+    }));
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/accounts/skills/user/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id, items }),
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        console.error("Save skills failed:", res.status, text);
+        setErrorMessage(
+          `Save skills failed (${res.status}). ${text || "Please check your backend logs."}`
+        );
+        return;
+      }
+
+      setErrorMessage("");
+      onNext?.();
+    } catch (e) {
+      console.error(e);
+      setErrorMessage("Network error. Is the backend running?");
+    }
   };
 
   const handleCancel = () => {
     setShowConfirmModal(false);
   };
 
+  const collapsedLabel = (category) => {
+    const ids = checkedOptions[category.id] || [];
+    if (!ids.length) return "Select subcategory";
+    const names = (specByGen[category.id] || [])
+      .filter((s) => ids.includes(s.id))
+      .map((s) => s.name);
+    return names.length ? names.join(", ") : "Select subcategory";
+  };
+
+  const handleNextClick = () => {
+    handleContinue();
+  };
+
   return (
     <div
-      className={`pt-[40px] pb-[40px] flex h-screen items-center justify-center bg-cover bg-center ${inter.className} relative overflow-hidden`}
+      className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
-      {/* Background glows */}
-      <div className="absolute w-[673px] h-[673px] left-[-611.5px] top-[-336px] bg-[#906EFF] opacity-35 blur-[200px]"></div>
-      <div className="absolute w-[673px] h-[673px] right-[-354px] bottom-[-454px] bg-[#0038FF] opacity-35 blur-[200px]"></div>
-      
-      {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-          <div className="absolute inset-0 bg-black/50" onClick={handleCancel}></div>
-          <div className="relative flex flex-col items-center justify-center w-[500px] h-[220px] bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 overflow-hidden">
-            {/* Decorative elements */}
-            <div className="absolute top-[-100px] left-[-100px] w-[200px] h-[200px] rounded-full bg-[#0038FF]/20 blur-[60px]"></div>
-            <div className="absolute bottom-[-80px] right-[-80px] w-[180px] h-[180px] rounded-full bg-[#D78DE5]/20 blur-[60px]"></div>
-            
-            {/* Close button */}
-            <button 
-              className="absolute top-4 right-4 text-white hover:text-gray-300"
-              onClick={handleCancel}
-            >
-              <X className="w-[15px] h-[15px]" />
-            </button>
-            
-            <div className="flex flex-col items-center gap-5 w-full px-8">
-              {/* Title */}
-              <h2 className="font-bold text-[22px] text-center text-white leading-tight">
-                Are all your account details accurate?
-              </h2>
-              
-              {/* Buttons */}
-              <div className="flex flex-row gap-5 mt-3">
-                <button 
-                  className="flex items-center justify-center w-[130px] h-[38px] border-2 border-[#0038FF] rounded-[15px] text-[#0038FF] text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#0038FF]/10 transition-colors"
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="flex items-center justify-center w-[130px] h-[38px] bg-[#0038FF] rounded-[15px] text-white text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
-                  onClick={handleConfirm}
-                >
-                  Confirm
-                </button>
-              </div>
-              
-              {/* Footer text */}
-              <p className="text-[12px] text-white/60 text-center mt-1">
-                You may edit these details again in your profile.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center">
         {/* Header */}
         <div className="flex flex-col items-center">
@@ -210,198 +208,207 @@ export default function Step6({ onComplete, onPrev }) {
             Set up your skills.
           </h1>
         </div>
-        
+
         {/* Main content */}
         <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
-          <h2 className="text-[20px] font-[500] text-white mb-[20px]">
+          <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
             Select your specializations in each skill category.
           </h2>
-          
-          {/* Two-column layout */}
+
           <div className="flex flex-row gap-[120px] w-full">
-            {/* Left column */}
             <div className="flex flex-col gap-[20px] w-[401px]">
-              {/* First dropdown */}
-              <div className="flex flex-col gap-[15px]">
-                <label className="text-white text-[16px] text-left">
-                  {categories[0].name}
-                </label>
-                <div className="relative">
-                  <div 
-                    className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                    onClick={() => toggleDropdown(categories[0].name)}
-                  >
-                    <span className={selectedSubcategories[categories[0].name] ? "text-white text-[16px]" : "text-[#413663] text-[16px]"}>
-                      {selectedSubcategories[categories[0].name] || "Select subcategory"}
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 text-white transition-transform ${openDropdown[categories[0].name] ? "rotate-90" : ""}`}><path d="m9 18 6-6-6-6"/></svg>
-                  </div>
-                  
-                  {openDropdown[categories[0].name] && (
-                    <div className="absolute z-20 w-[400px] mt-2 bg-[#120A2A] border border-white/40 rounded-[15px] py-2 shadow-lg">
-                      {categories[0].subcategories.map((subcategory) => (
+              {categories.slice(0, Math.ceil(categories.length / 2)).map((category) => (
+                <div key={category.id} className="w-full">
+                  <div className="flex flex-col gap-[15px]">
+                    <label className="text-white text-[16px] text-left">
+                      {category.name}
+                    </label>
+                    <div className="relative">
+                      {!openDropdowns[category.id] && (
                         <div
-                          key={subcategory}
-                          className="px-4 py-2 hover:bg-[#1D1542] cursor-pointer text-white text-[16px] text-left"
-                          onClick={() => handleDropdownSelect(categories[0].name, subcategory)}
+                          className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
+                          onClick={() => toggleDropdown(category.id)}
                         >
-                          {subcategory}
+                          <span className="text-[#413663] text-[16px]">
+                            Select subcategory
+                          </span>
+                          <ChevronDown className="w-6 h-6 text-white" />
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Second dropdown */}
-              <div className="flex flex-col gap-[15px]">
-                <label className="text-white text-[16px] text-left">
-                  {categories[1].name}
-                </label>
-                <div className="relative">
-                  <div 
-                    className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                    onClick={() => toggleDropdown(categories[1].name)}
-                  >
-                    <span className={selectedSubcategories[categories[1].name] ? "text-white text-[16px]" : "text-[#413663] text-[16px]"}>
-                      {selectedSubcategories[categories[1].name] || "Select subcategory"}
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 text-white transition-transform ${openDropdown[categories[1].name] ? "rotate-90" : ""}`}><path d="m9 18 6-6-6-6"/></svg>
-                  </div>
-                  
-                  {openDropdown[categories[1].name] && (
-                    <div className="absolute z-20 w-[400px] mt-2 bg-[#120A2A] border border-white/40 rounded-[15px] py-2 shadow-lg">
-                      {categories[1].subcategories.map((subcategory) => (
-                        <div
-                          key={subcategory}
-                          className="px-4 py-2 hover:bg-[#1D1542] cursor-pointer text-white text-[16px] text-left"
-                          onClick={() => handleDropdownSelect(categories[1].name, subcategory)}
-                        >
-                          {subcategory}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Checkbox group */}
-              <div className="mt-[20px]">
-                <label className="text-white text-[16px] text-left block mb-[15px]">
-                  {categories[4].name}
-                </label>
-                <div className="w-[400px] h-[199px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col">
-                  <div className="flex flex-col gap-[10px]">
-                    {categories[4].subcategories.map((subcategory) => {
-                      const isChecked = selectedSubcategories["Arts & Performance"].includes(subcategory);
-                      
-                      return (
-                        <div key={subcategory} className="flex items-center gap-[15px]">
-                          <input
-                            type="checkbox"
-                            id={`checkbox-${subcategory}`}
-                            checked={isChecked}
-                            onChange={() => toggleCheckbox(subcategory)}
-                            className="w-[14px] h-[14px] border-2 border-white/60 cursor-pointer accent-[#0038FF] bg-transparent"
+                      )}
+
+                      {openDropdowns[category.id] && (
+                        <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                          {specByGen[category.id]?.map((spec) => (
+                            <div
+                              key={spec.id}
+                              className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
+                              onClick={() => toggleCheckbox(category.id, spec.id)}
+                            >
+                              <div className="w-[18px] h-[18px] flex items-center justify-center">
+                                {isOptionChecked(category.id, spec.id) ? (
+                                  <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
+                                    </svg>
+                                  </div>
+                                ) : (
+                                  <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
+                                )}
+                              </div>
+                                <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
+                            </div>
+                          ))}
+                          <ChevronDown
+                            className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                            onClick={() => toggleDropdown(category.id)}
                           />
-                          <label htmlFor={`checkbox-${subcategory}`} className="text-white text-[16px] cursor-pointer">
-                            {subcategory}
-                          </label>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
-            
-            {/* Right column */}
+
             <div className="flex flex-col gap-[20px] w-[401px]">
-              {/* Third dropdown */}
-              <div className="flex flex-col gap-[15px]">
-                <label className="text-white text-[16px] text-left">
-                  {categories[2].name}
-                </label>
-                <div className="relative">
-                  <div 
-                    className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                    onClick={() => toggleDropdown(categories[2].name)}
-                  >
-                    <span className={selectedSubcategories[categories[2].name] ? "text-white text-[16px]" : "text-[#413663] text-[16px]"}>
-                      {selectedSubcategories[categories[2].name] || "Select subcategory"}
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 text-white transition-transform ${openDropdown[categories[2].name] ? "rotate-90" : ""}`}><path d="m9 18 6-6-6-6"/></svg>
-                  </div>
-                  
-                  {openDropdown[categories[2].name] && (
-                    <div className="absolute z-20 w-[400px] mt-2 bg-[#120A2A] border border-white/40 rounded-[15px] py-2 shadow-lg">
-                      {categories[2].subcategories.map((subcategory) => (
+              {categories.slice(Math.ceil(categories.length / 2)).map((category) => (
+                <div key={category.id} className="w-full">
+                  <div className="flex flex-col gap-[15px]">
+                    <label className="text-white text-[16px] text-left">
+                      {category.name}
+                    </label>
+                     <div className="relative">
+                      {!openDropdowns[category.id] && (
                         <div
-                          key={subcategory}
-                          className="px-4 py-2 hover:bg-[#1D1542] cursor-pointer text-white text-[16px] text-left"
-                          onClick={() => handleDropdownSelect(categories[2].name, subcategory)}
+                          className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
+                          onClick={() => toggleDropdown(category.id)}
                         >
-                          {subcategory}
+                          <span className="text-[#413663] text-[16px]">
+                            Select subcategory
+                          </span>
+                          <ChevronDown className="w-6 h-6 text-white" />
                         </div>
-                      ))}
+                      )}
+
+                      {openDropdowns[category.id] && (
+                        <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                          {specByGen[category.id]?.map((spec) => (
+                            <div
+                              key={spec.id}
+                              className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
+                              onClick={() => toggleCheckbox(category.id, spec.id)}
+                            >
+                              <div className="w-[18px] h-[18px] flex items-center justify-center">
+                                {isOptionChecked(category.id, spec.id) ? (
+                                  <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
+                                    </svg>
+                                  </div>
+                                ) : (
+                                  <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
+                                )}
+                              </div>
+                                <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
+                            </div>
+                          ))}
+                          <ChevronDown
+                            className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                            onClick={() => toggleDropdown(category.id)}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Fourth dropdown */}
-              <div className="flex flex-col gap-[15px]">
-                <label className="text-white text-[16px] text-left">
-                  {categories[3].name}
-                </label>
-                <div className="relative">
-                  <div 
-                    className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                    onClick={() => toggleDropdown(categories[3].name)}
-                  >
-                    <span className={selectedSubcategories[categories[3].name] ? "text-white text-[16px]" : "text-[#413663] text-[16px]"}>
-                      {selectedSubcategories[categories[3].name] || "Select subcategory"}
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 text-white transition-transform ${openDropdown[categories[3].name] ? "rotate-90" : ""}`}><path d="m9 18 6-6-6-6"/></svg>
                   </div>
-                  
-                  {openDropdown[categories[3].name] && (
-                    <div className="absolute z-20 w-[400px] mt-2 bg-[#120A2A] border border-white/40 rounded-[15px] py-2 shadow-lg">
-                      {categories[3].subcategories.map((subcategory) => (
-                        <div
-                          key={subcategory}
-                          className="px-4 py-2 hover:bg-[#1D1542] cursor-pointer text-white text-[16px] text-left"
-                          onClick={() => handleDropdownSelect(categories[3].name, subcategory)}
-                        >
-                          {subcategory}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
-        
+
+        {/* Error Message (fixed height) */}
+        <div className="h-[10px] mt-4">
+          {errorMessage && (
+            <p className="text-red-500 text-sm">{errorMessage}</p>
+          )}
+        </div> 
+
         {/* Continue Button */}
-        <div className="flex justify-center mt-[50px] mb-[25px]">
+        <div className="flex justify-center mt-[50px] mb-[47.5px]">
           <Button
             className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
-            onClick={handleContinue}
+            onClick={() => {
+              const hasSelections = Object.values(checkedOptions).some(arr => arr && arr.length > 0);
+              if (!hasSelections) {
+                setErrorMessage("Please select at least one specialization.");
+                return;
+              }
+              setErrorMessage("");
+              setShowConfirmModal(true); // open confirmation modal
+            }}
           >
             Continue
           </Button>
         </div>
         
         {/* Pagination - Centered at bottom */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px] mb-[20px]">
+        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px]">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={onPrev}
           />
           <span>6 of 6</span>
+          <ChevronLeft
+            className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white transform rotate-180"
+            onClick={handleNextClick}
+          />
         </div>
+        {/* Confirmation Modal */}
+        {showConfirmModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="absolute inset-0 bg-black/50" onClick={handleCancel}></div>
+            <div className="relative flex flex-col items-center justify-center w-[500px] h-[220px] bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 overflow-hidden">
+              {/* Decorative elements */}
+              <div className="absolute top-[-100px] left-[-100px] w-[200px] h-[200px] rounded-full bg-[#0038FF]/20 blur-[60px]"></div>
+              <div className="absolute bottom-[-80px] right-[-80px] w-[180px] h-[180px] rounded-full bg-[#D78DE5]/20 blur-[60px]"></div>
+              
+              {/* Close button */}
+              <button 
+                className="absolute top-4 right-4 text-white hover:text-gray-300"
+                onClick={handleCancel}
+              >
+                <X className="w-[15px] h-[15px]" />
+              </button>
+              
+              <div className="flex flex-col items-center gap-4 w-full px-8 text-center">
+                {/* Title */}
+                <h2 className="font-bold text-[22px] text-white leading-tight">
+                  Are all your account details accurate?
+                </h2>
+                
+                {/* Buttons */}
+                <div className="flex flex-row gap-5 mt-3">
+                  <button 
+                    className="flex items-center justify-center w-[130px] h-[38px] border-2 border-[#0038FF] rounded-[15px] text-[#0038FF] text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#0038FF]/10 transition-colors cursor-pointer"
+                    onClick={handleCancel}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="flex items-center justify-center w-[130px] h-[38px] bg-[#0038FF] rounded-[15px] text-white text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
+                    onClick={handleConfirm}
+                  >
+                    Confirm
+                  </button>
+                </div>
+                {/* Subtitle */}
+                <p className="text-white/60 text-[14px]">
+                  You may edit these details again in your profile.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
