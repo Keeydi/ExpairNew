@@ -9,17 +9,30 @@ import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export default function Step1({ onDataSubmit, onNext }) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+export default function Step1({ step1Data, onDataSubmit, onNext }) {
+  const [firstName, setFirstName] = useState(step1Data?.firstName || "");
+  const [lastName, setLastName] = useState(step1Data?.lastName || "");
+  const [email, setEmail] = useState(step1Data?.email || "");
+  const [username, setUsername] = useState(step1Data?.username || "");
+  const [password, setPassword] = useState(step1Data?.password || "");
   const [repeatPassword, setRepeatPassword] = useState("");
+
+
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+    if (step1Data) {
+      setFirstName(step1Data.firstName);
+      setLastName(step1Data.lastName);
+      setEmail(step1Data.email);
+      setUsername(step1Data.username);
+      setPassword(step1Data.password);
+    }
+  }, [step1Data]); 
+
+  
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },
     { label: "At least one uppercase letter", test: /[A-Z]/ },
@@ -239,16 +252,8 @@ export default function Step1({ onDataSubmit, onNext }) {
         <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60">
           <span>1 of 6</span>
           <ChevronRight
-            className={`w-5 h-5 ${
-              isFormValid()
-                ? "cursor-pointer text-gray-300 hover:text-white"
-                : "text-gray-500 cursor-not-allowed"
-            }`}
-            onClick={() => {
-              
-                onNext();
-              
-            }}
+            className={`w-5 h-5 ${isFormValid() ? "cursor-pointer text-gray-300 hover:text-white" : "text-gray-500 cursor-not-allowed"}`}
+            onClick={handleContinue}
           />
         </div>
       </div>

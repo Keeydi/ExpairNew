@@ -9,13 +9,16 @@ import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export default function Step3({ step1Data, step2Data, onNext, onPrev }) {
-  const [profilePicFile, setProfilePicFile] = useState(null);
+export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
+  const [profilePicFile, setProfilePicFile] = useState(step3Data.profilePicFile || null);
   const [profilePreview, setProfilePreview] = useState("/defaultavatar.png");
-  const [userIDFile, setUserIDFile] = useState(null);
-  const [introduction, setIntroduction] = useState("");
-  const [links, setLinks] = useState([""]); // must be array for the map below
 
+  const [userIDFile, setUserIDFile] = useState(step3Data.userIDFile || null);
+  const [userIDFileName, setUserIDFileName] = useState(step3Data.userIDFileName || ""); 
+
+  const [introduction, setIntroduction] = useState(step3Data.introduction || "");
+  const [links, setLinks] = useState(step3Data.links || [""]); // keep as array
+  
   // preview when a profile picture is selected
   useEffect(() => {
     if (!profilePicFile) return setProfilePreview("/defaultavatar.png");
@@ -23,6 +26,15 @@ export default function Step3({ step1Data, step2Data, onNext, onPrev }) {
     setProfilePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [profilePicFile]);
+
+  useEffect(() => {
+  if (step3Data) {
+    setProfilePicFile(step3Data.profilePicFile || null);
+    setUserIDFile(step3Data.userIDFile || null);
+    setIntroduction(step3Data.introduction || "");
+    setLinks(step3Data.links || []);
+  }
+}, [step3Data]);
 
   const handleAddLink = () => {
     setLinks((prev) => [...prev, ""]);
@@ -38,49 +50,20 @@ export default function Step3({ step1Data, step2Data, onNext, onPrev }) {
     setLinks(links.filter((_, i) => i !== index));
   };
 
-const handleContinue = async () => {
-  const formData = new FormData();
-  formData.append("first_Name", step1Data.firstName);
-  formData.append("last_Name", step1Data.lastName);
-  formData.append("emailAdd", step1Data.email);
-  formData.append("username", step1Data.username);
-  formData.append("password", step1Data.password);
+  const handleContinue = () => {
+    onDataSubmit({
+      profilePicFile,
+      userIDFile,
+      userIDFileName,
+      introduction,
+      links,
+    });
+    onNext(); // Proceed to Step 4
+  };
 
-  // Step 2: full address string
-  formData.append("location", step2Data?.searchQuery || "");
-
-  // Step 3: files + optional fields
-  if (profilePicFile) formData.append("profilePic", profilePicFile);          // image/*
-  if (userIDFile)     formData.append("userVerifyID", userIDFile);            // image/* or application/pdf
-  formData.append("bio", introduction || "");
-  formData.append("links", Array.isArray(links) ? links.join(",") : (links || "")); // if you kept links as array of inputs
-
-  try {
-    const res = await fetch("http://127.0.0.1:8000/api/accounts/register/", { method: "POST", body: formData });
-
-    let data;
-    let text = await res.text();            // read as text first
-    try { data = JSON.parse(text); } catch { data = text; }
-
-    if (!res.ok) {
-      console.error("❌ Registration failed:", data);
-      alert("Registration failed: " + (typeof data === "string" ? data : JSON.stringify(data)));
-      return;
-    }
-
-
-    // ✅ save the id for Step 4
-    if (data && data.user_id) {
-      localStorage.setItem("user_id", String(data.user_id));
-    }
-
-    console.log("✅ Registered successfully:", data);
-    onNext(); // proceed to Step 4
-  } catch (err) {
-    console.error("❌ Network error:", err);
-    alert("Network error. Is the backend running?");
-  }
-};
+  const handlePrev = () => {
+    onPrev({ profilePicFile, userIDFile, userIDFileName, introduction, links });
+  };
 
 
   return (
@@ -145,7 +128,7 @@ const handleContinue = async () => {
               />
             </div>
 
-            <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[12px] sm:mb-[15px] text-center w-full">
+            {/* <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[12px] sm:mb-[15px] text-center w-full">
               Connect your socials
             </p>
             <div className="flex gap-[20px] sm:gap-[40px] flex-wrap justify-center">
@@ -163,8 +146,8 @@ const handleContinue = async () => {
                   className="cursor-pointer rounded-[10px]"
                   onClick={() => alert(`Signing up with ${alt}`)}
                 />
-              ))}
-            </div>
+              ))} 
+            </div> */}
           </div> 
 
           {/* Middle + Right columns */}
@@ -179,14 +162,17 @@ const handleContinue = async () => {
                 <div className="relative">
                   <div className="w-full h-[45px] sm:h-[50px] rounded-[12px] sm:rounded-[15px] border border-white/40 bg-[#120A2A] px-4 flex items-center justify-between cursor-pointer">
                     <span className="text-[#413663] text-[14px] sm:text-[16px]">
-                      Upload file or photo
+                      {userIDFileName || "Upload file or photo"}
                     </span>
                     <Upload className="text-white w-5 h-5 sm:w-6 sm:h-6" />
                     <Input
                       type="file"
                       accept="image/*,application/pdf"
                       className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                      onChange={(e) => setUserIDFile(e.target.files[0] || null)}
+                      onChange={(e) => {
+                        setUserIDFile(e.target.files[0] || null);  // Set the file
+                        setUserIDFileName(e.target.files[0]?.name || ""); // Update the file name state
+                      }}
                     />
                   </div>
                 </div>
@@ -269,12 +255,12 @@ const handleContinue = async () => {
         <div className="flex justify-center items-center gap-2 text-[12px] sm:text-sm text-white opacity-60">
           <ChevronLeft
             className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-gray-300 hover:text-white"
-            onClick={onPrev}
+            onClick={handlePrev}
           />
           <span>3 of 6</span>
           <ChevronRight
             className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-gray-300 hover:text-white"
-            onClick={onNext}
+            onClick={handleContinue}
           />
         </div>
       </div>

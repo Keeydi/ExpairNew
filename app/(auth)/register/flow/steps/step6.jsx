@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "../../../../../components/ui/button";
-import { ChevronLeft, ChevronDown, X } from "lucide-react";  // <-- Added X icon import
+import { ChevronLeft, ChevronDown, X } from "lucide-react"; 
 import Image from "next/image";
 import { Inter } from "next/font/google";
 
@@ -26,7 +26,7 @@ const allCategories = [
   { id: 15, name: "Research & Critical Thinking", subcategories: ["Market Research", "Data Analysis", "Academic Research", "Competitive Analysis", "Strategic Planning"] },
 ];
 
-export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
+export default function Step6({ onNext, onPrev, step1Data, step2Data, step3Data, step4Data, step5Data, step6Data = [], onDataSubmit }) {
   
   const [openDropdowns, setOpenDropdowns] = useState({});  // { [genId]: boolean }
   const [errorMessage, setErrorMessage] = useState("");    // UI error text
@@ -34,11 +34,15 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
   const [specByGen, setSpecByGen] = useState({});          // { [genId]: [{id, name}] } from backend
   const [loadingSpecs, setLoadingSpecs] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false); // <-- Added modal state
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const safeSelected = Array.isArray(selectedSkills) ? selectedSkills : [];
+
+  // Fix: Use step6Data directly and handle the data format from step5
+  const safeSelected = Array.isArray(step6Data) ? step6Data : []; 
   const selectedCategoryIds = useMemo(() => {
     return safeSelected
       .map((s) => {
+        // Handle the data format from step5 (which has category_id)
         if (typeof s === "number") return s;
         if (typeof s === "string" && !isNaN(Number(s))) return Number(s);
         return s?.category_id ?? s?.genskills_id ?? null;
@@ -114,6 +118,7 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
       }
     });
   };
+  
   const isOptionChecked = (genId, specId) => (checkedOptions[genId] || []).includes(specId);
 
   const handleContinue = () => {
@@ -139,50 +144,81 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
     setShowConfirmModal(true);
   };
 
-  const handleConfirm = async () => {
-    setShowConfirmModal(false);
+const handleConfirm = async () => {
+  setShowConfirmModal(false);
+  setIsSubmitting(true);
 
-    const user_id = Number(localStorage.getItem("user_id") || 0);
-    const items = categories.map((cat) => ({
-      genskills_id: cat.id,
-      specskills_ids: (checkedOptions[cat.id] || []).map(Number),
-    }));
+  try {
+    const formData = new FormData();
 
-    try {
-      const res = await fetch("http://127.0.0.1:8000/api/accounts/skills/user/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id, items }),
-      });
+    // Step 1
+    formData.append("first_Name", step1Data.firstName || "");
+    formData.append("last_Name", step1Data.lastName || "");
+    formData.append("username", step1Data.username || "");
+    formData.append("emailAdd", step1Data.email || "");
+    formData.append("password", step1Data.password || "");
 
-      const text = await res.text();
-      if (!res.ok) {
-        console.error("Save skills failed:", res.status, text);
-        setErrorMessage(
-          `Save skills failed (${res.status}). ${text || "Please check your backend logs."}`
-        );
-        return;
-      }
+    // Step 2
+    formData.append("location", step2Data.searchQuery || "");
 
-      setErrorMessage("");
-      onNext?.();
-    } catch (e) {
-      console.error(e);
-      setErrorMessage("Network error. Is the backend running?");
+    // Step 3
+    if (step3Data.profilePicFile) {
+      formData.append("profilePic", step3Data.profilePicFile);
     }
-  };
+    if (step3Data.userIDFile) {
+      formData.append("userVerifyId", step3Data.userIDFile);
+    }
+    formData.append("bio", step3Data.introduction || "");
+
+    if (Array.isArray(step3Data.links)) {
+      formData.append("links", step3Data.links.join("\n"));
+    }
+
+    // Step 5 - selected general categories
+    formData.append("genSkills_ids", JSON.stringify(selectedCategoryIds));
+
+    // Step 6 - selected specializations
+    formData.append("specSkills", JSON.stringify(checkedOptions));
+
+    // Send form data to backend
+    const res = await fetch("http://127.0.0.1:8000/api/accounts/complete-registration/", {
+      method: "POST",
+      body: formData, // DO NOT add Content-Type header!
+    });
+
+    const responseData = await res.json();
+
+    if (!res.ok) {
+      console.error("Complete registration failed:", res.status, responseData);
+      setErrorMessage(
+        `Registration failed (${res.status}): ${responseData.error || responseData.detail || "Unknown error"}`
+      );
+      return;
+    }
+
+    console.log("Registration completed successfully:", responseData);
+
+    if (responseData.user_id) {
+      localStorage.setItem("user_id", responseData.user_id);
+    }
+
+    if (onDataSubmit) {
+      onDataSubmit(checkedOptions);
+    }
+
+    setErrorMessage("");
+    onNext?.();
+  } catch (e) {
+    console.error("Network error:", e);
+    setErrorMessage("Network error. Please check if the backend is running.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   const handleCancel = () => {
     setShowConfirmModal(false);
-  };
-
-  const collapsedLabel = (category) => {
-    const ids = checkedOptions[category.id] || [];
-    if (!ids.length) return "Select subcategory";
-    const names = (specByGen[category.id] || [])
-      .filter((s) => ids.includes(s.id))
-      .map((s) => s.name);
-    return names.length ? names.join(", ") : "Select subcategory";
   };
 
   const handleNextClick = () => {
@@ -209,147 +245,162 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
           </h1>
         </div>
 
+        {/* Show loading or no categories message */}
+        {loadingSpecs && (
+          <div className="text-white mb-4">Loading specializations...</div>
+        )}
+
+        {!loadingSpecs && categories.length === 0 && (
+          <div className="text-white mb-4">
+            No categories selected. Please go back to Step 5.
+          </div>
+        )}
+
         {/* Main content */}
-        <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
-          <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
-            Select your specializations in each skill category.
-          </h2>
+        {categories.length > 0 && (
+          <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
+            <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
+              Select your specializations in each skill category.
+            </h2>
 
-          <div className="flex flex-row gap-[120px] w-full">
-            <div className="flex flex-col gap-[20px] w-[401px]">
-              {categories.slice(0, Math.ceil(categories.length / 2)).map((category) => (
-                <div key={category.id} className="w-full">
-                  <div className="flex flex-col gap-[15px]">
-                    <label className="text-white text-[16px] text-left">
-                      {category.name}
-                    </label>
-                    <div className="relative">
-                      {!openDropdowns[category.id] && (
-                        <div
-                          className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                          onClick={() => toggleDropdown(category.id)}
-                        >
-                          <span className="text-[#413663] text-[16px]">
-                            Select subcategory
-                          </span>
-                          <ChevronDown className="w-6 h-6 text-white" />
-                        </div>
-                      )}
-
-                      {openDropdowns[category.id] && (
-                        <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
-                          {specByGen[category.id]?.map((spec) => (
-                            <div
-                              key={spec.id}
-                              className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
-                              onClick={() => toggleCheckbox(category.id, spec.id)}
-                            >
-                              <div className="w-[18px] h-[18px] flex items-center justify-center">
-                                {isOptionChecked(category.id, spec.id) ? (
-                                  <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
-                                    </svg>
-                                  </div>
-                                ) : (
-                                  <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
-                                )}
-                              </div>
-                                <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
-                            </div>
-                          ))}
-                          <ChevronDown
-                            className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+            <div className="flex flex-row gap-[120px] w-full">
+              <div className="flex flex-col gap-[20px] w-[401px]">
+                {categories.slice(0, Math.ceil(categories.length / 2)).map((category) => (
+                  <div key={category.id} className="w-full">
+                    <div className="flex flex-col gap-[15px]">
+                      <label className="text-white text-[16px] text-left">
+                        {category.name}
+                      </label>
+                      <div className="relative">
+                        {!openDropdowns[category.id] && (
+                          <div
+                            className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
                             onClick={() => toggleDropdown(category.id)}
-                          />
-                        </div>
-                      )}
+                          >
+                            <span className="text-[#413663] text-[16px]">
+                              Select subcategory
+                            </span>
+                            <ChevronDown className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+
+                        {openDropdowns[category.id] && (
+                          <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                            {specByGen[category.id]?.map((spec) => (
+                              <div
+                                key={spec.id}
+                                className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
+                                onClick={() => toggleCheckbox(category.id, spec.id)}
+                              >
+                                <div className="w-[18px] h-[18px] flex items-center justify-center">
+                                  {isOptionChecked(category.id, spec.id) ? (
+                                    <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                          <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
+                                      </svg>
+                                    </div>
+                                  ) : (
+                                    <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
+                                  )}
+                                </div>
+                                  <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
+                              </div>
+                            ))}
+                            <ChevronDown
+                              className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                              onClick={() => toggleDropdown(category.id)}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            <div className="flex flex-col gap-[20px] w-[401px]">
-              {categories.slice(Math.ceil(categories.length / 2)).map((category) => (
-                <div key={category.id} className="w-full">
-                  <div className="flex flex-col gap-[15px]">
-                    <label className="text-white text-[16px] text-left">
-                      {category.name}
-                    </label>
-                     <div className="relative">
-                      {!openDropdowns[category.id] && (
-                        <div
-                          className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                          onClick={() => toggleDropdown(category.id)}
-                        >
-                          <span className="text-[#413663] text-[16px]">
-                            Select subcategory
-                          </span>
-                          <ChevronDown className="w-6 h-6 text-white" />
-                        </div>
-                      )}
-
-                      {openDropdowns[category.id] && (
-                        <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
-                          {specByGen[category.id]?.map((spec) => (
-                            <div
-                              key={spec.id}
-                              className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
-                              onClick={() => toggleCheckbox(category.id, spec.id)}
-                            >
-                              <div className="w-[18px] h-[18px] flex items-center justify-center">
-                                {isOptionChecked(category.id, spec.id) ? (
-                                  <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
-                                    </svg>
-                                  </div>
-                                ) : (
-                                  <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
-                                )}
-                              </div>
-                                <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
-                            </div>
-                          ))}
-                          <ChevronDown
-                            className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+              <div className="flex flex-col gap-[20px] w-[401px]">
+                {categories.slice(Math.ceil(categories.length / 2)).map((category) => (
+                  <div key={category.id} className="w-full">
+                    <div className="flex flex-col gap-[15px]">
+                      <label className="text-white text-[16px] text-left">
+                        {category.name}
+                      </label>
+                       <div className="relative">
+                        {!openDropdowns[category.id] && (
+                          <div
+                            className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
                             onClick={() => toggleDropdown(category.id)}
-                          />
-                        </div>
-                      )}
+                          >
+                            <span className="text-[#413663] text-[16px]">
+                              Select subcategory
+                            </span>
+                            <ChevronDown className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+
+                        {openDropdowns[category.id] && (
+                          <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                            {specByGen[category.id]?.map((spec) => (
+                              <div
+                                key={spec.id}
+                                className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
+                                onClick={() => toggleCheckbox(category.id, spec.id)}
+                              >
+                                <div className="w-[18px] h-[18px] flex items-center justify-center">
+                                  {isOptionChecked(category.id, spec.id) ? (
+                                    <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                          <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
+                                      </svg>
+                                    </div>
+                                  ) : (
+                                    <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
+                                  )}
+                                </div>
+                                  <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
+                              </div>
+                            ))}
+                            <ChevronDown
+                              className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                              onClick={() => toggleDropdown(category.id)}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Error Message (fixed height) */}
         <div className="h-[10px] mt-4">
           {errorMessage && (
-            <p className="text-red-500 text-sm">{errorMessage}</p>
+            <p className="text-red-500 text-sm whitespace-pre-line">{errorMessage}</p>
           )}
         </div> 
 
         {/* Continue Button */}
-        <div className="flex justify-center mt-[50px] mb-[47.5px]">
-          <Button
-            className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
-            onClick={() => {
-              const hasSelections = Object.values(checkedOptions).some(arr => arr && arr.length > 0);
-              if (!hasSelections) {
-                setErrorMessage("Please select at least one specialization.");
-                return;
-              }
-              setErrorMessage("");
-              setShowConfirmModal(true); // open confirmation modal
-            }}
-          >
-            Continue
-          </Button>
-        </div>
+        {categories.length > 0 && (
+          <div className="flex justify-center mt-[50px] mb-[47.5px]">
+            <Button
+              className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
+              onClick={() => {
+                const hasSelections = Object.values(checkedOptions).some(arr => arr && arr.length > 0);
+                if (!hasSelections) {
+                  setErrorMessage("Please select at least one specialization.");
+                  return;
+                }
+                setErrorMessage("");
+                setShowConfirmModal(true); // open confirmation modal
+              }}
+            >
+              Continue
+            </Button>
+          </div>
+        )}
         
         {/* Pagination - Centered at bottom */}
         <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px]">
@@ -363,6 +414,7 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
             onClick={handleNextClick}
           />
         </div>
+        
         {/* Confirmation Modal */}
         {showConfirmModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50">

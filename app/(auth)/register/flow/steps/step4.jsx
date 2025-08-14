@@ -27,9 +27,9 @@ const categories = [
   { id: 15, name: "Research & Critical Thinking", icon: "book" },
 ];
 
-export default function Step4({ onNext, onPrev }) {
-  // UI selection state (kept): holds your local visual ids (1..15)
-  const [selectedCategories, setSelectedCategories] = useState([]);
+export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
+  const [selectedCategories, setSelectedCategories] = useState(step4Data.selectedCategories || []);
+
   const [errorMessage, setErrorMessage] = useState("");
 
   // 🔗 Map real DB ids by category name (e.g., { "Technical & IT": 3, ... })
@@ -45,7 +45,7 @@ useEffect(() => {
   } catch (e) {
     console.warn("Cannot access localStorage", e);
   }
-}, []);
+}, []); 
 
   // Fetch real categories to get the correct genskills_id mapping
   useEffect(() => {
@@ -66,6 +66,12 @@ useEffect(() => {
     load();
   }, []);
 
+  useEffect(() => {
+    if (step4Data) {
+      setSelectedCategories(step4Data.selectedCategories);
+    }
+  }, [step4Data]);
+
   const toggleCategory = (categoryId) => {
     setSelectedCategories((prev) => {
       const updated = prev.includes(categoryId)
@@ -81,52 +87,25 @@ useEffect(() => {
     });
   };
 
-  const handleContinue = async () => {
-    if (!userId) {
-      alert("Missing user id. Make sure Step 3 saved it to localStorage as 'user_id'.");
-      return;
-    }
-
+  const handleContinue = () => {
     if (selectedCategories.length === 0) {
       setErrorMessage("Please select at least one category.");
       return;
     }
     setErrorMessage("");
 
-    // Get the selected *names* from your visual list
-    const selectedNames = categories
-      .filter((c) => selectedCategories.includes(c.id))
-      .map((c) => c.name);
+    // Save selected categories to the parent
+    onDataSubmit({
+      selectedCategories, // Pass selected categories to the parent
+    });
 
-    // Map names -> real DB ids using serverIdByName
-    const genSkillsIds = selectedNames
-      .map((n) => serverIdByName[n])
-      .filter((id) => Number.isInteger(id));
-
-    // If some selected names didn’t resolve to ids, warn (but still proceed with the ones that resolved)
-    const unresolved = selectedNames.filter((n) => !(n in serverIdByName));
-    if (unresolved.length > 0) {
-      console.warn("Some selected categories didn't match DB categories:", unresolved);
-    }
-
-    try {
-      const res = await fetch("http://127.0.0.1:8000/api/accounts/skills/interests/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, genSkills_ids: genSkillsIds }),
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        console.error("Save interests failed:", text);
-        alert(`Failed to save: ${text || res.status}`);
-        return;
-      }
-      onNext();
-    } catch (err) {
-      console.error("Network error:", err);
-      alert("Network error. Is the backend running?");
-    }
+    onNext(); // Proceed to next step (Step 5)
   };
+
+  const handlePrev = () => {
+    onPrev({ selectedCategories });
+  };
+
 
   // ⬇️ Your existing icon renderer (unchanged)
   const getCategoryIcon = (iconName) => {
@@ -337,7 +316,7 @@ useEffect(() => {
         <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px]">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
-            onClick={onPrev}
+            onClick={handlePrev}
           />
           <span>4 of 6</span>
           <ChevronRight

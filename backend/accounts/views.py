@@ -3,24 +3,23 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import UserSerializer
-from django.db import IntegrityError  # <-- needed
-from .models import GenSkill, UserInterest
+from django.db import IntegrityError, transaction
+from .models import GenSkill, UserInterest, User
 from .serializers import GenSkillSerializer, UserInterestBulkSerializer
 from .models import SpecSkill, UserSkill
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
 
-
-
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser]) 
 def register_user(request):
+    print(request.FILES)
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
         instance = serializer.save()
         return Response(
             {
                 "message": "User registered successfully",
-                "user_id": getattr(instance, "user_id", None),  # <-- IMPORTANT
+                "user_id": getattr(instance, "user_id", None),
             },
             status=201,
         )
@@ -128,3 +127,89 @@ def add_user_skills(request):
                 pass
 
     return Response({"inserted": created}, status=status.HTTP_201_CREATED)
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+@transaction.atomic
+def complete_registration(request):
+    """
+    Complete user registration with profile, interests, and skills.
+    Supports file uploads and full FormData payload.
+    """
+
+    from django.contrib.auth.hashers import make_password
+    import json
+
+    # Get and validate user fields
+    first_Name = request.data.get("first_Name", "")
+    last_Name = request.data.get("last_Name", "")
+    username = request.data.get("username", "")
+    emailAdd = request.data.get("emailAdd", "")
+    password = request.data.get("password", "")
+    profilePic = request.FILES.get("profilePic")
+    userVerifyId = request.FILES.get("userVerifyId")
+    bio = request.data.get("bio", "")
+    location = request.data.get("location", "")
+    links = request.data.get("links", "")
+    genSkills_ids_raw = request.data.get("genSkills_ids", "[]")
+    specSkills_raw = request.data.get("specSkills", "{}")
+
+    try:
+        genSkills_ids = json.loads(genSkills_ids_raw)
+        specSkills = json.loads(specSkills_raw)
+    except json.JSONDecodeError:
+        return Response({"error": "Invalid JSON format in genSkills_ids or specSkills"}, status=400)
+
+    # Create user
+    serializer = UserSerializer(data={
+        "first_Name": first_Name,
+        "last_Name": last_Name,
+        "username": username,
+        "emailAdd": emailAdd,
+        "password": make_password(password),
+        "profilePic": profilePic,
+        "userVerifyId": userVerifyId,
+        "bio": bio,
+        "location": location,
+        "links": links,
+    })
+
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+
+    user = serializer.save()
+    user_id = user.user_id
+
+    # Save general interests (step 5)
+    for gid in genSkills_ids:
+        try:
+            GenSkill.objects.get(pk=gid)
+            UserInterest.objects.get_or_create(
+                user_id=user_id,
+                genSkills_id_id=gid
+            )
+        except GenSkill.DoesNotExist:
+            continue
+
+    # Save specific skills (step 6)
+    for gid_str, spec_ids in specSkills.items():
+        try:
+            gid = int(gid_str)
+            for sid in spec_ids:
+                try:
+                    spec = SpecSkill.objects.get(pk=sid, genSkills_id_id=gid)
+                    UserSkill.objects.get_or_create(
+                        user_id=user_id,
+                        specSkills_id=sid
+                    )
+                except SpecSkill.DoesNotExist:
+                    continue
+        except ValueError:
+            continue
+
+    return Response({
+        "message": "Registration completed successfully",
+        "user_id": user_id,
+        "interests_added": len(genSkills_ids),
+        "skills_added": sum(len(v) for v in specSkills.values())
+    }, status=200)
