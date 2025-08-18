@@ -126,20 +126,28 @@ export default function Step2({ onNext, onPrev }) {
     }
   };
 
-  // Fixed: No infinite loop when marker changes
-  const handleMarkerChange = (newMarker) => {
-    setMarker((prevMarker) => {
-      if (
-        prevMarker &&
-        prevMarker.latitude === newMarker.latitude &&
-        prevMarker.longitude === newMarker.longitude
-      ) {
-        return prevMarker; // no change
-      }
-      return newMarker;
-    });
-    setErrorMessage("");
-  };
+  const handleMarkerChange = async (newMarker) => {
+  setMarker(newMarker);
+  setViewport(prev => ({
+    ...prev,
+    latitude: newMarker.latitude,
+    longitude: newMarker.longitude
+  }));
+
+  try {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newMarker.longitude},${newMarker.latitude}.json?access_token=${token}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.features && data.features.length > 0) {
+      setSearchQuery(data.features[0].place_name);
+    }
+  } catch (error) {
+    console.error("Reverse geocoding failed:", error);
+  }
+};
+
 
   return (
     <div
