@@ -10,25 +10,25 @@ export default function ActiveTradeHome() {
       name: "Emily Johnson",
       title: "Logo Design for New Cafe",
       xp: "250 XP",
-      deadline: "10/06/2025",
+      deadline: "July 10",
     },
     {
       name: "Michael Lee",
       title: "Website Development for Startup",
       xp: "500 XP",
-      deadline: "15/06/2025",
+      deadline: "July 15",
     },
     {
       name: "Sarah Thompson",
       title: "Project Management for Product Launch",
       xp: "500 XP",
-      deadline: "30/06/2025",
+      deadline: "July 30",
     },
     {
       name: "Jason Miller",
       title: "Tech Support for Home Network",
       xp: "300 XP",
-      deadline: "05/07/2025",
+      deadline: "July 25",
     },
   ];
 
@@ -80,7 +80,7 @@ export default function ActiveTradeHome() {
               <p className="text-base font-semibold text-[#906EFF] whitespace-nowrap">{trade.xp}</p>
             </div>
             <div className="flex justify-end w-full">
-              <p className="text-xs text-white/60">{trade.deadline}</p>
+              <p className="text-[13px] font-normal text-white/60">Due on {trade.deadline}</p>
             </div>
           </div>
         </div>
