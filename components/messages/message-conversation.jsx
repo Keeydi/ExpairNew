@@ -120,7 +120,7 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
   }
 
   return (
-    <div className="flex-1 bg-[#0C071B] rounded-[25px] h-full flex flex-col relative">
+    <div className="flex-1 bg-[#0C071B] rounded-[25px] h-full flex flex-col relative overflow-hidden">
       <Toaster />
       {/* Conversation header */}
       <div className="p-5 border-b border-[#1A0F3E] flex items-center justify-between">
@@ -204,7 +204,7 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
             </div>
             
             <div className="flex items-end gap-3 pb-1">
-              <Link href="/home/trades/add-details">
+              <Link href={`/home/trades/add-details?requested=${encodeURIComponent(conversation.requests.requested)}&exchange=${encodeURIComponent(conversation.requests.exchange)}`}>
                 <button className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors">
                   <span className="text-[13px] text-white">Add details</span>
                 </button>

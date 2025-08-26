@@ -388,7 +388,7 @@ export default function PendingTradesPage() {
               </div>
 
               <div className="flex justify-between">
-                <Link href="/home/trades/add-details">
+                <Link href={`/home/trades/add-details?requested=${encodeURIComponent(trade.needs)}&exchange=${encodeURIComponent(trade.offers)}`}>
                   <button className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors">
                     <span className="text-[13px] text-white">Add details</span>
                   </button>

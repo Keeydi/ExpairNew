@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import Link from "next/link";
+import TradeRequestInfo from "../../../../components/trade-cards/trade-request-info";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,7 +21,22 @@ export default function AddTradeDetailsPage() {
   const [charCount, setCharCount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [tradeData, setTradeData] = useState({ requested: "", exchange: "" });
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Get trade data from URL parameters
+  useEffect(() => {
+    const requested = searchParams.get('requested');
+    const exchange = searchParams.get('exchange');
+    
+    if (requested && exchange) {
+      setTradeData({
+        requested: decodeURIComponent(requested),
+        exchange: decodeURIComponent(exchange)
+      });
+    }
+  }, [searchParams]);
   
   const handleDetailsChange = (e) => {
     const text = e.target.value;
@@ -46,6 +62,14 @@ export default function AddTradeDetailsPage() {
       {/* Main content */}
       <div className="relative z-10 max-w-[940px] w-full mx-auto pt-[23px] md:pt-[50px] pb-[100px] px-4 md:px-6 flex flex-col items-center">
         <h1 className="text-[25px] font-semibold mb-[34px] w-full">Adding trade details</h1>
+
+        {/* Trade Request Info */}
+        {(tradeData.requested && tradeData.exchange) && (
+          <TradeRequestInfo 
+            requested={tradeData.requested}
+            exchange={tradeData.exchange}
+          />
+        )}
 
         <div className="w-full flex flex-col md:flex-row justify-between gap-8 md:gap-[30px]">
           {/* Left column */}
