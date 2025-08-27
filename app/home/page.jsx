@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSession } from "next-auth/react";
+import Image from "next/image";
+import { Star } from "lucide-react"
+
 import { useRouter } from "next/navigation";
 import { Inter } from "next/font/google";
 import { Archivo } from "next/font/google";
@@ -9,8 +13,6 @@ import { Icon } from "@iconify/react";
 import ActiveTradeCardHome from "../../components/trade-cards/active-home";
 import SortDropdown from "../../components/shared/sortdropdown";
 import ExploreCard from "../../components/trade-cards/explore-card";
-import Image from "next/image";
-import { Star } from "lucide-react";
 
 
 const inter = Inter({ subsets: ["latin"] });
@@ -18,6 +20,9 @@ const archivo = Archivo({ subsets: ["latin"] });
 
 export default function HomePage() {
   const router = useRouter();
+
+  const { data: session } = useSession();
+
   const [greeting, setGreeting] = useState("Starry evening, voyager");
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedSort, setSelectedSort] = useState("Date");
@@ -168,17 +173,31 @@ export default function HomePage() {
   // Set greeting based on time of day
   useEffect(() => {
     const hour = new Date().getHours();
+    let prefix = "Starry night", emoji = "⭐";
+    if (hour >= 5 && hour < 12) { prefix = "Bright morning"; emoji = "☀️"; }
+    else if (hour >= 12 && hour < 17) { prefix = "Good afternoon"; emoji = "☁️"; }
+    else if (hour >= 17 && hour < 22) { prefix = "Stellar evening"; emoji = "🌙"; }
 
-    if (hour >= 5 && hour < 12) {
-      setGreeting("Bright morning, voyager ☀️");
-    } else if (hour >= 12 && hour < 17) {
-      setGreeting("Good afternoon, voyager ☁️");
-    } else if (hour >= 17 && hour < 22) {
-      setGreeting("Stellar evening, voyager 🌙");
-    } else {
-      setGreeting("Starry night, voyager ⭐");
+    // 1) Prefer DB-backed name from session (Google or credentials via NextAuth)
+    let first =
+    (session?.user?.first_Name || "").trim() ||          // if you ever pass via NextAuth
+    (session?.user?.name || "").trim().split(" ")[0];    // Google fallback
+
+    // 2) Fallbacks for credentials flow (what you may have stored after login)
+    if (!first && typeof window !== "undefined") {
+      const fromLS =
+        localStorage.getItem("first_Name") ||
+        localStorage.getItem("prefill_name") || "";
+      first = fromLS.trim().split(" ")[0];
     }
-  }, []);
+    
+    if (!first) {
+      // derive from username/email as a last resort (optional)
+      const handle = session?.user?.username || session?.user?.email || "";
+      first = handle.split(/[._\-\s@]+/)[0]?.replace(/\d+/g, "") || "voyager";
+    }
+    setGreeting(`${prefix}, ${first} ${emoji}`);
+  }, [session]);
 
   return (
     <div

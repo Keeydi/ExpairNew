@@ -181,6 +181,7 @@ export default function Navbar() {
                       localStorage.removeItem("user_id");
                       localStorage.removeItem("prefill_email");
                       localStorage.removeItem("prefill_name");
+                      localStorage.removeItem("first_Name");
                     } catch {}
 
                     // end the NextAuth session and redirect to signin (or register if that's your login page)

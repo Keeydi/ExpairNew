@@ -50,6 +50,8 @@ export default NextAuth({
 
         // New user → backend returns is_new: true
         user.isNewUser = !!data.is_new;
+        if (data.first_Name) user.first_Name = data.first_Name; 
+
         return true;
       } catch (e) {
         // Block on error so session won't be created
@@ -60,7 +62,8 @@ export default NextAuth({
     async jwt({ token, user }) {
       if (user) {
         if (user.id) token.id = user.id;
-        token.isNewUser = !!user.isNewUser;  // always boolean
+        token.isNewUser = !!user.isNewUser;
+        if (user.first_Name) token.first_Name = user.first_Name;
       }
       return token;
     },
@@ -70,6 +73,7 @@ export default NextAuth({
       session.user = session.user || {};
       if (token?.id) session.user.id = token.id;
       session.user.is_new = !!token.isNewUser;
+      if (token.first_Name) session.user.first_Name = token.first_Name;
       return session;
     },
   },

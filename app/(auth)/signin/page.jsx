@@ -102,6 +102,7 @@ const handleLogin = async (e) => {
     // Save what you need
     localStorage.setItem("user_id", data.user_id);
     localStorage.setItem("username", data.username);
+    if (data.first_Name) localStorage.setItem("first_Name", data.first_Name);
 
     // Navigate to home
     router.push("/home");

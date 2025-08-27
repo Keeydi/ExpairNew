@@ -13,9 +13,16 @@ from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
 from django.contrib.auth.hashers import check_password
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 from .models import User
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -45,6 +52,7 @@ def google_login(request):
         "created": created,
         "username": user.username,
         "email": user.emailAdd,
+        "first_Name": user.first_Name,
         "is_new": False
     }, status=200)
 
@@ -70,6 +78,7 @@ def login_user(request):
         "user_id": user.user_id,
         "username": user.username,
         "email": user.emailAdd,
+        "first_Name": user.first_Name, 
     }, status=200)
 
 @api_view(['POST'])

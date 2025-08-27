@@ -8,6 +8,7 @@ from .views import login_user
 from .views import google_login
 from . import views 
 
+
 urlpatterns = [
     path('register/', register_user, name='register_user'),
     path('complete-registration/', complete_registration, name='complete_registration'),
@@ -18,6 +19,8 @@ urlpatterns = [
 
     path('login/', login_user, name='login_user'),
     path('google-login/', views.google_login, name='google_login'),
+
+    path("accounts/me/", views.me, name="me"),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
