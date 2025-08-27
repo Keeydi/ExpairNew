@@ -1,3 +1,5 @@
+from django.db.models import Q
+
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -8,6 +10,67 @@ from .models import GenSkill, UserInterest, User
 from .serializers import GenSkillSerializer, UserInterestBulkSerializer
 from .models import SpecSkill, UserSkill
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
+from django.contrib.auth.hashers import check_password
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+
+from .models import User
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_login(request):
+    email = request.data.get('email')
+    name = request.data.get('name')
+    image = request.data.get('image')
+
+    if not email:
+        return Response({"error": "Email is required"}, status=400)
+
+    try:
+        user = User.objects.get(emailAdd=email)
+        created = False
+    except User.DoesNotExist:
+        # New user — allow frontend to redirect to onboarding
+        return Response({
+            "is_new": True,
+            "email": email,
+            "name": name,
+            "image": image
+        }, status=200)
+
+    return Response({
+        "message": "Google login successful",
+        "user_id": user.user_id,
+        "created": created,
+        "username": user.username,
+        "email": user.emailAdd,
+        "is_new": False
+    }, status=200)
+
+
+@api_view(['POST'])
+def login_user(request):
+    identifier = request.data.get('identifier')
+    password = request.data.get('password')
+
+    if not identifier or not password:
+        return Response({"error": "Username/email and password are required."}, status=400)
+
+    try:
+        user = User.objects.get(Q(username=identifier) | Q(emailAdd=identifier))
+    except User.DoesNotExist:
+        return Response({"error": "Invalid username/email or password."}, status=401)
+
+    if not check_password(password, user.password):
+        return Response({"error": "Invalid username/email or password."}, status=401)
+
+    return Response({
+        "message": "Login successful.",
+        "user_id": user.user_id,
+        "username": user.username,
+        "email": user.emailAdd,
+    }, status=200)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser]) 

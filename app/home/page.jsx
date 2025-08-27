@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Inter } from "next/font/google";
 import { Archivo } from "next/font/google";
 import { Button } from "../../components/ui/button";
@@ -8,17 +9,26 @@ import { Icon } from "@iconify/react";
 import ActiveTradeCardHome from "../../components/trade-cards/active-home";
 import SortDropdown from "../../components/shared/sortdropdown";
 import ExploreCard from "../../components/trade-cards/explore-card";
+import Image from "next/image";
+import { Star } from "lucide-react";
+
 
 const inter = Inter({ subsets: ["latin"] });
 const archivo = Archivo({ subsets: ["latin"] });
 
 export default function HomePage() {
+  const router = useRouter();
   const [greeting, setGreeting] = useState("Starry evening, voyager");
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedSort, setSelectedSort] = useState("Date");
   const [selectedActiveSort, setSelectedActiveSort] = useState("Date");
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [openMenuIndex, setOpenMenuIndex] = useState(null);
+
+  // Dialog states
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [selectedPartner, setSelectedPartner] = useState(null);
 
   // Explore section state
   const [showExploreSortMenu, setShowExploreSortMenu] = useState(false);
@@ -49,6 +59,36 @@ export default function HomePage() {
     setOpenMenuIndex(null);
     console.log(`Reported partner ${partnerId}`);
     // You could also show a confirmation message to the user
+  };
+
+  // Handle "I'm interested" button click
+  const handleInterestedClick = (partner) => {
+    setSelectedPartner(partner);
+    setShowConfirmDialog(true);
+  };
+
+  // Handle confirmation dialog actions
+  const handleConfirmInterest = () => {
+    setShowConfirmDialog(false);
+    setShowSuccessDialog(true);
+    // In a real app, you would send the trade invitation here
+    console.log(`Sent trade invitation to ${selectedPartner?.name}`);
+  };
+
+  const handleCancelInterest = () => {
+    setShowConfirmDialog(false);
+    setSelectedPartner(null);
+  };
+
+  const handleSuccessDialogClose = () => {
+    setShowSuccessDialog(false);
+    setSelectedPartner(null);
+  };
+
+  const handleGoToPendingTrades = () => {
+    setShowSuccessDialog(false);
+    setSelectedPartner(null);
+    router.push('/home/trades/pending');
   };
 
   // Explore sort and filter handlers
@@ -186,9 +226,15 @@ export default function HomePage() {
       {/* Explore Section */}
       <div className="mt-20">
         <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-3">
-            <h4 className="text-[22px] font-bold">Explore</h4>
-            <Icon icon="lucide:star" className="text-[#906EFF] w-5 h-5" />
+          <div className="flex items-center gap-[15px]">
+            <h4 className="text-[25px] font-[600]">Explore</h4>
+            <Image
+              src="/assets/logos/Colored=Logo XS.png"
+              alt="Colored Logo XS"
+              width={38}
+              height={38}
+              className="w-[38px] h-[38px]"
+            />
           </div>
 
           <div className="flex items-center gap-4">
@@ -369,7 +415,7 @@ export default function HomePage() {
 
         {/* Search Input */}
         <div className="w-full mb-8">
-          <div className="w-full h-[50px] bg-[#120A2A] rounded-[15px] px-[14px] py-[8px] flex items-center">
+          <div className="w-full h-[50px] bg-[#120A2A] rounded-[15px] px-[14px] py-[8px] flex items-center border-[1px] border border-[rgba(255,255,255,0.40)]">
             <Icon icon="lucide:search" className="text-white mr-2 text-xl" />
             <input
               type="text"
@@ -380,8 +426,7 @@ export default function HomePage() {
         </div>
 
         {/* Trade Partner Cards */}
-        <div className="flex flex-wrap justify-between gap-y-[25px] w-full max-w-[850px]">
-          {/* Define partners array */}
+        <div className="flex flex-wrap justify-start gap-x-[25px] gap-y-[25px] w-full max-w-[940px]">
           {(() => {
             const partners = [
               {
@@ -464,191 +509,117 @@ export default function HomePage() {
               },
             ];
 
-            // Apply filtering
+            // Filtering
             const filteredPartners = partners.filter((partner) => {
-              // Apply rating filter
-              if (
-                exploreFilters.minRating > 0 &&
-                partner.rating < exploreFilters.minRating
-              ) {
-                return false;
-              }
-
-              // Apply skill category filter
-              if (
-                exploreFilters.skillCategory !== "all" &&
-                partner.skillCategory !== exploreFilters.skillCategory
-              ) {
-                return false;
-              }
-
-              // Apply level filter
-              if (
-                exploreFilters.minLevel > 0 &&
-                partner.level < exploreFilters.minLevel
-              ) {
-                return false;
-              }
-
+              if (exploreFilters.minRating > 0 && partner.rating < exploreFilters.minRating) return false;
+              if (exploreFilters.skillCategory !== "all" && partner.skillCategory !== exploreFilters.skillCategory) return false;
+              if (exploreFilters.minLevel > 0 && partner.level < exploreFilters.minLevel) return false;
               return true;
             });
 
-            // Apply sorting
+            // Sorting
             const sortedPartners = [...filteredPartners].sort((a, b) => {
               switch (exploreSortBy) {
-                case "date":
-                  return a.date - b.date;
-                case "level":
-                  return b.level - a.level;
-                case "rating":
-                  return b.rating - a.rating;
-                default:
-                  // Default "recommended" sorting
-                  return b.rating - a.rating;
+                case "date": return a.date - b.date;
+                case "level": return b.level - a.level;
+                case "rating": return b.rating - a.rating;
+                default: return b.rating - a.rating;
               }
             });
 
-            // Display message if no partners match filters
+            // No matches
             if (sortedPartners.length === 0) {
               return (
                 <div className="w-full py-10 flex flex-col items-center justify-center">
                   <div className="w-16 h-16 rounded-full bg-[#1A0F3E] flex items-center justify-center mb-4">
-                    <Icon
-                      icon="lucide:search"
-                      className="w-8 h-8 text-white/50"
-                    />
+                    <Icon icon="lucide:search" className="w-8 h-8 text-white/50" />
                   </div>
-                  <h3 className="text-xl font-medium text-white mb-2">
-                    No matches found
-                  </h3>
+                  <h3 className="text-xl font-medium text-white mb-2">No matches found</h3>
                   <p className="text-white/60 text-center max-w-md">
-                    Try adjusting your filters or search criteria to see more
-                    results
+                    Try adjusting your filters or search criteria to see more results
                   </p>
                 </div>
               );
             }
 
-            // Return the sorted and filtered partners
+            // Cards
             return sortedPartners.map((partner, index) => (
               <div
                 key={partner.id}
-                className={`${
-                  partner.id % 2 === 0 ? "w-[380px]" : "w-[420px]"
-                } h-[240px] p-[25px] flex flex-col justify-center items-center gap-[15px] rounded-[20px] border-[3px] border-[#284CCC]/80`}
+                className="transition-all duration-300 hover:scale-[1.01] w-[440px] p-[25px] flex flex-col gap-[15px] rounded-[20px] border-[3px] border-[#284CCC]/80 relative"
                 style={{
-                  background:
-                    "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
+                  background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
                   boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)",
                 }}
               >
-                <div className="flex flex-col justify-center items-center gap-[15px] w-full">
-                  {/* Partner Header */}
-                  <div className="flex justify-between items-start w-full">
-                    <div className="flex items-start gap-[10px]">
-                      <div className="w-[25px] h-[25px] rounded-full bg-gray-400"></div>
-                      <div className="flex flex-col items-start gap-[5px]">
-                        <span className="text-[16px] text-white">
-                          {partner.name}
-                        </span>
-                        <div className="flex items-center gap-[15px]">
-                          <div className="flex items-center gap-[5px]">
-                            <Icon
-                              icon="lucide:star"
-                              className="w-4 h-4 text-[#906EFF] fill-current flex-shrink-0"
-                            />
-                            <span className="text-[13px]">
-                              <span className="font-bold">
-                                {partner.rating.toFixed(1)}
-                              </span>{" "}
-                              <span className="text-white">
-                                ({partner.reviews})
-                              </span>
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-[5px]">
-                            <div className="w-3 h-3 rounded-[5px] bg-[#933BFF]"></div>
-                            <span className="text-[13px] text-white">
-                              LVL {partner.level}
-                            </span>
-                          </div>
+                {/* Partner Header */}
+                <div className="flex justify-between items-start w-full">
+                  <div className="flex items-start gap-[10px]">
+                    <Image src="/defaultavatar.png" alt="Default Avatar" width={25} height={25} className="rounded-full object-cover" />
+                    <div className="flex flex-col items-start gap-[5px]">
+                      <span className="text-[16px] text-white">{partner.name}</span>
+                      <div className="flex items-center gap-[15px]">
+                        <div className="flex items-center gap-[5px]">
+                          <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
+                          <span className="text-[13px]">
+                            <span className="font-bold">{partner.rating.toFixed(1)}</span>{" "}
+                            <span className="text-white">({partner.reviews})</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-[5px]">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z" fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5"/><defs><radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)"><stop offset="0.4" stopColor="#933BFF"/><stop offset="1" stopColor="#34188D"/></radialGradient><linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse"><stop stopColor="white"/><stop offset="0.5" stopColor="#999999"/><stop offset="1" stopColor="white"/></linearGradient></defs></svg>
+                          <span className="text-[13px] text-white">LVL {partner.level}</span>
                         </div>
                       </div>
                     </div>
-                    <div
-                      className="relative"
-                      ref={(el) => (menuRefs.current[index] = el)}
-                    >
-                      <button
-                        onClick={() =>
-                          setOpenMenuIndex(
-                            index === openMenuIndex ? null : index
-                          )
-                        }
-                      >
-                        <Icon
-                          icon="lucide:more-horizontal"
-                          className="w-6 h-6 text-white cursor-pointer hover:text-gray-300 transition-colors"
-                        />
-                      </button>
-                      {openMenuIndex === index && (
-                        <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                          <button
-                            onClick={() => handleNotInterested(partner.id)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
-                          >
-                            <Icon
-                              icon="mdi:eye-off-outline"
-                              className="text-white text-base"
-                            />
-                            Not Interested
-                          </button>
-                          <button
-                            onClick={() => handleReport(partner.id)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
-                          >
-                            <Icon
-                              icon="mdi:alert-circle-outline"
-                              className="text-white text-base"
-                            />
-                            Report
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Needs/Offers Section */}
-                  <div className="flex justify-between items-start w-full space-x-4">
-                    <div className="flex flex-col justify-center items-start gap-[10px] flex-1">
-                      <span className="text-[13px] text-white">Needs</span>
-                      <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px] max-w-full">
-                        <span className="text-[12px] text-white leading-tight line-clamp-2">
-                          {partner.needs}
-                        </span>
+                  {/* Menu */}
+                  <div className="relative" ref={(el) => (menuRefs.current[index] = el)}>
+                    <button onClick={() => setOpenMenuIndex(index === openMenuIndex ? null : index)}>
+                      <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white cursor-pointer hover:text-gray-300 transition-colors" />
+                    </button>
+                    {openMenuIndex === index && (
+                      <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
+                        <button onClick={() => handleNotInterested(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
+                          <Icon icon="mdi:eye-off-outline" className="text-white text-base" /> Not Interested
+                        </button>
+                        <button onClick={() => handleReport(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
+                          <Icon icon="mdi:alert-circle-outline" className="text-white text-base" /> Report
+                        </button>
                       </div>
-                    </div>
-                    <div className="flex flex-col justify-center items-end gap-[10px] flex-1">
-                      <span className="text-[13px] text-white">Can offer</span>
-                      <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px] max-w-full">
-                        <span className="text-[12px] text-white leading-tight line-clamp-2">
-                          {partner.offers}
-                        </span>
-                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Needs / Can Offer */}
+                <div className="flex justify-between items-start w-full">
+                  <div className="flex flex-col gap-[10px] items-start flex-shrink-0">
+                    <span className="text-[13px] text-white">Needs</span>
+                    <div className="inline-block px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
+                      <span className="text-[12px] text-white leading-tight whitespace-nowrap">
+                        {partner.needs}
+                      </span>
                     </div>
                   </div>
-
-                  {/* Date and Button */}
-                  <div className="flex justify-end items-center w-full">
-                    <span className="text-[13px] text-white/60">
-                      until {partner.until}
-                    </span>
+                  <div className="flex flex-col gap-[10px] items-end flex-shrink-0">
+                    <span className="text-[13px] text-white">Can offer</span>
+                    <div className="inline-block px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
+                      <span className="text-[12px] text-white leading-tight whitespace-nowrap">
+                        {partner.offers}
+                      </span>
+                    </div>
+                    <span className="text-[13px] text-white/60">until {partner.until}</span>
                   </div>
+                </div>
 
-                  <button className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors">
-                    <span className="text-[13px] text-white">
-                      I'm interested
-                    </span>
+                {/* Interested Button */}
+                <div className="flex justify-center">
+                  <button
+                    className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors"
+                    onClick={() => handleInterestedClick(partner)}
+                  >
+                    <span className="text-[13px] text-white">I'm interested</span>
                   </button>
                 </div>
               </div>
@@ -656,6 +627,76 @@ export default function HomePage() {
           })()}
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && selectedPartner && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+          <div className="relative flex flex-col items-center justify-center w-[500px] h-[200px] bg-[#120A2A]/95 border-2 border-[#0038FF] shadow-[0px_4px_15px_#284CCC] backdrop-blur-[10px] rounded-[20px] overflow-hidden">
+            {/* Background gradients */}
+            <div className="absolute top-[-50px] left-[-50px] w-[150px] h-[150px] rounded-full bg-[#0038FF]/15 blur-[40px]"></div>
+            <div className="absolute bottom-[-40px] right-[-40px] w-[120px] h-[120px] rounded-full bg-[#906EFF]/15 blur-[40px]"></div>
+
+            {/* Close button */}
+            <button 
+              className="absolute top-4 right-4 text-white hover:text-gray-300"
+              onClick={handleCancelInterest}
+            >
+              <Icon icon="lucide:x" className="w-[20px] h-[20px]" />
+            </button>
+
+            <div className="flex flex-col items-center gap-6 w-full px-8 relative z-10">
+              <h2 className="font-bold text-[20px] text-center text-white leading-tight">
+                Are you sure you want to add this to your pending trades?
+              </h2>
+              <div className="flex flex-row gap-4">
+                <button 
+                  className="flex items-center justify-center w-[120px] h-[40px] border-2 border-[#0038FF] rounded-[15px] text-[#0038FF] text-[16px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#0038FF]/10 transition-colors"
+                  onClick={handleCancelInterest}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="flex items-center justify-center w-[120px] h-[40px] bg-[#0038FF] rounded-[15px] text-white text-[16px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
+                  onClick={handleConfirmInterest}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Dialog */}
+      {showSuccessDialog && selectedPartner && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+          <div className="relative flex flex-col items-center justify-center w-[500px] h-[200px] bg-[#120A2A]/95 border-2 border-[#0038FF] shadow-[0px_4px_15px_#284CCC] backdrop-blur-[10px] rounded-[20px] overflow-hidden">
+            {/* Background gradients */}
+            <div className="absolute top-[-50px] left-[-50px] w-[150px] h-[150px] rounded-full bg-[#0038FF]/15 blur-[40px]"></div>
+            <div className="absolute bottom-[-40px] right-[-40px] w-[120px] h-[120px] rounded-full bg-[#906EFF]/15 blur-[40px]"></div>
+
+            {/* Close button */}
+            <button 
+              className="absolute top-4 right-4 text-white hover:text-gray-300"
+              onClick={handleSuccessDialogClose}
+            >
+              <Icon icon="lucide:x" className="w-[20px] h-[20px]" />
+            </button>
+
+            <div className="flex flex-col items-center gap-6 w-full px-8 relative z-10">
+              <h2 className="font-bold text-[20px] text-center text-white leading-tight">
+                Trade invitation successfully sent.
+              </h2>
+              <button 
+                className="flex items-center justify-center w-[180px] h-[40px] bg-[#0038FF] rounded-[15px] text-white text-[16px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
+                onClick={handleGoToPendingTrades}
+              >
+                Go to Pending Trades
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

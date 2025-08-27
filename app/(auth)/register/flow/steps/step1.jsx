@@ -6,6 +6,7 @@ import { Input } from "../../../../../components/ui/input";
 import Image from "next/image";
 import { Eye, EyeOff, ChevronRight, Check, X } from "lucide-react";
 import { Inter } from "next/font/google";
+import { signOut } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -16,7 +17,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
   const [username, setUsername] = useState(step1Data?.username || "");
   const [password, setPassword] = useState(step1Data?.password || "");
   const [repeatPassword, setRepeatPassword] = useState("");
-
 
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
@@ -32,6 +32,22 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
     }
   }, [step1Data]); 
 
+  useEffect(() => {
+    const emailLS = localStorage.getItem("prefill_email");
+    const nameLS  = localStorage.getItem("prefill_name");
+
+    if (emailLS || nameLS) {
+      // split name into first + last
+      const [first, ...rest] = (nameLS || "").trim().split(" ");
+      setFirstName(first || "");
+      setLastName(rest.join(" ") || "");
+      setEmail(emailLS || "");
+
+      // Optional: clear after prefill
+      localStorage.removeItem("prefill_email");
+      localStorage.removeItem("prefill_name");
+    }
+  }, []);
   
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },
@@ -233,10 +249,22 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
 
         {/* Already have account */}
         <p className="underline text-center text-sm text-[16px] mt-[44px] mb-[100px]">
-          <a href="/signin" className="text-[#6DDFFF]">
-            I have an account already.
-          </a>
-        </p>
+        <a
+          href="/signin"
+          className="text-[#6DDFFF]"
+          onClick={async (e) => {
+            e.preventDefault(); // stop the immediate nav
+            try {
+              localStorage.removeItem("prefill_email");
+              localStorage.removeItem("prefill_name");
+              localStorage.removeItem("user_id");
+            } catch {}
+            await signOut({ callbackUrl: "/signin" });
+          }}
+        >
+          I have an account already.
+        </a>
+      </p>
 
         {/* Continue Button */}
         <div className="flex justify-center mb-[47.5px]">

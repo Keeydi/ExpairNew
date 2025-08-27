@@ -21,5 +21,3 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),  # ✅ this line connects to your app
 ]
-
-
