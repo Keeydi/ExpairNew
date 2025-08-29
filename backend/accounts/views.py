@@ -1,6 +1,6 @@
 from django.db.models import Q
 
-from rest_framework.decorators import api_view, parser_classes
+from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,18 +11,82 @@ from .serializers import GenSkillSerializer, UserInterestBulkSerializer
 from .models import SpecSkill, UserSkill
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
 from django.contrib.auth.hashers import check_password
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from django.shortcuts import get_object_or_404
+from django.db.models import Prefetch
 
 from .models import User
 
-@api_view(['GET'])
+
+def _public_user_payload(user, request=None):
+    pic = None
+    if getattr(user, "profilePic", None):
+        url = user.profilePic.url 
+        pic = request.build_absolute_uri(url) if request else url
+
+    return {
+        "user_id": user.user_id,
+        "username": user.username,
+        "first_Name": user.first_Name,
+        "last_Name": user.last_Name,
+        "bio": user.bio,
+        "avgStars": float(user.avgStars or 0),
+        "ratingCount": int(user.ratingCount or 0),
+        "profilePic": pic,
+        "created_at": user.created_at,
+        "xpRank": user.xpRank,     
+        "level": int(user.level or 0),
+        "tot_XpPts": int(user.tot_XpPts or 0),
+    }
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def user_detail(request, user_id: int):
+    user = get_object_or_404(User, pk=user_id)
+    return Response(_public_user_payload(user, request), status=200)
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def user_detail_by_username(request, username: str):
+    try:
+        user = User.objects.get(username__iexact=username)
+    except User.DoesNotExist:
+        return Response({"detail": "Not found."}, status=404)
+    return Response(_public_user_payload(user, request), status=200)
+
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
+    return Response(_public_user_payload(request.user, request), status=200)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def user_interests(request, user_id: int):
+    """
+    Returns a simple list of general interests (GenSkill.genCateg) for a user.
+    """
+    qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
+    interests = [ui.genSkills_id.genCateg for ui in qs]
+    return Response({"interests": interests})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def user_skills(request, user_id: int):
+    """
+    Returns grouped specific skills: [{category, skills: [specName,...]}]
+    """
+    from collections import defaultdict
+    groups = defaultdict(list)
+    qs = UserSkill.objects.filter(user_id=user_id).select_related("specSkills__genSkills_id")
+    for us in qs:
+        gen = us.specSkills.genSkills_id.genCateg
+        spec = us.specSkills.specName
+        groups[gen].append(spec)
+    data = [{"category": k, "skills": sorted(v)} for k, v in groups.items()]
+    return Response({"skill_groups": data})
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

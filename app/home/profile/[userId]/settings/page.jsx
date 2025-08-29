@@ -73,17 +73,6 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              {/* Name */}
-              <section className="mb-8">
-                <p className="mb-2 text-sm text-white/70">Full Name</p>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                />
-              </section>
-
               {/* Email */}
               <section className="mb-8">
                 <p className="mb-2 text-sm text-white/70">Email</p>

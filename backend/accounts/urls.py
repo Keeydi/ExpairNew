@@ -1,26 +1,32 @@
 from django.urls import path
-from .views import register_user, complete_registration
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import register_user, list_general_skills, add_user_interests
-from .views import list_specific_skills, add_user_skills
-from .views import login_user
-from .views import google_login
-from . import views 
-
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from . import views
 
 urlpatterns = [
-    path('register/', register_user, name='register_user'),
-    path('complete-registration/', complete_registration, name='complete_registration'),
-    path('skills/general/', list_general_skills),      # GET general skills
-    path('skills/interests/', add_user_interests),    # POST selected interests
-    path('skills/specific/', list_specific_skills),   # GET ?genskills_id=...
-    path('skills/user/', add_user_skills),            # POST selected specs
+    path('register/', views.register_user, name='register_user'),
+    path('complete-registration/', views.complete_registration, name='complete_registration'),
 
-    path('login/', login_user, name='login_user'),
+    path('skills/general/', views.list_general_skills),
+    path('skills/interests/', views.add_user_interests),
+    path('skills/specific/', views.list_specific_skills),
+    path('skills/user/', views.add_user_skills),
+
+    path('login/', views.login_user, name='login_user'),
     path('google-login/', views.google_login, name='google_login'),
 
-    path("accounts/me/", views.me, name="me"),
+    path('me/', views.me, name='me'),
+
+    # 👇 expose BOTH variants
+    path('users/<int:user_id>/', views.user_detail),
+    path('users/by-username/<str:username>/', views.user_detail_by_username),
+
+    path('users/<int:user_id>/interests/', views.user_interests),
+    path('users/<int:user_id>/skills/', views.user_skills),
+    
+    path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

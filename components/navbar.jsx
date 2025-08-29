@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import {
@@ -25,11 +25,26 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Navbar() {
+
+  const { data: session } = useSession();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [bellRect, setBellRect] = useState(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   const bellRef = useRef(null);
+  
+  // Build dynamic profile links (prefer NextAuth user → localStorage → "me")
+  const userId =
+    session?.user?.id ??
+    (typeof window !== "undefined" ? localStorage.getItem("user_id") : null);
+  const username =
+    session?.user?.username ??
+    (typeof window !== "undefined" ? localStorage.getItem("username") : null);
+  const profileSlug = userId ? String(userId) : username ? String(username) : "me";
+  const profileHref = `/home/profile/${profileSlug}`;
+  const settingsHref = `/home/profile/${profileSlug}/settings`;
+
 
   // Close notification dialog when clicking outside
   useEffect(() => {
@@ -159,14 +174,14 @@ export default function Navbar() {
               align="end"
               className="bg-[#15042C] text-white border border-[#2B124C] min-w-[200px]"
             >
-              <Link href="/home/profile/anything">
+              <Link href={profileHref}>
                 <DropdownMenuItem className="flex items-center gap-2 text-white data-[highlighted]:bg-transparent data-[highlighted]:text-white data-[highlighted]:font-semibold cursor-pointer">
                   <User className="w-4 h-4" />
                   Your profile
                 </DropdownMenuItem>
               </Link>
 
-              <Link href="/home/profile/anything/settings">
+              <Link href={settingsHref}>
                 <DropdownMenuItem className="flex items-center gap-2 text-white data-[highlighted]:bg-transparent data-[highlighted]:text-white data-[highlighted]:font-semibold cursor-pointer">
                   <Settings className="w-4 h-4" />
                   Settings

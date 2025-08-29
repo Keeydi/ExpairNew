@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+
 import Link from "next/link";
 import Image from "next/image";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
-import { useParams } from "next/navigation";
 import clsx from "clsx";
 import {
   ChevronDownIcon,
@@ -16,608 +18,133 @@ import {
   Flag,
 } from "lucide-react";
 
+const safeFixed = (val, digits = 1) => {
+  const n = Number(val);
+  return Number.isFinite(n) ? n.toFixed(digits) : (0).toFixed(digits);
+};
+
+const RAW = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+const API_BASE = RAW.includes("/api/accounts")
+  ? RAW.replace(/\/+$/, "")
+  : `${RAW.replace(/\/+$/, "")}/api/accounts`;
+
 const inter = Inter({ subsets: ["latin"] });
 
-// Inline Button component
-const Button = ({ children, className, onClick, ...props }) => {
-  return (
-    <button
-      className={clsx(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2",
-        className
-      )}
-      onClick={onClick}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-};
-
-// Inline helper for Trade Details to keep code clean
-const TradePill = ({ content }) => {
-  return (
-    <div
-      className={clsx(
-        "inline-flex items-center px-[15px] py-[10px] text-[13px] rounded-full border-2 text-white overflow-hidden"
-      )}
-    >
-      <span className="whitespace-nowrap">{content}</span>
-    </div>
-  );
-};
-
-// Inline ReviewCard component with updated design
-const ReviewCard = ({ review }) => {
-  const {
-    requester,
-    tradePartner,
-    tradeCompletionDate,
-    requestTitle,
-    offerTitle,
-    rating,
-    reviewDescription,
-    likes,
-  } = review;
-  const [isLiked, setIsLiked] = useState(false);
-
-  // Function to render stars based on a rating
-  const renderStars = (rating) => {
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-    const stars = [];
-
-    // Full stars
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Star
-          key={`full-${i}`}
-          className="w-5 h-5 fill-[#906EFF] text-[#906EFF]"
-        />
-      );
-    }
-    // Half star
-    if (hasHalfStar) {
-      stars.push(
-        <div key="half" className="relative w-5 h-5">
-          <Star className="absolute w-5 h-5 text-gray-300 stroke-2" />
-          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
-            <Star className="w-5 h-5 fill-[#906EFF] text-[#906EFF]" />
-          </div>
-        </div>
-      );
-    }
-    // Empty stars
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Star key={`empty-${i}`} className="w-5 h-5 text-gray-300 stroke-2" />
-      );
-    }
-    return stars;
-  };
-
-  // Function to handle the report action
-  const handleReport = () => {
-    // In a real app, this would be a client-side navigation or a more complex interaction
-    console.log(`Navigating to help form for reporting review by ${requester}`);
-    window.location.href = "/help#help-form";
-  };
-
-  return (
-    <div
-      className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
-      style={{
-        background:
-          "radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)",
-      }}
-    >
-      <div className="flex justify-between items-start">
-        {/* User and Partner Avatars with 'X' separator, names, and date */}
-        <div className="flex items-start gap-[15px]">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              {/* Use the defaultavatar.png for the review cards */}
-              <Image
-                src="/assets/defaultavatar.png"
-                alt={`${tradePartner}'s avatar`}
-                width={35}
-                height={35}
-                className="rounded-full object-cover"
-              />
-              <Icon icon="ic:baseline-close" className="w-4 h-4 text-white" />
-              {/* Use the defaultavatar.png for the review cards */}
-              <Image
-                src="/assets/defaultavatar.png"
-                alt={`${requester}'s avatar`}
-                width={35}
-                height={35}
-                className="rounded-full object-cover"
-              />
-              <div className="flex flex-col justify-start">
-                <span className="font-semibold text-white text-base">{`${tradePartner} & ${requester}`}</span>
-                <span className="text-white/50 text-base">
-                  {tradeCompletionDate}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative flex items-center gap-5 text-white text-sm">
-          {/* Rating number on the left */}
-          <span className="text-lg">{rating.toFixed(1)}</span>
-          <div className="flex items-center gap-[5px]">
-            {renderStars(rating)}
-          </div>
-          <button
-            onClick={handleReport}
-            className="p-1 rounded-full hover:bg-white/10 transition"
-          >
-            <Flag className="w-5 h-5 cursor-pointer text-white/50" />
-          </button>
-        </div>
-      </div>
-
-      {/* Trade Details and Review Text */}
-      <div className="flex flex-col md:flex-row gap-[25px] w-full">
-        {/* Trade Details Section */}
-        <div className="flex-1 flex flex-col gap-[25px]">
-          <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
-              Name requested
-            </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{requestTitle}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
-              In exchange for
-            </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{offerTitle}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Review Text Section */}
-        <div className="flex-1 flex flex-col gap-2 md:text-right">
-          <p className="text-white text-base">{reviewDescription}</p>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-center mt-2">
-        <div className="flex items-center gap-1.5 text-white text-sm">
-          <button
-            onClick={() => setIsLiked(!isLiked)}
-            className="transition-transform transform hover:scale-110"
-          >
-            <Heart
-              className={clsx(
-                "w-5 h-5 transition-colors duration-300",
-                isLiked ? "fill-[#906EFF] stroke-[#906EFF]" : "stroke-white"
-              )}
-            />
-          </button>
-          <span>{likes + (isLiked ? 1 : 0)}</span>
-        </div>
-        <div className="flex gap-4">
-          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
-            Trade again
-          </Button>
-          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
-            View details
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
-  // Main Categories and Subcategories data
-  const mainCategories = [
-    "Creative & Design",
-    "Technical & IT",
-    "Business & Management",
-    "Communication & Interpersonal",
-    "Health & Wellness",
-    "Education & Training",
-    "Home & Lifestyle",
-    "Handiwork & Maintenance",
-    "Digital & Social Media",
-    "Language & Translation",
-    "Financial & Accounting",
-    "Sports & Fitness",
-    "Arts & Performance",
-    "Culture & Diversity",
-    "Research & Critical Thinking",
-  ];
-
-  const subcategories = {
-    "Creative & Design": [
-      "Graphic Design",
-      "Photography",
-      "Video Editing",
-      "Illustration",
-      "Animation",
-    ],
-    "Technical & IT": [
-      "Web Development",
-      "Software Development",
-      "IT Support",
-      "Network Administration",
-      "Cybersecurity",
-    ],
-    "Business & Management": [
-      "Project Management",
-      "Business Consulting",
-      "Human Resources",
-      "Operations Management",
-      "Marketing Strategy",
-    ],
-    "Communication & Interpersonal": [
-      "Customer Service",
-      "Public Relations",
-      "Copywriting",
-      "Translation",
-      "Social Media Management",
-    ],
-    "Health & Wellness": [
-      "Nutrition Coaching",
-      "Personal Training",
-      "Mental Health Counseling",
-      "Yoga Instruction",
-      "Physical Therapy",
-    ],
-    "Education & Training": [
-      "Tutoring",
-      "Language Instruction",
-      "Corporate Training",
-      "Curriculum Development",
-      "Test Preparation",
-    ],
-    "Home & Lifestyle": [
-      "Interior Decorating",
-      "Cleaning Services",
-      "Gardening",
-      "Event Planning",
-      "Personal Assistance",
-    ],
-    "Handiwork & Maintenance": [
-      "Furniture Assembly",
-      "Sewing & Alterations",
-      "Handyman Services",
-      "Painting & Decorating",
-      "Crafting",
-    ],
-    "Digital & Social Media": [
-      "Social Media Management",
-      "Content Creation",
-      "SEO",
-      "Digital Advertising",
-      "Email Marketing",
-    ],
-    "Language & Translation": [
-      "Translation",
-      "Interpretation",
-      "Language Tutoring",
-      "Transcription",
-      "Localization",
-    ],
-    "Financial & Accounting": [
-      "Bookkeeping",
-      "Tax Preparation",
-      "Financial Planning",
-      "Payroll Services",
-      "Auditing",
-    ],
-    "Sports & Fitness": [
-      "Personal Training",
-      "Group Fitness Instruction",
-      "Sports Coaching",
-      "Nutrition for Athletes",
-      "Physical Therapy",
-    ],
-    "Arts & Performance": [
-      "Music Lessons",
-      "Dance Instruction",
-      "Acting Coaching",
-      "Visual Arts",
-      "Creative Writing",
-    ],
-    "Culture & Diversity": [
-      "Diversity Training",
-      "Cultural Consulting",
-      "Language & Cultural Exchange",
-      "Community Outreach",
-      "Inclusion Workshops",
-    ],
-    "Research & Critical Thinking": [
-      "Market Research",
-      "Data Analysis",
-      "Academic Research",
-      "Competitive Analysis",
-      "Strategic Planning",
-    ],
-  };
-
-  const defaultCredential = {
-    title: "",
-    org: "",
-    issueDate: "",
-    expiryDate: "",
-    id: "",
-    url: "",
-    skills: [],
-    skillCategory: "",
-  };
-
-  // Initialize state with the credentials data passed as a prop, adding a skillCategory field
-  const [formData, setFormData] = useState(() =>
-    credentialsToEdit.map((cred) => ({
-      ...cred,
-      skillCategory: "", // Initialize new skillCategory field
-    }))
-  );
-
-  // Helper function to update a specific field of a specific credential
-  const handleChange = (index, field, value) => {
-    const newFormData = [...formData];
-    newFormData[index] = { ...newFormData[index], [field]: value };
-    setFormData(newFormData);
-  };
-
-  // Handle changes for the main skill category dropdown
-  const handleCategoryChange = (index, value) => {
-    const newFormData = [...formData];
-    newFormData[index] = { ...newFormData[index], skillCategory: value };
-    setFormData(newFormData);
-  };
-
-  // Handle changes for the associated skills dropdown
-  const handleSkillDropdownChange = (index, value) => {
-    const newFormData = [...formData];
-    // Check if the skill is not already in the array before adding
-    if (value && !newFormData[index].skills.includes(value)) {
-      newFormData[index].skills.push(value);
-      setFormData(newFormData);
-    }
-  };
-
-  // Function to remove a skill from the tags
-  const handleRemoveSkill = (credentialIndex, skillToRemove) => {
-    const newFormData = [...formData];
-    const newSkills = newFormData[credentialIndex].skills.filter(
-      (skill) => skill !== skillToRemove
-    );
-    newFormData[credentialIndex] = {
-      ...newFormData[credentialIndex],
-      skills: newSkills,
-    };
-    setFormData(newFormData);
-  };
-
-  // Function to add a new empty credential
-  const addCredential = () => {
-    setFormData([...formData, defaultCredential]);
-  };
-
-  return (
-    <div className="flex flex-col gap-[25px]">
-      <h4 className="text-[22px] font-semibold">
-        Edit Credentials
-        {formData.length > 1 && ` (${formData.length} items)`}
-      </h4>
-
-      <div className="flex flex-col gap-8">
-        {formData.map((cred, index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-5 p-6 border border-white/20 rounded-[15px]"
-          >
-            {formData.length > 1 && (
-              <h5 className="text-lg font-semibold text-white/70">
-                Credential {index + 1}
-              </h5>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left Column - Name, Issuing Org, Issue Date, Expiry Date */}
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={cred.title}
-                    onChange={(e) =>
-                      handleChange(index, "title", e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., Adobe Certified Expert"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Issuing Organization <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={cred.org}
-                    onChange={(e) => handleChange(index, "org", e.target.value)}
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., Adobe Systems"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Issue Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="month" // Changed from type="date" to type="month"
-                    value={cred.issueDate}
-                    onChange={(e) =>
-                      handleChange(index, "issueDate", e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">Expiry Date</label>
-                  <input
-                    type="month" // Changed from type="date" to type="month"
-                    value={cred.expiryDate}
-                    onChange={(e) =>
-                      handleChange(index, "expiryDate", e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Right Column - Cred ID, Cred URL, Skill Category, Associated Skills */}
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">Credential ID</label>
-                  <input
-                    type="text"
-                    value={cred.id}
-                    onChange={(e) => handleChange(index, "id", e.target.value)}
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., ACE-123456789"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Credential URL
-                  </label>
-                  <input
-                    type="url"
-                    value={cred.url}
-                    onChange={(e) => handleChange(index, "url", e.target.value)}
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., https://www.adobe.com/cert..."
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Skill Category
-                  </label>
-                  <select
-                    value={cred.skillCategory}
-                    onChange={(e) =>
-                      handleCategoryChange(index, e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                  >
-                    <option value="" disabled>
-                      Select category
-                    </option>
-                    {mainCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Associated Skills
-                  </label>
-                  <select
-                    onChange={(e) =>
-                      handleSkillDropdownChange(index, e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                    disabled={!cred.skillCategory}
-                    value=""
-                  >
-                    <option value="" disabled>
-                      Select subcategory
-                    </option>
-                    {cred.skillCategory &&
-                      subcategories[cred.skillCategory]?.map((skill) => (
-                        <option key={skill} value={skill}>
-                          {skill}
-                        </option>
-                      ))}
-                  </select>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {cred.skills.map((skill, skillIndex) => (
-                      <div
-                        key={skillIndex}
-                        className="inline-flex items-center gap-1.5 bg-white/10 text-white text-xs px-3 py-1 rounded-full cursor-default"
-                      >
-                        <span>{skill}</span>
-                        <button
-                          onClick={() => handleRemoveSkill(index, skill)}
-                          className="flex items-center justify-center w-4 h-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full"
-                          aria-label={`Remove ${skill}`}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3 w-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={addCredential}
-        className="text-[#0038FF] hover:underline text-sm font-semibold mt-4 text-left"
-      >
-        + Add credential
-      </button>
-
-      <div className="flex justify-end gap-4 mt-6">
-        <Button
-          onClick={onCancel}
-          className="bg-white/10 text-white hover:bg-white/20"
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={() => onSave(formData)}
-          className="bg-[#0038FF] hover:bg-[#1a4dff] text-white shadow-[0px_0px_15px_#284CCC]"
-        >
-          Save Changes
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 export default function ProfilePage() {
+
+  const { data: session } = useSession();
+  const params = useParams();
+  const [error, setError] = useState(null);
+ 
+
   const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
   const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
   const [sortOption, setSortOption] = useState("Latest");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+
+  const slug = useMemo(() => {
+    const raw = params?.userId;
+    return Array.isArray(raw) ? raw[0] : raw || null;
+  }, [params]);
+
+  const [user, setUser] = useState({
+    firstName: "",
+    lastName: "",
+    username: "",
+    joined: "",
+    rating: 0,   
+    reviews: 0,
+      
+});
+
+  const RAW_ORIGIN = RAW.replace(/\/api\/accounts\/?$/, "");
+
+  const toAbsolute = (u) => {
+  if (!u) return null;
+  try {
+    // If u is already absolute, URL(u) keeps it; if it's relative, it resolves vs RAW_ORIGIN
+    return new URL(u, RAW_ORIGIN).href;
+  } catch {
+    return u;
+  }
+};
+
+  useEffect(() => {
+  if (!slug) return;
+
+  const isNumeric = /^\d+$/.test(String(slug));
+  const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
+
+  if (!(slug === "me" || isNumeric || isUsername)) {
+    setError("Invalid profile URL.");       
+    return;
+  }
+
+  let cancelled = false;
+
+  (async () => {
+    try {
+      const isNumeric = /^\d+$/.test(String(slug));
+      const url =
+      slug === "me"
+        ? `${API_BASE}/accounts/me/`
+        : isNumeric
+          ? `${API_BASE}/users/${slug}/`
+          : `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+
+      const headers = { Accept: "application/json" };
+      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+
+      console.log("[profile] GET", url);
+      const res = await fetch(url, {
+        headers,
+        credentials: slug === "me" ? "include" : "same-origin",
+      });
+      console.log("[profile] status", res.status);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (cancelled) return;
+
+      setUser((prev) => ({
+        ...prev,
+        firstName: data.first_Name || "",
+        lastName:  data.last_Name  || "",
+        username:  data.username   || "",
+        profilePic: data.profilePic || null,
+        joined:    data.created_at
+          ? new Date(data.created_at).toLocaleString(undefined, { month: "long", year: "numeric" })
+          : "",
+        rating:    Number(data.avgStars ?? data.rating) || 0,
+        reviews:   Number(data.ratingCount ?? data.reviews) || 0,
+        bio:       data.bio || prev.bio || "",
+        rank: (data.xpRank ?? data.rank ?? "Rank").toString(),
+        level:     Number.isFinite(Number(data.level)) ? Number(data.level) : 0,
+        xpPoints:  Number.isFinite(Number(data.tot_XpPts)) ? Number(data.tot_XpPts) : 0,
+      }));
+
+      const userId = isNumeric ? String(slug) : String(data.id ?? data.user_id ?? "");
+      if (userId) {
+        const [iRes, sRes] = await Promise.all([
+          fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
+          fetch(`${API_BASE}/users/${userId}/skills/`,    { headers }),
+        ]);
+        const [iJson, sJson] = await Promise.all([iRes.json(), sRes.json()]);
+        if (cancelled) return;
+
+        setUserInterests(Array.isArray(iJson?.interests) ? iJson.interests : []);
+        setSelectedSkillGroups(Array.isArray(sJson?.skill_groups) ? sJson.skill_groups : []);
+      }
+    } catch (e) {
+      console.error("[profile] load error", e);
+      setError("Failed to load profile.");
+    }
+  })();
+
+  return () => { cancelled = true; };
+}, [slug, session?.accessToken]);
+
+
+
   const [credentials, setCredentials] = useState([
     {
       title: "Adobe Certified Expert (ACE)",
@@ -645,24 +172,6 @@ export default function ProfilePage() {
       id: "GA-123456789",
       url: "https://skillshop.exceedlms.com/student/award/GA-123456789",
       skills: ["Data Analysis", "Marketing", "SEO"],
-    },
-    {
-      title: "Certified Photographer (CP)",
-      org: "Professional Photographers of America (PPA)",
-      issueDate: "December 2023",
-      expiryDate: "December 2026",
-      id: "PPA-11223344",
-      url: "https://ppa.com/cert/PPA-11223344",
-      skills: ["Photography", "Studio Lighting"],
-    },
-    {
-      title: "Storytelling for Video Certificate",
-      org: "Coursera",
-      issueDate: "February 2024",
-      expiryDate: "N/A",
-      id: "COUR-987654321",
-      url: "https://coursera.org/verify/COUR-987654321",
-      skills: ["Video Editing", "Creative Writing"],
     },
   ]);
   const [showAllCreds, setShowAllCreds] = useState(false);
@@ -737,16 +246,16 @@ export default function ProfilePage() {
     });
   };
 
-  const [user, setUser] = useState({
-    firstName: "John",
-    lastName: "Doe",
-    bio: "Passionate video editor with 4+ years of experience crafting engaging content for creators and small brands. Always up to trade skills and help others grow—let's connect and collaborate!",
-    username: "johndoe",
-    joined: "March 2025",
-    rating: 4.8,
-    reviews: 24,
-    rank: "Rising Star",
-    level: 7,
+  useState({
+    firstName: "",
+    lastName: "",
+    bio: "",
+    username: "",
+    joined: "",
+    rating: 0,
+    reviews: 0,
+    rank: "",
+    level: 0,
     verified: false,
   });
 
@@ -754,8 +263,6 @@ export default function ProfilePage() {
   // Replace with actual logged-in user ID logic from your auth system
   const loggedInUserId = "123"; // Example: get from auth context
   const isOwnProfile = true;
-
-  const params = useParams();
 
   // Mock data for review ratings to match a 4.3 average for 25 reviews
   const reviewRatings = {
@@ -967,9 +474,11 @@ export default function ProfilePage() {
   // NEW: Editable Skills & Interests
   // ----------------------------
 
+  // verification popup state
   const [showVerificationPopup, setShowVerificationPopup] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending"
-  const [idFile, setIdFile] = useState(null);
+  const [idFile, setIdFile] = useState(null); // File object
+  const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
 
   // For Basic Information editing
   const [basicInfoEditing, setBasicInfoEditing] = useState(false);
@@ -1079,6 +588,25 @@ export default function ProfilePage() {
   const [showAddInterestForm, setShowAddInterestForm] = useState(false);
   const [addInterestValue, setAddInterestValue] = useState("");
 
+  // call this when input changes
+  const handleIdFileChange = (file) => {
+    if (!file) {
+      setIdFile(null);
+      setIdPreviewUrl(null);
+      return;
+    }
+
+    setIdFile(file);
+
+    // if it's an image, create a preview URL
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setIdPreviewUrl(url);
+    } else {
+      setIdPreviewUrl(null);
+    }
+  };
+
   const handleAddInterest = () => {
     setUserInterests((prev) => [...new Set([...prev, ...selectedInterests])]);
     setSelectedInterests([]);
@@ -1147,6 +675,622 @@ export default function ProfilePage() {
       </div>
     );
   }
+// Inline Button component
+const Button = ({ children, className, onClick, ...props }) => {
+  return (
+    <button
+      className={clsx(
+        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2",
+        className
+      )}
+      onClick={onClick}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+
+// Inline helper for Trade Details to keep code clean
+const TradePill = ({ content }) => {
+  return (
+    <div
+      className={clsx(
+        "inline-flex items-center px-[15px] py-[10px] text-[13px] rounded-full border-2 text-white overflow-hidden"
+      )}
+    >
+      <span className="whitespace-nowrap">{content}</span>
+    </div>
+  );
+};
+
+// Inline ReviewCard component with updated design
+const ReviewCard = ({ review }) => {
+  const {
+    requester,
+    tradePartner,
+    tradeCompletionDate,
+    requestTitle,
+    offerTitle,
+    rating,
+    reviewDescription,
+    likes,
+  } = review;
+  const [isLiked, setIsLiked] = useState(false);
+
+  // Function to render stars based on a rating
+  const renderStars = (rating) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    const stars = [];
+
+    // Full stars
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <Star
+          key={`full-${i}`}
+          className="w-5 h-5 fill-[#906EFF] text-[#906EFF]"
+        />
+      );
+    }
+    // Half star
+    if (hasHalfStar) {
+      stars.push(
+        <div key="half" className="relative w-5 h-5">
+          <Star className="absolute w-5 h-5 text-gray-300 stroke-2" />
+          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
+            <Star className="w-5 h-5 fill-[#906EFF] text-[#906EFF]" />
+          </div>
+        </div>
+      );
+    }
+    // Empty stars
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <Star key={`empty-${i}`} className="w-5 h-5 text-gray-300 stroke-2" />
+      );
+    }
+    return stars;
+  };
+
+  // Function to handle the report action
+  const handleReport = () => {
+    // In a real app, this would be a client-side navigation or a more complex interaction
+    console.log(`Navigating to help form for reporting review by ${requester}`);
+    window.location.href = "/help#help-form";
+  };
+
+  return (
+    <div
+      className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
+      style={{
+        background:
+          "radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)",
+      }}
+    >
+      <div className="flex justify-between items-start">
+        {/* User and Partner Avatars with 'X' separator, names, and date */}
+        <div className="flex items-start gap-[15px]">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              {/* Use the defaultavatar.png for the review cards */}
+              <Image
+                src="/assets/defaultavatar.png"
+                alt={`${tradePartner}'s avatar`}
+                width={35}
+                height={35}
+                className="rounded-full object-cover"
+              />
+              <Icon icon="ic:baseline-close" className="w-4 h-4 text-white" />
+              {/* Use the defaultavatar.png for the review cards */}
+              <Image
+                src="/assets/defaultavatar.png"
+                alt={`${requester}'s avatar`}
+                width={35}
+                height={35}
+                className="rounded-full object-cover"
+              />
+              <div className="flex flex-col justify-start">
+                <span className="font-semibold text-white text-base">{`${tradePartner} & ${requester}`}</span>
+                <span className="text-white/50 text-base">
+                  {tradeCompletionDate}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative flex items-center gap-5 text-white text-sm">
+          {/* Rating number on the left */}
+          <span className="text-lg">{safeFixed(user.rating, 1)}</span>
+          <div className="flex items-center gap-[5px]">
+            {renderStars(rating)}
+          </div>
+          <button
+            onClick={handleReport}
+            className="p-1 rounded-full hover:bg-white/10 transition"
+          >
+            <Flag className="w-5 h-5 cursor-pointer text-white/50" />
+          </button>
+        </div>
+      </div>
+
+      {/* Trade Details and Review Text */}
+      <div className="flex flex-col md:flex-row gap-[25px] w-full">
+        {/* Trade Details Section */}
+        <div className="flex-1 flex flex-col gap-[25px]">
+          <div className="flex items-center gap-[15px] w-full">
+            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+              Name requested
+            </h6>
+            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
+              <span className="whitespace-nowrap">{requestTitle}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-[15px] w-full">
+            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+              In exchange for
+            </h6>
+            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
+              <span className="whitespace-nowrap">{offerTitle}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Review Text Section */}
+        <div className="flex-1 flex flex-col gap-2 md:text-right">
+          <p className="text-white text-base">{reviewDescription}</p>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center mt-2">
+        <div className="flex items-center gap-1.5 text-white text-sm">
+          <button
+            onClick={() => setIsLiked(!isLiked)}
+            className="transition-transform transform hover:scale-110"
+          >
+            <Heart
+              className={clsx(
+                "w-5 h-5 transition-colors duration-300",
+                isLiked ? "fill-[#906EFF] stroke-[#906EFF]" : "stroke-white"
+              )}
+            />
+          </button>
+          <span>{likes + (isLiked ? 1 : 0)}</span>
+        </div>
+        <div className="flex gap-4">
+          <Button
+            className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+            onClick={() => onTradeAgain?.(review)}
+          >
+            Trade again
+          </Button>
+
+          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
+            View details
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
+  // Main Categories and Subcategories data
+  const mainCategories = [
+    "Creative & Design",
+    "Technical & IT",
+    "Business & Management",
+    "Communication & Interpersonal",
+    "Health & Wellness",
+    "Education & Training",
+    "Home & Lifestyle",
+    "Handiwork & Maintenance",
+    "Digital & Social Media",
+    "Language & Translation",
+    "Financial & Accounting",
+    "Sports & Fitness",
+    "Arts & Performance",
+    "Culture & Diversity",
+    "Research & Critical Thinking",
+  ];
+
+  const subcategories = {
+    "Creative & Design": [
+      "Graphic Design",
+      "Photography",
+      "Video Editing",
+      "Illustration",
+      "Animation",
+    ],
+    "Technical & IT": [
+      "Web Development",
+      "Software Development",
+      "IT Support",
+      "Network Administration",
+      "Cybersecurity",
+    ],
+    "Business & Management": [
+      "Project Management",
+      "Business Consulting",
+      "Human Resources",
+      "Operations Management",
+      "Marketing Strategy",
+    ],
+    "Communication & Interpersonal": [
+      "Customer Service",
+      "Public Relations",
+      "Copywriting",
+      "Translation",
+      "Social Media Management",
+    ],
+    "Health & Wellness": [
+      "Nutrition Coaching",
+      "Personal Training",
+      "Mental Health Counseling",
+      "Yoga Instruction",
+      "Physical Therapy",
+    ],
+    "Education & Training": [
+      "Tutoring",
+      "Language Instruction",
+      "Corporate Training",
+      "Curriculum Development",
+      "Test Preparation",
+    ],
+    "Home & Lifestyle": [
+      "Interior Decorating",
+      "Cleaning Services",
+      "Gardening",
+      "Event Planning",
+      "Personal Assistance",
+    ],
+    "Handiwork & Maintenance": [
+      "Furniture Assembly",
+      "Sewing & Alterations",
+      "Handyman Services",
+      "Painting & Decorating",
+      "Crafting",
+    ],
+    "Digital & Social Media": [
+      "Social Media Management",
+      "Content Creation",
+      "SEO",
+      "Digital Advertising",
+      "Email Marketing",
+    ],
+    "Language & Translation": [
+      "Translation",
+      "Interpretation",
+      "Language Tutoring",
+      "Transcription",
+      "Localization",
+    ],
+    "Financial & Accounting": [
+      "Bookkeeping",
+      "Tax Preparation",
+      "Financial Planning",
+      "Payroll Services",
+      "Auditing",
+    ],
+    "Sports & Fitness": [
+      "Personal Training",
+      "Group Fitness Instruction",
+      "Sports Coaching",
+      "Nutrition for Athletes",
+      "Physical Therapy",
+    ],
+    "Arts & Performance": [
+      "Music Lessons",
+      "Dance Instruction",
+      "Acting Coaching",
+      "Visual Arts",
+      "Creative Writing",
+    ],
+    "Culture & Diversity": [
+      "Diversity Training",
+      "Cultural Consulting",
+      "Language & Cultural Exchange",
+      "Community Outreach",
+      "Inclusion Workshops",
+    ],
+    "Research & Critical Thinking": [
+      "Market Research",
+      "Data Analysis",
+      "Academic Research",
+      "Competitive Analysis",
+      "Strategic Planning",
+    ],
+  };
+
+  const defaultCredential = {
+    title: "",
+    org: "",
+    issueDate: "",
+    expiryDate: "",
+    id: "",
+    url: "",
+    skills: [],
+    skillCategory: "",
+  };
+
+  // Initialize state with the credentials data passed as a prop, adding a skillCategory field
+  const [formData, setFormData] = useState(() =>
+    credentialsToEdit.map((cred) => ({
+      ...cred,
+      skillCategory: "", // Initialize new skillCategory field
+    }))
+  );
+
+  // Helper function to update a specific field of a specific credential
+  const handleChange = (index, field, value) => {
+    const newFormData = [...formData];
+    newFormData[index] = { ...newFormData[index], [field]: value };
+    setFormData(newFormData);
+  };
+
+  // Handle changes for the main skill category dropdown
+  const handleCategoryChange = (index, value) => {
+    const newFormData = [...formData];
+    newFormData[index] = { ...newFormData[index], skillCategory: value };
+    setFormData(newFormData);
+  };
+
+  // Handle changes for the associated skills dropdown
+  const handleSkillDropdownChange = (index, value) => {
+    const newFormData = [...formData];
+    // Check if the skill is not already in the array before adding
+    if (value && !newFormData[index].skills.includes(value)) {
+      newFormData[index].skills.push(value);
+      setFormData(newFormData);
+    }
+  };
+
+  // Function to remove a skill from the tags
+  const handleRemoveSkill = (credentialIndex, skillToRemove) => {
+    const newFormData = [...formData];
+    const newSkills = newFormData[credentialIndex].skills.filter(
+      (skill) => skill !== skillToRemove
+    );
+    newFormData[credentialIndex] = {
+      ...newFormData[credentialIndex],
+      skills: newSkills,
+    };
+    setFormData(newFormData);
+  };
+
+  // Function to add a new empty credential
+  const addCredential = () => {
+    setFormData([...formData, defaultCredential]);
+  };
+
+  // --- Trade Again modal state ---
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
+  const [repeatReview, setRepeatReview] = useState(null);
+
+  const openRepeatModal = (review) => {
+    setRepeatReview(review);
+    setShowRepeatModal(true);
+  };
+  const closeRepeatModal = () => {
+    setShowRepeatModal(false);
+    setRepeatReview(null);
+  };
+  const confirmRepeatTrade = () => {
+    // placeholder; backend integration later
+    alert(`Trade request sent to ${repeatReview?.requester || "user"}.`);
+    closeRepeatModal();
+  };
+
+  return (
+    <div className="flex flex-col gap-[25px]">
+      <h4 className="text-[22px] font-semibold">
+        Edit Credentials
+        {formData.length > 1 && ` (${formData.length} items)`}
+      </h4>
+
+      <div className="flex flex-col gap-8">
+        {formData.map((cred, index) => (
+          <div
+            key={index}
+            className="flex flex-col gap-5 p-6 border border-white/20 rounded-[15px]"
+          >
+            {formData.length > 1 && (
+              <h5 className="text-lg font-semibold text-white/70">
+                Credential {index + 1}
+              </h5>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column - Name, Issuing Org, Issue Date, Expiry Date */}
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={cred.title}
+                    onChange={(e) =>
+                      handleChange(index, "title", e.target.value)
+                    }
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                    placeholder="e.g., Adobe Certified Expert"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">
+                    Issuing Organization <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={cred.org}
+                    onChange={(e) => handleChange(index, "org", e.target.value)}
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                    placeholder="e.g., Adobe Systems"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">
+                    Issue Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="month" // Changed from type="date" to type="month"
+                    value={cred.issueDate}
+                    onChange={(e) =>
+                      handleChange(index, "issueDate", e.target.value)
+                    }
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">Expiry Date</label>
+                  <input
+                    type="month" // Changed from type="date" to type="month"
+                    value={cred.expiryDate}
+                    onChange={(e) =>
+                      handleChange(index, "expiryDate", e.target.value)
+                    }
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Right Column - Cred ID, Cred URL, Skill Category, Associated Skills */}
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">Credential ID</label>
+                  <input
+                    type="text"
+                    value={cred.id}
+                    onChange={(e) => handleChange(index, "id", e.target.value)}
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                    placeholder="e.g., ACE-123456789"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">
+                    Credential URL
+                  </label>
+                  <input
+                    type="url"
+                    value={cred.url}
+                    onChange={(e) => handleChange(index, "url", e.target.value)}
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                    placeholder="e.g., https://www.adobe.com/cert..."
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">
+                    Skill Category
+                  </label>
+                  <select
+                    value={cred.skillCategory}
+                    onChange={(e) =>
+                      handleCategoryChange(index, e.target.value)
+                    }
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                  >
+                    <option value="" disabled>
+                      Select category
+                    </option>
+                    {mainCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/50">
+                    Associated Skills
+                  </label>
+                  <select
+                    onChange={(e) =>
+                      handleSkillDropdownChange(index, e.target.value)
+                    }
+                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                    disabled={!cred.skillCategory}
+                    value=""
+                  >
+                    <option value="" disabled>
+                      Select subcategory
+                    </option>
+                    {cred.skillCategory &&
+                      subcategories[cred.skillCategory]?.map((skill) => (
+                        <option key={skill} value={skill}>
+                          {skill}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {cred.skills.map((skill, skillIndex) => (
+                      <div
+                        key={skillIndex}
+                        className="inline-flex items-center gap-1.5 bg-white/10 text-white text-xs px-3 py-1 rounded-full cursor-default"
+                      >
+                        <span>{skill}</span>
+                        <button
+                          onClick={() => handleRemoveSkill(index, skill)}
+                          className="flex items-center justify-center w-4 h-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full"
+                          aria-label={`Remove ${skill}`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={addCredential}
+        className="text-[#0038FF] hover:underline text-sm font-semibold mt-4 text-left"
+      >
+        + Add credential
+      </button>
+
+      <div className="flex justify-end gap-4 mt-6">
+        <Button
+          onClick={onCancel}
+          className="bg-white/10 text-white hover:bg-white/20"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={() => onSave(formData)}
+          className="bg-[#0038FF] hover:bg-[#1a4dff] text-white shadow-[0px_0px_15px_#284CCC]"
+        >
+          Save Changes
+        </Button>
+      </div>
+    </div>
+  );
+};
 
   // Original Profile Page content
   return (
@@ -1161,11 +1305,12 @@ export default function ProfilePage() {
         {/* Profile Picture */}
         <div className="w-[200px] h-[200px] relative flex-shrink-0">
           <Image
-            src="/assets/defaultavatar.png"
-            alt={`${user.name}'s avatar`}
+            src={toAbsolute(user?.profilePic) || "/assets/defaultavatar.png"}
+            alt={`${user?.firstName || ""} ${user?.lastName || ""}`}
             width={200}
             height={200}
             className="rounded-full shadow-[0_0_50px_#906EFF99] object-cover"
+            
           />
         </div>
 
@@ -1191,7 +1336,9 @@ export default function ProfilePage() {
                 />
               </div>
             ) : (
-              <h3 className="text-[26px] font-semibold">{`${user.firstName} ${user.lastName}`}</h3>
+              <h3 className="text-[26px] font-semibold">
+                 {`${user.firstName} ${user.lastName}`.trim() || "—"}
+              </h3>
             )}
             {user.verified && (
               <Icon
@@ -1203,8 +1350,8 @@ export default function ProfilePage() {
 
           {/* Username + Joined Date */}
           <div className="flex text-white/50 text-[16px] mb-[20px] gap-[25px]">
-            <span>@{user.username}</span>
-            <span>Joined {user.joined}</span>
+            <span>@{user.username || "—"}</span>
+            <span>Joined {user.joined || "—"}</span>
           </div>
 
           {/* Buttons: Edit, Settings (only if own profile) */}
@@ -1254,7 +1401,7 @@ export default function ProfilePage() {
                 width={20}
                 height={20}
               />
-              <span>{user.rank}</span>
+                <span>{(user?.rank || "Rank").toString().charAt(0).toUpperCase() + (user?.rank || "Rank").toString().slice(1)}</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1314,16 +1461,27 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Get Verified Button */}
-          {isOwnProfile && !user.verified && (
+          {/* Get Verified Button area */}
+          {isOwnProfile && (
             <div className="w-full flex justify-end">
-              <Button
-                className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC] flex items-center gap-2"
-                onClick={() => setShowVerificationPopup(true)}
-              >
-                <Icon icon="material-symbols:verified" className="w-4 h-4" />
-                Get Verified
-              </Button>
+              {verificationStatus === "unverified" && (
+                <button
+                  onClick={() => setShowVerificationPopup(true)}
+                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2"
+                >
+                  <Icon icon="material-symbols:verified" className="w-4 h-4" />
+                  <span>Get Verified</span>
+                </button>
+              )}
+              {verificationStatus === "pending" && (
+                <button
+                  disabled
+                  className="bg-gray-600 text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2"
+                >
+                  <Icon icon="mdi:clock-outline" className="w-4 h-4" />
+                  <span>Waiting for Verification</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1769,10 +1927,10 @@ export default function ProfilePage() {
             <div className="flex flex-col">
               <div className="flex items-end gap-[10px]">
                 <span className="text-[40px] font-bold leading-none">
-                  {user.rating.toFixed(1)}
+                  {safeFixed(user.rating, 1)}
                 </span>
                 <span className="text-[16px] text-white/50 pb-2">
-                  ({user.reviews})
+                  ({Number(user.reviews) || 0})
                 </span>
               </div>
               <div className="flex items-center mt-[20px]">
@@ -1815,52 +1973,154 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* === Verification Popup === */}
+      {/* === Verification Popup (improved UI) === */}
       {showVerificationPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[400px] shadow-lg border border-white/20">
-            <h3 className="text-white text-lg font-semibold mb-4">
-              Upload your ID
-            </h3>
-            <p className="text-white/70 text-sm mb-4">
+          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[420px] shadow-lg border border-white/20">
+            <div className="flex items-start justify-between">
+              <h3 className="text-white text-lg font-semibold">
+                Upload your ID
+              </h3>
+              <button
+                onClick={() => {
+                  // close & clear selection
+                  setShowVerificationPopup(false);
+                  setIdFile(null);
+                  if (idPreviewUrl) {
+                    URL.revokeObjectURL(idPreviewUrl);
+                    setIdPreviewUrl(null);
+                  }
+                }}
+                className="p-1 rounded hover:bg-white/10"
+                aria-label="Close verification popup"
+              >
+                <Icon icon="mdi:close" className="w-5 h-5 text-white/70" />
+              </button>
+            </div>
+
+            <p className="text-white/70 text-sm mt-2 mb-4">
               Please upload a clear image or PDF of your government-issued ID.
+              Accepted: JPG, PNG, PDF.
             </p>
 
-            <div className="mb-4">
+            {/* Upload control */}
+            <div className="flex items-center gap-3 mb-5">
               <input
+                id="id-upload"
                 type="file"
                 accept="image/*,application/pdf"
-                onChange={(e) => setIdFile(e.target.files[0])}
-                className="block w-full text-white"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  handleIdFileChange(f);
+                }}
               />
+
+              {/* Visible button (label) */}
+              <label
+                htmlFor="id-upload"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-[12px] px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm border border-white/20"
+              >
+                <Icon icon="mdi:upload" className="w-4 h-4" />
+                Upload file
+              </label>
+
+              {/* Filename or preview */}
+              <div className="flex-1 min-w-0">
+                {idFile ? (
+                  <div className="flex items-center gap-3">
+                    {idPreviewUrl ? (
+                      <img
+                        src={idPreviewUrl}
+                        alt="ID preview"
+                        className="w-12 h-8 object-cover rounded-sm border border-white/10"
+                      />
+                    ) : (
+                      <span className="inline-block w-12 h-8 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/70">
+                        PDF
+                      </span>
+                    )}
+                    <span className="text-white/80 text-sm truncate">
+                      {idFile.name}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setIdFile(null);
+                        if (idPreviewUrl) {
+                          URL.revokeObjectURL(idPreviewUrl);
+                          setIdPreviewUrl(null);
+                        }
+                        // clear the native input too
+                        const el = document.getElementById("id-upload");
+                        if (el) el.value = "";
+                      }}
+                      className="ml-2 text-white/60 hover:text-white/90"
+                      aria-label="Remove selected file"
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-white/60 text-sm">
+                    No file selected
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end gap-3">
-              <Button
+              <button
                 onClick={() => {
+                  // cancel
                   setShowVerificationPopup(false);
                   setIdFile(null);
+                  if (idPreviewUrl) {
+                    URL.revokeObjectURL(idPreviewUrl);
+                    setIdPreviewUrl(null);
+                  }
+                  const el = document.getElementById("id-upload");
+                  if (el) el.value = "";
                 }}
-                className="bg-white/10 text-white rounded-[15px]"
+                className="bg-white/10 text-white rounded-[15px] px-4 py-2 hover:bg-white/20"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+
+              <button
                 onClick={() => {
                   if (!idFile) {
                     alert("Please upload an ID first.");
                     return;
                   }
+                  // Placeholder: send to backend here. For now mark pending.
                   setVerificationStatus("pending");
                   setShowVerificationPopup(false);
+
+                  // Optionally clear preview
+                  if (idPreviewUrl) {
+                    URL.revokeObjectURL(idPreviewUrl);
+                    setIdPreviewUrl(null);
+                  }
+
+                  // Clear the <input>
+                  const el = document.getElementById("id-upload");
+                  if (el) el.value = "";
+
+                  // feedback to user
                   alert(
                     "Your verification will be processed. You will be notified once approved."
                   );
                 }}
-                className="bg-[#0038FF] text-white rounded-[15px]"
+                disabled={!idFile}
+                className={`rounded-[15px] px-4 py-2 shadow ${
+                  idFile
+                    ? "bg-[#0038FF] hover:bg-[#1a4dff] text-white"
+                    : "bg-white/10 text-white/40 cursor-not-allowed"
+                }`}
               >
                 Confirm
-              </Button>
+              </button>
             </div>
           </div>
         </div>
