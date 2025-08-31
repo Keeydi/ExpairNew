@@ -203,9 +203,13 @@ const ReviewCard = ({ review }) => {
           <span>{likes + (isLiked ? 1 : 0)}</span>
         </div>
         <div className="flex gap-4">
-          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
+          <Button
+            className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+            onClick={() => onTradeAgain?.(review)}
+          >
             Trade again
           </Button>
+
           <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
             View details
           </Button>
@@ -402,6 +406,24 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   // Function to add a new empty credential
   const addCredential = () => {
     setFormData([...formData, defaultCredential]);
+  };
+
+  // --- Trade Again modal state ---
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
+  const [repeatReview, setRepeatReview] = useState(null);
+
+  const openRepeatModal = (review) => {
+    setRepeatReview(review);
+    setShowRepeatModal(true);
+  };
+  const closeRepeatModal = () => {
+    setShowRepeatModal(false);
+    setRepeatReview(null);
+  };
+  const confirmRepeatTrade = () => {
+    // placeholder; backend integration later
+    alert(`Trade request sent to ${repeatReview?.requester || "user"}.`);
+    closeRepeatModal();
   };
 
   return (
@@ -613,6 +635,18 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   );
 };
 
+// Function to calculate cumulative XP required to reach a level
+const getLevelThresholds = (level) => {
+  let total = 0;
+  for (let i = 1; i < level; i++) {
+    total += xpTable[i - 1];
+  }
+  const currentLevelXp = total;
+  const nextLevelXp =
+    total + (xpTable[level - 1] || xpTable[xpTable.length - 1]);
+  return { currentLevelXp, nextLevelXp };
+};
+
 export default function ProfilePage() {
   const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
   const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
@@ -748,6 +782,7 @@ export default function ProfilePage() {
     rank: "Rising Star",
     level: 7,
     verified: false,
+    xp: 50,
   });
 
   // Determine if viewing own profile
@@ -967,9 +1002,11 @@ export default function ProfilePage() {
   // NEW: Editable Skills & Interests
   // ----------------------------
 
+  // verification popup state
   const [showVerificationPopup, setShowVerificationPopup] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending"
-  const [idFile, setIdFile] = useState(null);
+  const [idFile, setIdFile] = useState(null); // File object
+  const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
 
   // For Basic Information editing
   const [basicInfoEditing, setBasicInfoEditing] = useState(false);
@@ -1079,6 +1116,25 @@ export default function ProfilePage() {
   const [showAddInterestForm, setShowAddInterestForm] = useState(false);
   const [addInterestValue, setAddInterestValue] = useState("");
 
+  // call this when input changes
+  const handleIdFileChange = (file) => {
+    if (!file) {
+      setIdFile(null);
+      setIdPreviewUrl(null);
+      return;
+    }
+
+    setIdFile(file);
+
+    // if it's an image, create a preview URL
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setIdPreviewUrl(url);
+    } else {
+      setIdPreviewUrl(null);
+    }
+  };
+
   const handleAddInterest = () => {
     setUserInterests((prev) => [...new Set([...prev, ...selectedInterests])]);
     setSelectedInterests([]);
@@ -1147,6 +1203,48 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  // Returns the XP requirement for a given level
+  const getXpForLevel = (level) => {
+    if (level <= 5) return [50, 75, 100, 125, 150][level - 1];
+    if (level <= 10) return [175, 200, 230, 260, 300][level - 6];
+    if (level <= 20)
+      return [350, 400, 460, 520, 600, 700, 800, 900, 1000, 1100][level - 11];
+    if (level <= 30)
+      return [1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200, 3500][
+        level - 21
+      ];
+    if (level <= 40)
+      return [3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000][
+        level - 31
+      ];
+    if (level <= 50)
+      return [
+        8500, 9000, 9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300,
+      ][level - 41];
+    if (level <= 60)
+      return [
+        15000, 15800, 16600, 17500, 18400, 19300, 20300, 21300, 22300, 23300,
+      ][level - 51];
+    if (level <= 70)
+      return [
+        24300, 25400, 26500, 27700, 28900, 30100, 31300, 32600, 33900, 35200,
+      ][level - 61];
+    if (level <= 80)
+      return [
+        36500, 37900, 39300, 40700, 42100, 43600, 45100, 46600, 48100, 49600,
+      ][level - 71];
+    if (level <= 90)
+      return [
+        51100, 52700, 54300, 55900, 57500, 59200, 60900, 62600, 64300, 66000,
+      ][level - 81];
+    if (level <= 99)
+      return [67700, 69500, 71300, 73100, 74900, 76700, 78500, 80300, 82100][
+        level - 91
+      ];
+    if (level === 100) return 85000;
+    return 100; // fallback
+  };
 
   // Original Profile Page content
   return (
@@ -1257,13 +1355,21 @@ export default function ProfilePage() {
               <span>{user.rank}</span>
             </div>
 
+            {/* Level Bar Section */}
             <div className="flex items-center gap-2">
-              <Image
-                src="/assets/lvlbar.png"
-                alt="Level bar"
-                width={220}
-                height={20}
-              />
+              {/* Track */}
+              <div className="relative w-[220px] h-[20px] rounded-[32px] border-2 border-white overflow-hidden">
+                {/* Fill */}
+                <div
+                  className="h-full rounded-[32px] bg-gradient-to-r from-[#FB9696] via-[#D78DE5] via-[#7E59F8] via-[#284CCC] to-[#6DDFFF] transition-all duration-500"
+                  style={{
+                    width: `${Math.min(
+                      (user.xp / getXpForLevel(user.level)) * 100,
+                      100 // cap at 100%
+                    )}%`,
+                  }}
+                />
+              </div>
               <span className="text-[16px]">LVL {user.level}</span>
             </div>
           </div>
@@ -1314,16 +1420,27 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Get Verified Button */}
-          {isOwnProfile && !user.verified && (
+          {/* Get Verified Button area */}
+          {isOwnProfile && (
             <div className="w-full flex justify-end">
-              <Button
-                className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC] flex items-center gap-2"
-                onClick={() => setShowVerificationPopup(true)}
-              >
-                <Icon icon="material-symbols:verified" className="w-4 h-4" />
-                Get Verified
-              </Button>
+              {verificationStatus === "unverified" && (
+                <button
+                  onClick={() => setShowVerificationPopup(true)}
+                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2"
+                >
+                  <Icon icon="material-symbols:verified" className="w-4 h-4" />
+                  <span>Get Verified</span>
+                </button>
+              )}
+              {verificationStatus === "pending" && (
+                <button
+                  disabled
+                  className="bg-gray-600 text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2"
+                >
+                  <Icon icon="mdi:clock-outline" className="w-4 h-4" />
+                  <span>Waiting for Verification</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1815,52 +1932,154 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* === Verification Popup === */}
+      {/* === Verification Popup (improved UI) === */}
       {showVerificationPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[400px] shadow-lg border border-white/20">
-            <h3 className="text-white text-lg font-semibold mb-4">
-              Upload your ID
-            </h3>
-            <p className="text-white/70 text-sm mb-4">
+          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[420px] shadow-lg border border-white/20">
+            <div className="flex items-start justify-between">
+              <h3 className="text-white text-lg font-semibold">
+                Upload your ID
+              </h3>
+              <button
+                onClick={() => {
+                  // close & clear selection
+                  setShowVerificationPopup(false);
+                  setIdFile(null);
+                  if (idPreviewUrl) {
+                    URL.revokeObjectURL(idPreviewUrl);
+                    setIdPreviewUrl(null);
+                  }
+                }}
+                className="p-1 rounded hover:bg-white/10"
+                aria-label="Close verification popup"
+              >
+                <Icon icon="mdi:close" className="w-5 h-5 text-white/70" />
+              </button>
+            </div>
+
+            <p className="text-white/70 text-sm mt-2 mb-4">
               Please upload a clear image or PDF of your government-issued ID.
+              Accepted: JPG, PNG, PDF.
             </p>
 
-            <div className="mb-4">
+            {/* Upload control */}
+            <div className="flex items-center gap-3 mb-5">
               <input
+                id="id-upload"
                 type="file"
                 accept="image/*,application/pdf"
-                onChange={(e) => setIdFile(e.target.files[0])}
-                className="block w-full text-white"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  handleIdFileChange(f);
+                }}
               />
+
+              {/* Visible button (label) */}
+              <label
+                htmlFor="id-upload"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-[12px] px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm border border-white/20"
+              >
+                <Icon icon="mdi:upload" className="w-4 h-4" />
+                Upload file
+              </label>
+
+              {/* Filename or preview */}
+              <div className="flex-1 min-w-0">
+                {idFile ? (
+                  <div className="flex items-center gap-3">
+                    {idPreviewUrl ? (
+                      <img
+                        src={idPreviewUrl}
+                        alt="ID preview"
+                        className="w-12 h-8 object-cover rounded-sm border border-white/10"
+                      />
+                    ) : (
+                      <span className="inline-block w-12 h-8 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/70">
+                        PDF
+                      </span>
+                    )}
+                    <span className="text-white/80 text-sm truncate">
+                      {idFile.name}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setIdFile(null);
+                        if (idPreviewUrl) {
+                          URL.revokeObjectURL(idPreviewUrl);
+                          setIdPreviewUrl(null);
+                        }
+                        // clear the native input too
+                        const el = document.getElementById("id-upload");
+                        if (el) el.value = "";
+                      }}
+                      className="ml-2 text-white/60 hover:text-white/90"
+                      aria-label="Remove selected file"
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-white/60 text-sm">
+                    No file selected
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end gap-3">
-              <Button
+              <button
                 onClick={() => {
+                  // cancel
                   setShowVerificationPopup(false);
                   setIdFile(null);
+                  if (idPreviewUrl) {
+                    URL.revokeObjectURL(idPreviewUrl);
+                    setIdPreviewUrl(null);
+                  }
+                  const el = document.getElementById("id-upload");
+                  if (el) el.value = "";
                 }}
-                className="bg-white/10 text-white rounded-[15px]"
+                className="bg-white/10 text-white rounded-[15px] px-4 py-2 hover:bg-white/20"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+
+              <button
                 onClick={() => {
                   if (!idFile) {
                     alert("Please upload an ID first.");
                     return;
                   }
+                  // Placeholder: send to backend here. For now mark pending.
                   setVerificationStatus("pending");
                   setShowVerificationPopup(false);
+
+                  // Optionally clear preview
+                  if (idPreviewUrl) {
+                    URL.revokeObjectURL(idPreviewUrl);
+                    setIdPreviewUrl(null);
+                  }
+
+                  // Clear the <input>
+                  const el = document.getElementById("id-upload");
+                  if (el) el.value = "";
+
+                  // feedback to user
                   alert(
                     "Your verification will be processed. You will be notified once approved."
                   );
                 }}
-                className="bg-[#0038FF] text-white rounded-[15px]"
+                disabled={!idFile}
+                className={`rounded-[15px] px-4 py-2 shadow ${
+                  idFile
+                    ? "bg-[#0038FF] hover:bg-[#1a4dff] text-white"
+                    : "bg-white/10 text-white/40 cursor-not-allowed"
+                }`}
               >
                 Confirm
-              </Button>
+              </button>
             </div>
           </div>
         </div>
