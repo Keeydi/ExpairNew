@@ -6,6 +6,16 @@ from .models import SpecSkill, UserSkill
 
 
 
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["first_Name", "last_Name", "bio"]
+        extra_kwargs = {
+            "first_Name": {"required": False, "allow_blank": True},
+            "last_Name":  {"required": False, "allow_blank": True},
+            "bio":        {"required": False, "allow_blank": True},
+        }
+        
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

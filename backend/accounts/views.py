@@ -1,24 +1,56 @@
 from django.db.models import Q
 
+from rest_framework import status
+
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
-from rest_framework import status
-from .serializers import UserSerializer
-from django.db import IntegrityError, transaction
-from .models import GenSkill, UserInterest, User
-from .serializers import GenSkillSerializer, UserInterestBulkSerializer
-from .models import SpecSkill, UserSkill
-from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
-from django.contrib.auth.hashers import check_password
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view, permission_classes
-from django.shortcuts import get_object_or_404
-from django.db.models import Prefetch
 
+from .models import GenSkill, UserInterest, User
+from .models import SpecSkill, UserSkill
 from .models import User
 
+from django.shortcuts import get_object_or_404
+from django.db import IntegrityError, transaction
+from django.contrib.auth.hashers import check_password
+
+
+from .serializers import ProfileUpdateSerializer
+from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
+from .serializers import UserSerializer
+from .serializers import GenSkillSerializer, UserInterestBulkSerializer
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([AllowAny])  # TODO: tighten to IsAuthenticated when FE sends JWT/cookie
+def me(request):
+    # Resolve target: prefer authenticated user; else fall back to provided user_id (dev-friendly)
+    target = request.user if getattr(request.user, "id", None) else None
+    if not target:
+        uid = request.query_params.get("user_id") if request.method == "GET" else request.data.get("user_id")
+        if uid:
+            target = get_object_or_404(User, pk=int(uid))
+
+    if not target:
+        return Response({"detail": "Authentication required or user_id missing."}, status=401)
+
+    if request.method == "GET":
+        return Response(_public_user_payload(target, request), status=200)
+
+    # PATCH
+    serializer = ProfileUpdateSerializer(instance=target, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(_public_user_payload(target, request), status=200)
+
+    # PATCH: update profile fields
+    serializer = ProfileUpdateSerializer(instance=request.user, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    # return the same unified payload so FE can refresh state easily
+    return Response(_public_user_payload(request.user, request), status=200)
 
 def _public_user_payload(user, request=None):
     pic = None
@@ -55,11 +87,6 @@ def user_detail_by_username(request, username: str):
     except User.DoesNotExist:
         return Response({"detail": "Not found."}, status=404)
     return Response(_public_user_payload(user, request), status=200)
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def me(request):
-    return Response(_public_user_payload(request.user, request), status=200)
 
 
 @api_view(['GET'])

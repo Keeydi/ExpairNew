@@ -9,14 +9,69 @@ import Image from "next/image";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
 import clsx from "clsx";
-import {
-  ChevronDownIcon,
+import {ChevronDownIcon,
   ChevronUpIcon,
   PencilIcon,
   Star,
   Heart,
   Flag,
 } from "lucide-react";
+
+// ===== XP / Level / Rank based on CUMULATIVE THRESHOLDS =====
+// LVL_CAPS[L-1] = total XP at END of level L (inclusive thresholds)
+const LVL_CAPS = [
+  50, 75, 100, 125, 150,
+  175, 200, 230, 260, 300,
+  350, 400, 460, 520, 600, 700, 800, 900, 1000, 1100,
+  1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200, 3500,
+  3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000,
+  8500, 9000, 9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300,
+  15000, 15800, 16600, 17500, 18400, 19300, 20300, 21300, 22300, 23300,
+  24300, 25400, 26500, 27700, 28900, 30100, 31300, 32600, 33900, 35200,
+  36500, 37900, 39300, 40700, 42100, 43600, 45100, 46600, 48100, 49600,
+  51100, 52700, 54300, 55900, 57500, 59200, 60900, 62600, 64300, 66000,
+  67700, 69500, 71300, 73100, 74900, 76700, 78500, 80300, 82100, 85000
+];
+
+const clampLevel = (lvl) => Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
+
+const getRankTitle = (lvl) => {
+  const L = clampLevel(lvl);
+  if (L <= 5)  return "Unranked";
+  if (L <= 10) return "Dwarf Star";
+  if (L <= 20) return "Rising Star";
+  if (L <= 30) return "Shining Star";
+  if (L <= 40) return "Giant";
+  if (L <= 50) return "Supergiant";
+  if (L <= 60) return "Stellar";
+  if (L <= 70) return "Radiant";
+  if (L <= 80) return "Cosmic";
+  if (L <= 90) return "Luminary";
+  if (L <= 99) return "Ethereal";
+  return "Celestial"; // 100
+};
+
+// Width of the current level band (XP range inside this level)
+const getLevelWidth = (lvl) => {
+  const idx = clampLevel(lvl) - 1;
+  const prev = idx === 0 ? 0 : LVL_CAPS[idx - 1];
+  return LVL_CAPS[idx] - prev;
+};
+
+// Derive level + in-level progress from lifetime total XP (tot_xppts)
+// Inclusive boundary: exact cap stays on the same level
+const deriveFromTotalXp = (totalXp) => {
+  const t = Math.max(0, Number(totalXp) || 0);
+  let idx = LVL_CAPS.findIndex((cap) => t <= cap);
+  if (idx === -1) idx = LVL_CAPS.length - 1; // clamp to 100
+  const level = idx + 1;
+  const prevCap = idx === 0 ? 0 : LVL_CAPS[idx - 1];
+  const currCap = LVL_CAPS[idx];
+  const xpInLevel = Math.max(0, t - prevCap);
+  const levelWidth = currCap - prevCap;
+  return { level, rank: getRankTitle(level), xpInLevel, levelWidth, prevCap, currCap };
+};
+// ===== end helpers =====
 
 const safeFixed = (val, digits = 1) => {
   const n = Number(val);
@@ -35,8 +90,7 @@ export default function ProfilePage() {
   const { data: session } = useSession();
   const params = useParams();
   const [error, setError] = useState(null);
- 
-
+  
   const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
   const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
   const [sortOption, setSortOption] = useState("Latest");
@@ -46,6 +100,17 @@ export default function ProfilePage() {
     const raw = params?.userId;
     return Array.isArray(raw) ? raw[0] : raw || null;
   }, [params]);
+  
+
+    // For Basic Information editing
+  const [basicInfoEditing, setBasicInfoEditing] = useState(false);
+  const [editableFirstName, setEditableFirstName] = useState("");
+  const [editableLastName,  setEditableLastName]  = useState("");
+  const [editableBio,       setEditableBio]       = useState("");
+
+  const [basicInfoSaving, setBasicInfoSaving] = useState(false);
+  const [basicInfoError,  setBasicInfoError]  = useState(null);
+
 
   const [user, setUser] = useState({
     firstName: "",
@@ -54,8 +119,23 @@ export default function ProfilePage() {
     joined: "",
     rating: 0,   
     reviews: 0,
+    level: 1,
+    rank: "Unranked",
+    xpPoints: 0,
+    tot_xppts: 0,
       
 });
+
+  useEffect(() => {
+    if (!user) return;
+    if (!basicInfoEditing) {
+      setEditableFirstName(user.firstName || "");
+      setEditableLastName(user.lastName || "");
+      setEditableBio(user.bio || "");
+    }
+  }, [user, basicInfoEditing]);
+
+  
 
   const RAW_ORIGIN = RAW.replace(/\/api\/accounts\/?$/, "");
 
@@ -87,7 +167,7 @@ export default function ProfilePage() {
       const isNumeric = /^\d+$/.test(String(slug));
       const url =
       slug === "me"
-        ? `${API_BASE}/accounts/me/`
+        ? `${API_BASE}/me/`
         : isNumeric
           ? `${API_BASE}/users/${slug}/`
           : `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
@@ -110,6 +190,7 @@ export default function ProfilePage() {
         firstName: data.first_Name || "",
         lastName:  data.last_Name  || "",
         username:  data.username   || "",
+        id: (Number(data.id ?? data.user_id ?? (isNumeric ? slug : null)) || null),
         profilePic: data.profilePic || null,
         joined:    data.created_at
           ? new Date(data.created_at).toLocaleString(undefined, { month: "long", year: "numeric" })
@@ -117,9 +198,13 @@ export default function ProfilePage() {
         rating:    Number(data.avgStars ?? data.rating) || 0,
         reviews:   Number(data.ratingCount ?? data.reviews) || 0,
         bio:       data.bio || prev.bio || "",
-        rank: (data.xpRank ?? data.rank ?? "Rank").toString(),
-        level:     Number.isFinite(Number(data.level)) ? Number(data.level) : 0,
-        xpPoints:  Number.isFinite(Number(data.tot_XpPts)) ? Number(data.tot_XpPts) : 0,
+        id:        (isNumeric ? Number(slug) : Number(data.id ?? data.user_id ?? 0)) || prev.id || null,
+        /* derive level, rank, and in-level progress from lifetime XP */
+        ...(() => {
+          const totalXp = Number(data.tot_xppts ?? data.tot_XpPts ?? data.totalXp ?? 0);
+          const d = deriveFromTotalXp(totalXp);
+          return { tot_xppts: totalXp, level: d.level, rank: d.rank, xpPoints: d.xpInLevel, _lvlWidth: d.levelWidth };
+        })(),
       }));
 
       const userId = isNumeric ? String(slug) : String(data.id ?? data.user_id ?? "");
@@ -143,7 +228,15 @@ export default function ProfilePage() {
   return () => { cancelled = true; };
 }, [slug, session?.accessToken]);
 
-
+  useEffect(() => {
+    if (!user) return;
+    if (!basicInfoEditing) {
+      // keep edit fields in sync when not editing
+      setEditableFirstName?.(user.firstName || "");
+      setEditableLastName?.(user.lastName || "");
+      setEditableBio?.(user.bio || "");
+    }
+  }, [user, basicInfoEditing]);
 
   const [credentials, setCredentials] = useState([
     {
@@ -479,14 +572,6 @@ export default function ProfilePage() {
   const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending"
   const [idFile, setIdFile] = useState(null); // File object
   const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
-
-  // For Basic Information editing
-  const [basicInfoEditing, setBasicInfoEditing] = useState(false);
-  const [editableFirstName, setEditableFirstName] = useState(
-    user.firstName || ""
-  );
-  const [editableLastName, setEditableLastName] = useState(user.lastName || "");
-  const [editableBio, setEditableBio] = useState(user?.bio || "");
 
   // editing toggles
   const [skillsEditing, setSkillsEditing] = useState(false);
@@ -1292,6 +1377,70 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   );
 };
 
+const isDirty =
+  basicInfoEditing &&
+  (
+    (editableFirstName ?? "") !== (user.firstName ?? "") ||
+    (editableLastName  ?? "") !== (user.lastName  ?? "") ||
+    (editableBio       ?? "") !== (user.bio       ?? "")
+  );
+
+  async function handleSaveBasicInfo() {
+  setBasicInfoSaving(true);
+  setBasicInfoError(null);
+  try {
+    // Reuse your existing base URL logic in this file
+    const RAW = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+    const API_BASE = RAW.includes("/api/accounts")
+      ? RAW.replace(/\/+$/, "")
+      : `${RAW.replace(/\/+$/, "")}/api/accounts`;
+
+    const body = {
+      first_Name: editableFirstName ?? "",
+      last_Name:  editableLastName ?? "",
+      bio:        editableBio ?? "",
+      user_id: user?.id ?? null,
+    };
+
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (session?.accessToken) {
+      headers.Authorization = `Bearer ${session.accessToken}`;
+    }
+
+    const res = await fetch(`${API_BASE}/me/`, {
+      method: "PATCH",
+      headers,
+      credentials: "include", // works for cookie or JWT setups
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Save failed (${res.status}): ${txt.slice(0, 200)}`);
+    }
+
+    const updated = await res.json();
+
+    // Minimal merge: only touch the fields we edited
+    setUser(prev => ({
+      ...prev,
+      firstName: updated.first_Name ?? editableFirstName ?? prev.firstName,
+      lastName:  updated.last_Name  ?? editableLastName  ?? prev.lastName,
+      bio:       updated.bio        ?? editableBio       ?? prev.bio,
+    }));
+
+    setBasicInfoEditing(false);
+  } catch (e) {
+    console.error("[basic info save] error", e);
+    setBasicInfoError(e.message || "Failed to save.");
+  } finally {
+    setBasicInfoSaving(false);
+  }
+}
+
   // Original Profile Page content
   return (
     <div
@@ -1359,7 +1508,12 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
             <div className="absolute top-0 right-0 flex gap-4">
               <button
                 className="text-white hover:bg-[#1A0F3E] px-3 py-2 flex items-center gap-2 rounded-[10px] transition"
-                onClick={() => setBasicInfoEditing(true)}
+                onClick={() => {
+                  setEditableFirstName(user?.firstName || "");
+                  setEditableLastName(user?.lastName || "");
+                  setEditableBio(user?.bio || "");
+                  setBasicInfoEditing(true);
+                }}
               >
                 <Icon icon="mdi:pencil" className="w-5 h-5" />
                 Edit
@@ -1404,13 +1558,26 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
                 <span>{(user?.rank || "Rank").toString().charAt(0).toUpperCase() + (user?.rank || "Rank").toString().slice(1)}</span>
             </div>
 
+            {/* Level Bar Section */}
             <div className="flex items-center gap-2">
-              <Image
-                src="/assets/lvlbar.png"
-                alt="Level bar"
-                width={220}
-                height={20}
+              {/* Track */}
+              <div className="relative w-[220px] h-[20px] rounded-[32px] border-2 border-white overflow-hidden">
+                {/* Fill */}
+                <div
+                  className="h-full rounded-[32px] transition-all duration-500"
+                style={{
+                  // percent = in-level XP / width of this level band
+                  width: `${(() => {
+                    const width = getLevelWidth(user.level || 1);
+                    const gained = Number(user.xpPoints) || 0;
+                    return Math.min((gained / (width || 1)) * 100, 100);
+                  })()}%`,
+                  minWidth: (Number(user.xpPoints) || 0) > 0 ? "6px" : "0",
+                  backgroundImage:
+                    "linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)",
+                }}
               />
+              </div>
               <span className="text-[16px]">LVL {user.level}</span>
             </div>
           </div>
@@ -1431,35 +1598,37 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
 
           {/* Save / Cancel when editing */}
           {basicInfoEditing && (
-            <div className="flex gap-3 mb-4">
-              <Button
-                onClick={() => {
-                  setUser((prev) => ({
-                    ...prev,
-                    firstName: editableFirstName,
-                    lastName: editableLastName,
-                    name: `${editableFirstName} ${editableLastName}`,
-                    bio: editableBio,
-                  }));
-                  setBasicInfoEditing(false);
-                }}
-                className="bg-[#0038FF] text-white rounded-[15px]"
-              >
-                Save
-              </Button>
-              <Button
-                onClick={() => {
-                  setEditableFirstName(user.firstName || "");
-                  setEditableLastName(user.lastName || "");
-                  setEditableBio(user.bio);
-                  setBasicInfoEditing(false);
-                }}
-                className="bg-white/10 text-white rounded-[15px]"
-              >
-                Cancel
-              </Button>
+            <div className="flex flex-col gap-2 mb-4">
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  onClick={handleSaveBasicInfo}
+                  disabled={!isDirty || basicInfoSaving}
+                  className={clsx(
+                    "text-white rounded-[15px]",
+                    basicInfoSaving ? "bg-[#0038FF]/70" : "bg-[#0038FF]"
+                  )}
+                >
+                  {basicInfoSaving ? "Saving..." : "Save"}
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => setBasicInfoEditing(false)}
+                  disabled={basicInfoSaving}
+                  className="bg-white/10 text-white rounded-[15px]"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              {/* inline feedback */}
+              {basicInfoError && (
+                <p className="text-red-400 text-sm">{basicInfoError}</p>
+              )}
             </div>
           )}
+
 
           {/* Get Verified Button area */}
           {isOwnProfile && (

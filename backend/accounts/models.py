@@ -14,7 +14,7 @@ class User(models.Model):
     avgStars = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, db_column='avgstars')
     tot_XpPts = models.IntegerField(default=0, db_column='tot_xppts')
     xpRank = models.CharField(max_length=255, default='Unranked', db_column='xprank')
-    level = models.IntegerField(default=0, db_column='level')
+    level = models.IntegerField(default=1, db_column='level')
     created_at = models.DateTimeField(auto_now_add=True)
     userVerifyId = models.FileField(upload_to='user_verifications/', null=True, blank=True, db_column='userverifyid')
     links = models.TextField(null=True, blank=True)
