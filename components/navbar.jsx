@@ -21,6 +21,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { NotificationPortal } from "./notifications/notification-portal";
 
+
 import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
@@ -33,6 +34,9 @@ export default function Navbar() {
   const [bellRect, setBellRect] = useState(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   const bellRef = useRef(null);
+
+  const DEFAULT_AVATAR = "/defaultavatar.png";
+  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
   
   // Build dynamic profile links (prefer NextAuth user → localStorage → "me")
   const userId =
@@ -44,6 +48,40 @@ export default function Navbar() {
   const profileSlug = userId ? String(userId) : username ? String(username) : "me";
   const profileHref = `/home/profile/${profileSlug}`;
   const settingsHref = `/home/profile/${profileSlug}/settings`;
+
+   useEffect(() => {
+    let cancelled = false;
+
+    // 1) prime with whatever we already have
+    const primed =
+      session?.user?.image ||
+      session?.user?.profilePic ||
+      (typeof window !== "undefined" ? localStorage.getItem("profilePic") : null) ||
+      DEFAULT_AVATAR;
+    setAvatarUrl(primed);
+
+    // 2) fetch the latest from the public profile endpoint if we know the id
+    const uid =
+      session?.user?.id ??
+      (typeof window !== "undefined" ? localStorage.getItem("user_id") : null);
+
+    if (!uid) return;
+
+    const root = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+    const API_BASE = root.includes("/api/accounts") ? root : `${root}/api/accounts`;
+
+    fetch(`${API_BASE}/users/${uid}/`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const url = data.profilePic || DEFAULT_AVATAR;
+        setAvatarUrl(url);
+        try { localStorage.setItem("profilePic", url); } catch {}
+      })
+      .catch(() => { /* ignore – we’ll keep the primed value */ });
+
+    return () => { cancelled = true; };
+  }, [session?.user?.id, session?.user?.image, session?.user?.profilePic]);
 
 
   // Close notification dialog when clicking outside
@@ -162,11 +200,12 @@ export default function Navbar() {
             <DropdownMenuTrigger asChild>
               <button className="rounded-full border border-white focus:outline-none focus:ring-2 focus:ring-[#6DDFFF]">
                 <Image
-                  src="/defaultavatar.png"
+                  src={avatarUrl || DEFAULT_AVATAR}
                   alt="User Avatar"
                   width={25}
                   height={25}
                   className="rounded-full"
+                  onError={() => setAvatarUrl(DEFAULT_AVATAR)}
                 />
               </button>
             </DropdownMenuTrigger>
