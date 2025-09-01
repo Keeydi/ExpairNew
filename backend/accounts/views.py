@@ -3,11 +3,10 @@ from django.db.models import Q
 from rest_framework import status
 
 from rest_framework.decorators import api_view, parser_classes, permission_classes
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
 
 
 from .models import GenSkill, UserInterest, User
@@ -25,7 +24,8 @@ from .serializers import GenSkillSerializer, UserInterestBulkSerializer
 
 
 @api_view(["GET", "PATCH"])
-@permission_classes([AllowAny])  # TODO: tighten to IsAuthenticated when FE sends JWT/cookie
+@permission_classes([AllowAny])  # tighten later if you wire real auth
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def me(request):
     # Resolve target: prefer authenticated user; else fall back to provided user_id (dev-friendly)
     target = request.user if getattr(request.user, "id", None) else None
@@ -40,24 +40,32 @@ def me(request):
     if request.method == "GET":
         return Response(_public_user_payload(target, request), status=200)
 
-    # PATCH
-    serializer = ProfileUpdateSerializer(instance=target, data=request.data, partial=True)
+    data = request.data.copy()
+    data.pop("user_id", None)  # not a serializer field; only used to resolve target
+    serializer = ProfileUpdateSerializer(instance=target, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
-    serializer.save()
-    return Response(_public_user_payload(target, request), status=200)
 
-    # PATCH: update profile fields
-    serializer = ProfileUpdateSerializer(instance=request.user, data=request.data, partial=True)
-    serializer.is_valid(raise_exception=True)
-    serializer.save()
-    # return the same unified payload so FE can refresh state easily
-    return Response(_public_user_payload(request.user, request), status=200)
+    # Save ONCE — ProfileUpdateSerializer.update() already flips is_verified=False
+    updated = serializer.save()
+
+    # Safety: if a file really came in via multipart, keep it unverified and persist the flag
+    if request.FILES.get("userVerifyId"):
+        updated.is_verified = False
+        updated.save(update_fields=["is_verified"])
+
+    return Response(_public_user_payload(updated, request), status=200)
+
 
 def _public_user_payload(user, request=None):
     pic = None
     if getattr(user, "profilePic", None):
-        url = user.profilePic.url 
+        url = user.profilePic.url
         pic = request.build_absolute_uri(url) if request else url
+
+    verify_url = None
+    if getattr(user, "userVerifyId", None):
+        vurl = user.userVerifyId.url
+        verify_url = request.build_absolute_uri(vurl) if request else vurl
 
     return {
         "user_id": user.user_id,
@@ -70,10 +78,13 @@ def _public_user_payload(user, request=None):
         "ratingCount": int(user.ratingCount or 0),
         "profilePic": pic,
         "created_at": user.created_at,
-        "xpRank": user.xpRank,     
+        "xpRank": user.xpRank,
         "level": int(user.level or 0),
         "tot_XpPts": int(user.tot_XpPts or 0),
+        "is_verified": bool(getattr(user, "is_verified", False)),
+        "userVerifyId": verify_url,
     }
+
 
 @api_view(["GET"])
 @permission_classes([AllowAny])

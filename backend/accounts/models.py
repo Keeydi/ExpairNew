@@ -17,6 +17,7 @@ class User(models.Model):
     level = models.IntegerField(default=1, db_column='level')
     created_at = models.DateTimeField(auto_now_add=True)
     userVerifyId = models.FileField(upload_to='user_verifications/', null=True, blank=True, db_column='userverifyid')
+    is_verified = models.BooleanField(default=False, db_column='is_verified')
     links = models.TextField(null=True, blank=True)
 
     def __str__(self):

@@ -5,10 +5,17 @@ from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
 
 
+
 class ProfileUpdateSerializer(serializers.ModelSerializer):
+    userVerifyId = serializers.FileField(required=False, allow_null=True)
+
     class Meta:
         model = User
-        fields = ["first_Name", "last_Name", "bio", "username", "emailAdd", "profilePic"]  # <—
+        fields = [
+            "first_Name", "last_Name", "bio",
+            "username", "emailAdd", "profilePic",
+            "userVerifyId",       
+        ]
         extra_kwargs = {
             "first_Name": {"required": False, "allow_blank": True},
             "last_Name":  {"required": False, "allow_blank": True},
@@ -16,29 +23,25 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "username":   {"required": False, "allow_blank": False},
             "emailAdd":   {"required": False, "allow_blank": False},
             "profilePic": {"required": False},
+            "userVerifyId": {"required": False},
         }
 
-    def validate_username(self, v):
-        v = (v or "").strip()
-        if not v:
-            return v
-        qs = User.objects.filter(username__iexact=v)
-        if self.instance:
-            qs = qs.exclude(pk=getattr(self.instance, "pk", None))
-        if qs.exists():
-            raise serializers.ValidationError("Username already in use.")
-        return v
+    def validate_userVerifyId(self, f):
+        if not f:
+            return f
+        ct = (getattr(f, "content_type", "") or "").lower()
+        # accept any image/* or a pdf
+        if not (ct.startswith("image/") or ct == "application/pdf"):
+            raise serializers.ValidationError("Only image files or PDF are allowed.")
+        if getattr(f, "size", 0) > 15 * 1024 * 1024:
+            raise serializers.ValidationError("File too large (max 15MB).")
+        return f
 
-    def validate_emailAdd(self, v):
-        v = (v or "").strip()
-        if not v:
-            return v
-        qs = User.objects.filter(emailAdd__iexact=v)
-        if self.instance:
-            qs = qs.exclude(pk=getattr(self.instance, "pk", None))
-        if qs.exists():
-            raise serializers.ValidationError("Email already in use.")
-        return v
+    def update(self, instance, validated_data):
+        # If a new verify file is provided, auto-reset is_verified to False
+        if "userVerifyId" in validated_data and validated_data["userVerifyId"]:
+            instance.is_verified = False
+        return super().update(instance, validated_data)
         
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

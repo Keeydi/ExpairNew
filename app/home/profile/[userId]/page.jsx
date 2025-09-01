@@ -198,6 +198,8 @@ export default function ProfilePage() {
         rating:    Number(data.avgStars ?? data.rating) || 0,
         reviews:   Number(data.ratingCount ?? data.reviews) || 0,
         bio:       data.bio || prev.bio || "",
+        is_verified: Boolean(data.is_verified),
+        userVerifyId: data.userVerifyId || null,
         id:        (isNumeric ? Number(slug) : Number(data.id ?? data.user_id ?? 0)) || prev.id || null,
         /* derive level, rank, and in-level progress from lifetime XP */
         ...(() => {
@@ -338,19 +340,6 @@ export default function ProfilePage() {
       return newState;
     });
   };
-
-  useState({
-    firstName: "",
-    lastName: "",
-    bio: "",
-    username: "",
-    joined: "",
-    rating: 0,
-    reviews: 0,
-    rank: "",
-    level: 0,
-    verified: false,
-  });
 
   // Determine if viewing own profile
   // Replace with actual logged-in user ID logic from your auth system
@@ -569,9 +558,85 @@ export default function ProfilePage() {
 
   // verification popup state
   const [showVerificationPopup, setShowVerificationPopup] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending"
+  const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending" | "verified"
   const [idFile, setIdFile] = useState(null); // File object
   const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
+
+  useEffect(() => {
+  const v = user?.is_verified
+    ? "verified"
+    : user?.userVerifyId
+      ? "pending"
+      : "unverified";
+  setVerificationStatus(v);
+}, [user?.is_verified, user?.userVerifyId]);
+
+
+ // call this when input changes
+  const handleIdFileChange = (file) => {
+    if (!file) {
+      setIdFile(null);
+      setIdPreviewUrl(null);
+      return;
+    }
+
+    setIdFile(file);
+
+    // if it's an image, create a preview URL
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setIdPreviewUrl(url);
+    } else {
+      setIdPreviewUrl(null);
+    }
+  };
+  
+  async function handleSubmitVerification() {
+  try {
+    if (!idFile) {
+      alert("Please choose a file first.");
+      return;
+    }
+    const fd = new FormData();
+    fd.append("userVerifyId", idFile);
+    if (user?.id) fd.append("user_id", String(user.id)); // works even without auth cookie
+
+    const headers = { Accept: "application/json" };
+    if (session?.accessToken) {
+      headers.Authorization = `Bearer ${session.accessToken}`;
+    }
+
+    const res = await fetch(`${API_BASE}/me/`, {
+      method: "PATCH",
+      credentials: "include",
+      headers, // DO NOT set Content-Type when sending FormData
+      body: fd,
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Upload failed (${res.status}): ${txt.slice(0, 120)}`);
+    }
+
+    const updated = await res.json();
+    // reflect backend response in local state
+    setUser(prev => ({
+      ...prev,
+      userVerifyId: updated.userVerifyId || prev.userVerifyId || null,
+      is_verified: Boolean(updated.is_verified),
+    }));
+
+    // frontend UX: immediately show "pending"
+    setVerificationStatus("pending");
+    setShowVerificationPopup(false);
+    setIdFile(null);
+    setIdPreviewUrl(null);
+  } catch (e) {
+    console.error("[verify upload] error", e);
+    alert(e.message || "Upload failed.");
+  }
+}
+
 
   // editing toggles
   const [skillsEditing, setSkillsEditing] = useState(false);
@@ -673,24 +738,6 @@ export default function ProfilePage() {
   const [showAddInterestForm, setShowAddInterestForm] = useState(false);
   const [addInterestValue, setAddInterestValue] = useState("");
 
-  // call this when input changes
-  const handleIdFileChange = (file) => {
-    if (!file) {
-      setIdFile(null);
-      setIdPreviewUrl(null);
-      return;
-    }
-
-    setIdFile(file);
-
-    // if it's an image, create a preview URL
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setIdPreviewUrl(url);
-    } else {
-      setIdPreviewUrl(null);
-    }
-  };
 
   const handleAddInterest = () => {
     setUserInterests((prev) => [...new Set([...prev, ...selectedInterests])]);
@@ -1629,7 +1676,6 @@ const isDirty =
             </div>
           )}
 
-
           {/* Get Verified Button area */}
           {isOwnProfile && (
             <div className="w-full flex justify-end">
@@ -1651,10 +1697,18 @@ const isDirty =
                   <span>Waiting for Verification</span>
                 </button>
               )}
+
+              {/* Verified state */}
+              {verificationStatus === "verified" && (
+                <div className="flex items-center gap-2 bg-green-600/25 border border-green-500/70 text-green-200 rounded-[14px] px-3 py-1.5 text-sm">
+                  <Icon icon="mdi:check-circle" className="w-4 h-4" />
+                  <span>Verified</span>
+                </div>
+              )}
             </div>
           )}
         </div>
-      </div>
+      </div>          
 
       {/* ==== YOUR SKILLS ==== */}
       <div className="mt-[50px] flex flex-col gap-[25px]">
@@ -1841,6 +1895,8 @@ const isDirty =
           </div>
         )}
       </div>
+
+      
 
       {/* ==== YOUR INTERESTS ==== */}
       <div className="mt-[50px] flex flex-col gap-[25px]">
@@ -2169,7 +2225,7 @@ const isDirty =
 
             <p className="text-white/70 text-sm mt-2 mb-4">
               Please upload a clear image or PDF of your government-issued ID.
-              Accepted: JPG, PNG, PDF.
+              Accepted: PDF, PNG, or JPEG. Max 15&nbsp;MB.
             </p>
 
             {/* Upload control */}
@@ -2179,10 +2235,8 @@ const isDirty =
                 type="file"
                 accept="image/*,application/pdf"
                 className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  handleIdFileChange(f);
-                }}
+                onChange={(e) => handleIdFileChange(e.target.files?.[0] ?? null)
+                }
               />
 
               {/* Visible button (label) */}
@@ -2257,30 +2311,7 @@ const isDirty =
               </button>
 
               <button
-                onClick={() => {
-                  if (!idFile) {
-                    alert("Please upload an ID first.");
-                    return;
-                  }
-                  // Placeholder: send to backend here. For now mark pending.
-                  setVerificationStatus("pending");
-                  setShowVerificationPopup(false);
-
-                  // Optionally clear preview
-                  if (idPreviewUrl) {
-                    URL.revokeObjectURL(idPreviewUrl);
-                    setIdPreviewUrl(null);
-                  }
-
-                  // Clear the <input>
-                  const el = document.getElementById("id-upload");
-                  if (el) el.value = "";
-
-                  // feedback to user
-                  alert(
-                    "Your verification will be processed. You will be notified once approved."
-                  );
-                }}
+                onClick={handleSubmitVerification}
                 disabled={!idFile}
                 className={`rounded-[15px] px-4 py-2 shadow ${
                   idFile
