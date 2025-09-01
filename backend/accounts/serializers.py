@@ -5,16 +5,40 @@ from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
 
 
-
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["first_Name", "last_Name", "bio"]
+        fields = ["first_Name", "last_Name", "bio", "username", "emailAdd", "profilePic"]  # <—
         extra_kwargs = {
             "first_Name": {"required": False, "allow_blank": True},
             "last_Name":  {"required": False, "allow_blank": True},
             "bio":        {"required": False, "allow_blank": True},
+            "username":   {"required": False, "allow_blank": False},
+            "emailAdd":   {"required": False, "allow_blank": False},
+            "profilePic": {"required": False},
         }
+
+    def validate_username(self, v):
+        v = (v or "").strip()
+        if not v:
+            return v
+        qs = User.objects.filter(username__iexact=v)
+        if self.instance:
+            qs = qs.exclude(pk=getattr(self.instance, "pk", None))
+        if qs.exists():
+            raise serializers.ValidationError("Username already in use.")
+        return v
+
+    def validate_emailAdd(self, v):
+        v = (v or "").strip()
+        if not v:
+            return v
+        qs = User.objects.filter(emailAdd__iexact=v)
+        if self.instance:
+            qs = qs.exclude(pk=getattr(self.instance, "pk", None))
+        if qs.exists():
+            raise serializers.ValidationError("Email already in use.")
+        return v
         
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

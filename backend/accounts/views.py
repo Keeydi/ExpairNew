@@ -7,6 +7,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+
 
 from .models import GenSkill, UserInterest, User
 from .models import SpecSkill, UserSkill
@@ -15,7 +17,6 @@ from .models import User
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
 from django.contrib.auth.hashers import check_password
-
 
 from .serializers import ProfileUpdateSerializer
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
@@ -63,6 +64,7 @@ def _public_user_payload(user, request=None):
         "username": user.username,
         "first_Name": user.first_Name,
         "last_Name": user.last_Name,
+        "emailAdd": user.emailAdd,
         "bio": user.bio,
         "avgStars": float(user.avgStars or 0),
         "ratingCount": int(user.ratingCount or 0),
