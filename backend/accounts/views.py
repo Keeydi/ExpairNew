@@ -57,15 +57,31 @@ def me(request):
 
 
 def _public_user_payload(user, request=None):
+    # Profile picture absolute URL (if any)
     pic = None
     if getattr(user, "profilePic", None):
         url = user.profilePic.url
         pic = request.build_absolute_uri(url) if request else url
 
-    verify_url = None
+    # Verification file absolute URL (if any)
+    verify_url = None    # e.g., /media/user_verifications/...
     if getattr(user, "userVerifyId", None):
         vurl = user.userVerifyId.url
         verify_url = request.build_absolute_uri(vurl) if request else vurl
+
+    # Enum status (safe even if column not present yet)
+    status = getattr(user, "verification_status", None)
+    if not status:
+        if bool(getattr(user, "is_verified", False)):
+            status = "VERIFIED"
+        elif getattr(user, "userVerifyId", None):
+            status = "PENDING"
+        else:
+            status = "UNVERIFIED"
+            
+    if status == "UNVERIFIED" and getattr(user, "userVerifyId", None) and not bool(getattr(user, "is_verified", False)):
+        status = "PENDING"
+
 
     return {
         "user_id": user.user_id,
@@ -78,9 +94,12 @@ def _public_user_payload(user, request=None):
         "ratingCount": int(user.ratingCount or 0),
         "profilePic": pic,
         "created_at": user.created_at,
-        "xpRank": user.xpRank,
         "level": int(user.level or 0),
         "tot_XpPts": int(user.tot_XpPts or 0),
+
+        "verification_status": status,         # "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED"
+
+        # Keep existing for back-compat
         "is_verified": bool(getattr(user, "is_verified", False)),
         "userVerifyId": verify_url,
     }

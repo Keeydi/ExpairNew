@@ -17,7 +17,7 @@ import {ChevronDownIcon,
   Flag,
 } from "lucide-react";
 
-// ===== XP / Level / Rank based on CUMULATIVE THRESHOLDS =====
+// ===== XP / Level  based on CUMULATIVE THRESHOLDS =====
 // LVL_CAPS[L-1] = total XP at END of level L (inclusive thresholds)
 const LVL_CAPS = [
   50, 75, 100, 125, 150,
@@ -34,22 +34,6 @@ const LVL_CAPS = [
 ];
 
 const clampLevel = (lvl) => Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
-
-const getRankTitle = (lvl) => {
-  const L = clampLevel(lvl);
-  if (L <= 5)  return "Unranked";
-  if (L <= 10) return "Dwarf Star";
-  if (L <= 20) return "Rising Star";
-  if (L <= 30) return "Shining Star";
-  if (L <= 40) return "Giant";
-  if (L <= 50) return "Supergiant";
-  if (L <= 60) return "Stellar";
-  if (L <= 70) return "Radiant";
-  if (L <= 80) return "Cosmic";
-  if (L <= 90) return "Luminary";
-  if (L <= 99) return "Ethereal";
-  return "Celestial"; // 100
-};
 
 // Width of the current level band (XP range inside this level)
 const getLevelWidth = (lvl) => {
@@ -69,7 +53,7 @@ const deriveFromTotalXp = (totalXp) => {
   const currCap = LVL_CAPS[idx];
   const xpInLevel = Math.max(0, t - prevCap);
   const levelWidth = currCap - prevCap;
-  return { level, rank: getRankTitle(level), xpInLevel, levelWidth, prevCap, currCap };
+  return { level, xpInLevel, levelWidth, prevCap, currCap };
 };
 // ===== end helpers =====
 
@@ -120,7 +104,6 @@ export default function ProfilePage() {
     rating: 0,   
     reviews: 0,
     level: 1,
-    rank: "Unranked",
     xpPoints: 0,
     tot_xppts: 0,
       
@@ -199,13 +182,14 @@ export default function ProfilePage() {
         reviews:   Number(data.ratingCount ?? data.reviews) || 0,
         bio:       data.bio || prev.bio || "",
         is_verified: Boolean(data.is_verified),
+        verification_status: data.verification_status ?? prev?.verification_status ?? null,
         userVerifyId: data.userVerifyId || null,
         id:        (isNumeric ? Number(slug) : Number(data.id ?? data.user_id ?? 0)) || prev.id || null,
-        /* derive level, rank, and in-level progress from lifetime XP */
+        /* derive level progress from  XP */
         ...(() => {
           const totalXp = Number(data.tot_xppts ?? data.tot_XpPts ?? data.totalXp ?? 0);
           const d = deriveFromTotalXp(totalXp);
-          return { tot_xppts: totalXp, level: d.level, rank: d.rank, xpPoints: d.xpInLevel, _lvlWidth: d.levelWidth };
+          return { tot_xppts: totalXp, level: d.level, xpPoints: d.xpInLevel, _lvlWidth: d.levelWidth };
         })(),
       }));
 
@@ -563,13 +547,15 @@ export default function ProfilePage() {
   const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
 
   useEffect(() => {
-  const v = user?.is_verified
-    ? "verified"
-    : user?.userVerifyId
-      ? "pending"
-      : "unverified";
-  setVerificationStatus(v);
-}, [user?.is_verified, user?.userVerifyId]);
+  if (!user) return;
+  const s = (
+    user.verification_status
+      ? user.verification_status
+      : (user.is_verified ? "VERIFIED" : (user.userVerifyId ? "PENDING" : "UNVERIFIED"))
+  ).toLowerCase();
+  setVerificationStatus(s);
+  }, [user?.verification_status, user?.is_verified, user?.userVerifyId]);
+
 
 
  // call this when input changes
@@ -624,10 +610,18 @@ export default function ProfilePage() {
       ...prev,
       userVerifyId: updated.userVerifyId || prev.userVerifyId || null,
       is_verified: Boolean(updated.is_verified),
+      verification_status: updated.verification_status ?? prev?.verification_status ?? null,
     }));
 
     // frontend UX: immediately show "pending"
     setVerificationStatus("pending");
+
+    setVerificationStatus(
+      (updated.verification_status ||
+        (updated.is_verified ? "VERIFIED" : (updated.userVerifyId ? "PENDING" : "UNVERIFIED"))
+      ).toLowerCase()
+    );
+
     setShowVerificationPopup(false);
     setIdFile(null);
     setIdPreviewUrl(null);
@@ -1582,7 +1576,7 @@ const isDirty =
             </div>
           )}
 
-          {/* Rating + Rank + Level */}
+          {/* Rating + Level */}
           <div className="flex items-center gap-6 mb-[20px]">
             <div className="flex items-center gap-2">
               <Icon
@@ -1593,16 +1587,6 @@ const isDirty =
                 {user.rating.toFixed(1)}{" "}
                 <span className="text-white/50">({user.reviews})</span>
               </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Image
-                src="/assets/lvlrank_icon.png"
-                alt="Rank"
-                width={20}
-                height={20}
-              />
-                <span>{(user?.rank || "Rank").toString().charAt(0).toUpperCase() + (user?.rank || "Rank").toString().slice(1)}</span>
             </div>
 
             {/* Level Bar Section */}
@@ -1678,7 +1662,8 @@ const isDirty =
 
           {/* Get Verified Button area */}
           {isOwnProfile && (
-            <div className="w-full flex justify-end">
+            <div className="w-full flex justify-end items-center gap-3">
+              {/* UNVERIFIED → Get Verified */}
               {verificationStatus === "unverified" && (
                 <button
                   onClick={() => setShowVerificationPopup(true)}
@@ -1688,22 +1673,42 @@ const isDirty =
                   <span>Get Verified</span>
                 </button>
               )}
+
+              {/* PENDING → Waiting only */}
               {verificationStatus === "pending" && (
-                <button
-                  disabled
-                  className="bg-gray-600 text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2"
+                <span
+                  className="inline-flex items-center gap-2 bg-gray-600 text-white text-sm rounded-[15px] px-5 py-2"
+                  title="Your ID was submitted and is awaiting manual review."
                 >
                   <Icon icon="mdi:clock-outline" className="w-4 h-4" />
                   <span>Waiting for Verification</span>
+                </span>
+              )}
+
+              {/* REJECTED → Resubmit only */}
+              {verificationStatus === "rejected" && (
+                <button
+                  onClick={() => {
+                      // clear any previous selection & reopen the popup
+                      setIdFile(null);
+                      if (idPreviewUrl) {
+                        URL.revokeObjectURL(idPreviewUrl);
+                        setIdPreviewUrl(null);
+                      }
+                      setShowVerificationPopup(true);
+                  }}
+                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+                >
+                  Resubmit ID
                 </button>
               )}
 
-              {/* Verified state */}
+              {/* VERIFIED → Green badge */}
               {verificationStatus === "verified" && (
-                <div className="flex items-center gap-2 bg-green-600/25 border border-green-500/70 text-green-200 rounded-[14px] px-3 py-1.5 text-sm">
-                  <Icon icon="mdi:check-circle" className="w-4 h-4" />
+                <span className="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm rounded-[15px] px-5 py-2">
+                  <Icon icon="material-symbols:verified" className="w-4 h-4" />
                   <span>Verified</span>
-                </div>
+                </span>
               )}
             </div>
           )}

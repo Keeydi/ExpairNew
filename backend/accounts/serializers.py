@@ -3,7 +3,7 @@ from .models import User
 from .models import GenSkill, UserInterest
 from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
-
+from .models import VerificationStatus
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
@@ -14,7 +14,14 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "first_Name", "last_Name", "bio",
             "username", "emailAdd", "profilePic",
-            "userVerifyId",       
+            "userVerifyId",
+            "is_verified",
+            "verification_status",
+        ]
+        read_only_fields = [
+            # users shouldn’t set these client-side
+            "is_verified",
+            "verification_status",
         ]
         extra_kwargs = {
             "first_Name": {"required": False, "allow_blank": True},
@@ -38,10 +45,42 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         return f
 
     def update(self, instance, validated_data):
-        # If a new verify file is provided, auto-reset is_verified to False
-        if "userVerifyId" in validated_data and validated_data["userVerifyId"]:
+        new_file = validated_data.get("userVerifyId", None)
+
+        # Any new upload / re-upload → replace file & go PENDING
+        if new_file:
+            # optional: delete old file from storage to avoid orphans
+            old = getattr(instance, "userVerifyId", None)
+            if old:
+                try:
+                    old.delete(save=False)
+                except Exception:
+                    pass
+            instance.userVerifyId = new_file
+            instance.verification_status = VerificationStatus.PENDING
             instance.is_verified = False
-        return super().update(instance, validated_data)
+
+        # Optional dev/test reset
+        if validated_data.get("clear_userVerifyId", False):
+            if instance.userVerifyId:
+                try:
+                    instance.userVerifyId.delete(save=False)
+                except Exception:
+                    pass
+            instance.userVerifyId = None
+            instance.verification_status = VerificationStatus.UNVERIFIED
+            instance.is_verified = False
+
+        # If you expose an admin-only API, allow final state changes there.
+        status_in = validated_data.get("verification_status")
+        if status_in in {s.value for s in VerificationStatus}:
+            instance.verification_status = status_in
+            instance.is_verified = (status_in == VerificationStatus.VERIFIED)
+
+        # ✅ ALWAYS persist changes
+        instance.save()
+        return instance
+
         
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -61,6 +100,14 @@ class UserSerializer(serializers.ModelSerializer):
         if f.size > 5 * 1024 * 1024:
             raise serializers.ValidationError("File too large (max 5MB).")
         return f
+    
+    def create(self, validated_data):
+        # If the sign-in/registration form includes an ID file,
+        # new users should start as PENDING (not UNVERIFIED)
+        if validated_data.get("userVerifyId"):
+            validated_data["verification_status"] = VerificationStatus.PENDING
+            validated_data["is_verified"] = False
+        return super().create(validated_data)
     
 class GenSkillSerializer(serializers.ModelSerializer):
     class Meta:

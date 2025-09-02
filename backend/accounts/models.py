@@ -1,5 +1,11 @@
 from django.db import models
 
+class VerificationStatus(models.TextChoices):
+    UNVERIFIED = "UNVERIFIED", "Unverified"
+    PENDING    = "PENDING",    "Pending"
+    VERIFIED   = "VERIFIED",   "Verified"
+    REJECTED   = "REJECTED",   "Rejected"
+
 class User(models.Model):
     user_id = models.AutoField(primary_key=True)
     first_Name = models.CharField(max_length=100, db_column='first_name')
@@ -13,12 +19,17 @@ class User(models.Model):
     ratingCount = models.IntegerField(default=0, db_column='ratingcount')
     avgStars = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, db_column='avgstars')
     tot_XpPts = models.IntegerField(default=0, db_column='tot_xppts')
-    xpRank = models.CharField(max_length=255, default='Unranked', db_column='xprank')
     level = models.IntegerField(default=1, db_column='level')
     created_at = models.DateTimeField(auto_now_add=True)
     userVerifyId = models.FileField(upload_to='user_verifications/', null=True, blank=True, db_column='userverifyid')
     is_verified = models.BooleanField(default=False, db_column='is_verified')
     links = models.TextField(null=True, blank=True)
+    verification_status = models.CharField(
+        max_length=10,
+        choices=VerificationStatus.choices,
+        default=VerificationStatus.UNVERIFIED,
+        db_column="verification_status",
+    )
 
     def __str__(self):
         return self.username
