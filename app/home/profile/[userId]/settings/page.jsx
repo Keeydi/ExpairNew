@@ -2,7 +2,7 @@
 
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Pencil } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Inter } from "next/font/google";
@@ -28,9 +28,20 @@ export default function SettingsPage() {
   const [username, setUsername] = useState("");
   const [emailAdd, setEmailAdd] = useState("");
   const [bio, setBio] = useState("");
-  const [profilePicUrl, setProfilePicUrl] = useState(""); // current photo URL from server
-  const [file, setFile] = useState(null); // new file
+  const [profilePicUrl, setProfilePicUrl] = useState("");
+  const [file, setFile] = useState(null);
   const fileInputRef = useRef(null);
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [links, setLinks] = useState("");
+
+  const passwordRules = [
+    { label: "At least one lowercase letter", test: /[a-z]/ },
+    { label: "At least one uppercase letter", test: /[A-Z]/ },
+    { label: "At least one number", test: /\d/ },
+    { label: "Minimum 8 characters", test: /.{8,}/ },
+  ];
 
   // ui state
   const [loading, setLoading] = useState(true);
@@ -38,27 +49,27 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  // derive initial user id (from route /localStorage/?uid=)
+  // edit toggles
+  const [editUsername, setEditUsername] = useState(false);
+  const [editPassword, setEditPassword] = useState(false);
+  const [editLocation, setEditLocation] = useState(false);
+  const [editLinks, setEditLinks] = useState(false);
+
+  // derive initial user id
   const params = useParams();
   const pathname = usePathname();
   useEffect(() => {
     let uid = null;
-    // 1) dynamic segment: /home/profile/[userId]/settings
-    if (params?.userId) {
-      uid = Number(params.userId) || null;
-    }
-    // 2) pathname fallback (in case params is unavailable for any reason)
+    if (params?.userId) uid = Number(params.userId) || null;
     if (!uid && pathname) {
       const m = pathname.match(/\/profile\/(\d+)/i);
       if (m) uid = Number(m[1]) || null;
     }
-    // 3) localStorage
     if (!uid) {
       try {
         uid = Number(localStorage.getItem("expair_user_id") || "") || null;
       } catch {}
     }
-    // 4) ?uid= query
     if (!uid && typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       uid = Number(sp.get("uid") || "") || null;
@@ -68,59 +79,68 @@ export default function SettingsPage() {
 
   // load current profile
   useEffect(() => {
-  if (userId == null) return; // ← avoid the initial /me/ 401 until we know the id
-
-  const run = async () => {
-    setLoading(true);
-    setError("");
-    setSaved(false);
-    try {
-      const API_BASE = resolveAccountsBase(process.env.NEXT_PUBLIC_BACKEND_URL);
-      const url = `${joinUrl(API_BASE, "users", String(userId))}/`; // always public
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(`Load failed (${res.status}): ${t.slice(0, 160)}`);
+    if (userId == null) return;
+    const run = async () => {
+      setLoading(true);
+      setError("");
+      setSaved(false);
+      try {
+        const API_BASE = resolveAccountsBase(
+          process.env.NEXT_PUBLIC_BACKEND_URL
+        );
+        const url = `${joinUrl(API_BASE, "users", String(userId))}/`;
+        const res = await fetch(url, { credentials: "include" });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(`Load failed (${res.status}): ${t.slice(0, 160)}`);
+        }
+        const data = await res.json();
+        setUserId(Number(data.user_id || userId || 0) || null);
+        try {
+          if (data.user_id)
+            localStorage.setItem("expair_user_id", String(data.user_id));
+        } catch {}
+        setUsername(String(data.username || ""));
+        setEmailAdd(String(data.emailAdd || data.email || ""));
+        setBio(String(data.bio || ""));
+        setProfilePicUrl(
+          String(data.profilePic || "/assets/defaultavatar.png")
+        );
+      } catch (e) {
+        console.error("[settings] load error", e);
+        setError(e.message || "Failed to load settings.");
+      } finally {
+        setLoading(false);
       }
-      const data = await res.json();
+    };
+    run();
+  }, [userId]);
 
-      setUserId(Number(data.user_id || userId || 0) || null);
-      try { if (data.user_id) localStorage.setItem("expair_user_id", String(data.user_id)); } catch {}
+  const DEFAULT_AVATAR = "/assets/defaultavatar.png";
+  const [previewUrl, setPreviewUrl] = useState(DEFAULT_AVATAR);
 
-      setUsername(String(data.username || ""));
-      setEmailAdd(String(data.emailAdd || data.email || ""));
-      setBio(String(data.bio || ""));
-      setProfilePicUrl(String(data.profilePic || "/assets/defaultavatar.png"));
-    } catch (e) {
-      console.error("[settings] load error", e);
-      setError(e.message || "Failed to load settings.");
-    } finally {
-      setLoading(false);
+  // Keep preview in sync with server photo when no new file is picked
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(profilePicUrl || DEFAULT_AVATAR);
     }
-  };
+  }, [profilePicUrl, file]);
 
-  run();
-}, [userId]);
-
-
-  const previewUrl = useMemo(() => {
-    if (file) {
-      return URL.createObjectURL(file);
-    }
-    return profilePicUrl || "/assets/defaultavatar.png";
-  }, [file, profilePicUrl]);
+  // When a new file is chosen, create/revoke an object URL
+  useEffect(() => {
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
 
   const norm = (v) => (v ?? "").trim();
   const isDirty =
-    norm(username) ||
-    norm(emailAdd) ||
-    norm(bio) ||
-    file
+    norm(username) || norm(emailAdd) || norm(bio) || file || password || links
       ? true
       : false;
 
   const handlePickImage = () => fileInputRef.current?.click();
-
   const handleFileChange = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -133,24 +153,35 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
     setError("");
-
     try {
       const API_BASE = resolveAccountsBase(process.env.NEXT_PUBLIC_BACKEND_URL);
-
-      // Build FormData for PATCH (so profilePic works)
       const fd = new FormData();
-      // Only append changed things (ok to append all too)
       if (file) fd.append("profilePic", file);
       if (norm(username)) fd.append("username", norm(username));
       if (norm(emailAdd)) fd.append("emailAdd", norm(emailAdd));
       if (norm(bio)) fd.append("bio", norm(bio));
-      if (userId) fd.append("user_id", String(userId)); // dev-friendly backend fallback
+      if (norm(links)) fd.append("links", norm(links));
+      if (userId) fd.append("user_id", String(userId));
+
+      if (password || confirmPassword) {
+        const isValid = passwordRules.every((rule) => rule.test.test(password));
+        if (!isValid) {
+          setError("Password does not meet requirements.");
+          setSaving(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError("Passwords do not match.");
+          setSaving(false);
+          return;
+        }
+        fd.append("password", password);
+      }
 
       const res = await fetch(`${joinUrl(API_BASE, "me")}/`, {
         method: "PATCH",
         credentials: "include",
-        body: fd, // <-- multipart
-        // headers: DO NOT set Content-Type manually for FormData; browser will set proper boundary.
+        body: fd,
       });
 
       if (!res.ok) {
@@ -159,13 +190,14 @@ export default function SettingsPage() {
       }
 
       const updated = await res.json();
-
-      // Update UI from server echo
       setUsername(String(updated.username ?? username));
       setEmailAdd(String(updated.emailAdd ?? updated.email ?? emailAdd));
       setBio(String(updated.bio ?? bio));
+      setLinks(String(updated.links ?? links));
       setProfilePicUrl(String(updated.profilePic ?? profilePicUrl));
       setFile(null);
+      setPassword("");
+      setConfirmPassword("");
       setSaved(true);
     } catch (e) {
       console.error("[settings] save error", e);
@@ -177,17 +209,20 @@ export default function SettingsPage() {
 
   const menuItems = [
     { key: "profile", label: "Profile" },
-    { key: "privacy", label: "Privacy" },
-    { key: "notifications", label: "Notifications" },
-    { key: "security", label: "Security" },
+    { key: "privacy", label: "Privacy & Security" },
   ];
 
   return (
-    <div className={`${inter.className} min-h-screen bg-[#050015] text-white py-10 px-4`}>
+    <div
+      className={`${inter.className} min-h-screen bg-[#050015] text-white py-10 px-4`}
+    >
       <div className="max-w-[940px] mx-auto flex gap-10">
         {/* Left Sidebar */}
         <aside className="w-[220px] flex-shrink-0">
-          <Link href={`/home/profile/${userId ?? ""}`} className="flex items-center gap-2 mb-6 text-white/70 hover:text-white">
+          <Link
+            href={`/home/profile/${userId ?? ""}`}
+            className="flex items-center gap-2 mb-6 text-white/70 hover:text-white"
+          >
             <ChevronLeft className="w-5 h-5" /> Back to Profile
           </Link>
           <nav className="flex flex-col gap-2">
@@ -196,7 +231,9 @@ export default function SettingsPage() {
                 key={item.key}
                 onClick={() => setActiveTab(item.key)}
                 className={`text-left px-4 py-2 rounded-[8px] transition ${
-                  activeTab === item.key ? "bg-[#120A2A] text-white" : "text-white/70 hover:bg-[#1A0F3E]"
+                  activeTab === item.key
+                    ? "bg-[#120A2A] text-white"
+                    : "text-white/70 hover:bg-[#1A0F3E]"
                 }`}
               >
                 {item.label}
@@ -213,28 +250,35 @@ export default function SettingsPage() {
 
           {activeTab === "profile" && (
             <>
-              {/* status */}
               {loading && (
                 <div className="flex items-center gap-2 text-white/70 mb-4">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Loading your settings…
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading your
+                  settings…
                 </div>
               )}
-              {!loading && error && <p className="text-red-400 mb-4">{error}</p>}
-              {!loading && saved && <p className="text-emerald-400 mb-4">Saved!</p>}
+              {!loading && error && (
+                <p className="text-red-400 mb-4">{error}</p>
+              )}
+              {!loading && saved && (
+                <p className="text-emerald-400 mb-4">Saved!</p>
+              )}
 
               {/* Profile Picture */}
               <section className="mb-8">
                 <p className="mb-2 text-sm text-white/70">Profile Picture</p>
                 <div className="flex items-center gap-4">
-                  <Image
-                    src={previewUrl || "/assets/defaultavatar.png"}
-                    alt="Profile Picture"
-                    width={80}
-                    height={80}
-                    className="rounded-full object-cover"
-                    priority
-                    style={{ height: "auto", width: "auto" }}
-                  />
+                  {/* Fixed-size square container; stays square and crops center */}
+                  <div className="relative w-[200px] h-[200px] rounded-full overflow-hidden border border-white/20 bg-[#0B0420]">
+                    <Image
+                      src={previewUrl || DEFAULT_AVATAR}
+                      alt="Profile photo preview"
+                      fill
+                      priority
+                      sizes="200px"
+                      className="object-cover object-center"
+                    />
+                  </div>
+
                   <button
                     type="button"
                     onClick={handlePickImage}
@@ -242,6 +286,7 @@ export default function SettingsPage() {
                   >
                     Change
                   </button>
+
                   <input
                     ref={fileInputRef}
                     onChange={handleFileChange}
@@ -251,42 +296,135 @@ export default function SettingsPage() {
                     className="hidden"
                   />
                 </div>
+
+                <p className="mt-2 text-s text-white/40">
+                  JPG or PNG up to 5MB. Square images work best.
+                </p>
               </section>
 
               {/* Username */}
               <section className="mb-8">
-                <p className="mb-2 text-sm text-white/70">Username</p>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); setSaved(false); }}
-                  className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                  placeholder="Your username"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-white/70">Username</p>
+                  <Pencil
+                    className="w-4 h-4 text-white/60 cursor-pointer"
+                    onClick={() => setEditUsername(!editUsername)}
+                  />
+                </div>
+                {editUsername ? (
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setSaved(false);
+                    }}
+                    className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
+                  />
+                ) : (
+                  <p className="text-white/80">{username || "Not set"}</p>
+                )}
               </section>
 
-              {/* Email */}
+              {/* Password */}
               <section className="mb-8">
-                <p className="mb-2 text-sm text-white/70">Email</p>
-                <input
-                  type="email"
-                  value={emailAdd}
-                  onChange={(e) => { setEmailAdd(e.target.value); setSaved(false); }}
-                  className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                  placeholder="you@example.com"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-white/70">Password</p>
+                  <Pencil
+                    className="w-4 h-4 text-white/60 cursor-pointer"
+                    onClick={() => setEditPassword(!editPassword)}
+                  />
+                </div>
+                {editPassword ? (
+                  <>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setSaved(false);
+                      }}
+                      className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm mb-3"
+                      placeholder="Enter new password"
+                    />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setSaved(false);
+                      }}
+                      className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm mb-2"
+                      placeholder="Confirm new password"
+                    />
+                    <ul className="text-xs text-white/60 space-y-1 mt-2">
+                      {passwordRules.map((rule, idx) => (
+                        <li
+                          key={idx}
+                          className={
+                            rule.test.test(password)
+                              ? "text-emerald-400"
+                              : "text-white/40"
+                          }
+                        >
+                          • {rule.label}
+                        </li>
+                      ))}
+                      {confirmPassword && confirmPassword !== password && (
+                        <li className="text-red-400">
+                          • Passwords do not match
+                        </li>
+                      )}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="text-white/80">••••••••</p>
+                )}
               </section>
 
-              {/* Bio */}
+              {/* Location */}
               <section className="mb-8">
-                <p className="mb-2 text-sm text-white/70">Bio</p>
-                <textarea
-                  rows={4}
-                  value={bio}
-                  onChange={(e) => { setBio(e.target.value); setSaved(false); }}
-                  className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm resize-none"
-                  placeholder="Tell people about yourself"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-white/70">Location</p>
+                  <Pencil
+                    className="w-4 h-4 text-white/60 cursor-pointer"
+                    onClick={() => setEditLocation(!editLocation)}
+                  />
+                </div>
+                {editLocation ? (
+                  <div className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm">
+                    <span className="text-white/40">
+                      Location input coming soon...
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-white/80">Not set</p>
+                )}
+              </section>
+
+              {/* Links */}
+              <section className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-white/70">Links</p>
+                  <Pencil
+                    className="w-4 h-4 text-white/60 cursor-pointer"
+                    onClick={() => setEditLinks(!editLinks)}
+                  />
+                </div>
+                {editLinks ? (
+                  <textarea
+                    rows={2}
+                    value={links}
+                    onChange={(e) => {
+                      setLinks(e.target.value);
+                      setSaved(false);
+                    }}
+                    className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm resize-none"
+                    placeholder="Paste links to your website, portfolio, or socials"
+                  />
+                ) : (
+                  <p className="text-white/80">{links || "Not set"}</p>
+                )}
               </section>
 
               {/* Save */}
@@ -304,7 +442,8 @@ export default function SettingsPage() {
 
           {activeTab !== "profile" && (
             <p className="text-white/50">
-              Settings for "{menuItems.find((m) => m.key === activeTab)?.label}" coming soon...
+              Settings for "{menuItems.find((m) => m.key === activeTab)?.label}"
+              coming soon...
             </p>
           )}
         </main>
