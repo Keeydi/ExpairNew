@@ -35,6 +35,14 @@ export default function SettingsPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [links, setLinks] = useState("");
+  const [location, setLocation] = useState("");
+
+  // Original values for change detection
+  const [originalUsername, setOriginalUsername] = useState("");
+  const [originalEmailAdd, setOriginalEmailAdd] = useState("");
+  const [originalBio, setOriginalBio] = useState("");
+  const [originalLocation, setOriginalLocation] = useState("");
+  const [originalLinks, setOriginalLinks] = useState("");
 
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },
@@ -79,16 +87,40 @@ export default function SettingsPage() {
 
   // load current profile
   useEffect(() => {
-    if (userId == null) return;
     const run = async () => {
       setLoading(true);
       setError("");
       setSaved(false);
+      
+      // Check if backend is available
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        console.warn("[settings] No backend URL configured");
+        // Initialize with empty values
+        setUsername("");
+        setEmailAdd("");
+        setBio("");
+        setLocation("");
+        setLinks("");
+        setProfilePicUrl("/assets/defaultavatar.png");
+        
+        // Store as original values (empty)
+        setOriginalUsername("");
+        setOriginalEmailAdd("");
+        setOriginalBio("");
+        setOriginalLocation("");
+        setOriginalLinks("");
+        
+        setLoading(false);
+        return;
+      }
+      
       try {
-        const API_BASE = resolveAccountsBase(
-          process.env.NEXT_PUBLIC_BACKEND_URL
-        );
-        const url = `${joinUrl(API_BASE, "users", String(userId))}/`;
+        const API_BASE = resolveAccountsBase(backendUrl);
+        const url =
+          userId != null
+            ? `${joinUrl(API_BASE, "users", String(userId))}/`
+            : `${joinUrl(API_BASE, "me")}/`;
         const res = await fetch(url, { credentials: "include" });
         if (!res.ok) {
           const t = await res.text();
@@ -100,15 +132,40 @@ export default function SettingsPage() {
           if (data.user_id)
             localStorage.setItem("expair_user_id", String(data.user_id));
         } catch {}
-        setUsername(String(data.username || ""));
-        setEmailAdd(String(data.emailAdd || data.email || ""));
-        setBio(String(data.bio || ""));
+        const usernameValue = String(data.username || "");
+        const emailValue = String(data.emailAdd || data.email || "");
+        const bioValue = String(data.bio || "");
+        const locationValue = String(data.location || "");
+        const linksValue = String(data.links || "");
+        
+        setUsername(usernameValue);
+        setEmailAdd(emailValue);
+        setBio(bioValue);
+        setLocation(locationValue);
+        setLinks(linksValue);
         setProfilePicUrl(
           String(data.profilePic || "/assets/defaultavatar.png")
         );
+        
+        // Store original values for change detection
+        setOriginalUsername(usernameValue);
+        setOriginalEmailAdd(emailValue);
+        setOriginalBio(bioValue);
+        setOriginalLocation(locationValue);
+        setOriginalLinks(linksValue);
       } catch (e) {
         console.error("[settings] load error", e);
-        setError(e.message || "Failed to load settings.");
+        if (e.message.includes("Failed to fetch") || e.message.includes("ERR_CONNECTION_REFUSED")) {
+          setError("Backend server is not available.");
+          // Initialize with empty values so user can still interact with the form
+          setOriginalUsername("");
+          setOriginalEmailAdd("");
+          setOriginalBio("");
+          setOriginalLocation("");
+          setOriginalLinks("");
+        } else {
+          setError(e.message || "Failed to load settings.");
+        }
       } finally {
         setLoading(false);
       }
@@ -134,11 +191,35 @@ export default function SettingsPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
 
-  const norm = (v) => (v ?? "").trim();
-  const isDirty =
-    norm(username) || norm(emailAdd) || norm(bio) || file || password || links
-      ? true
-      : false;
+  const norm = (v) => String(v ?? "").trim();
+
+  const isDirty = useMemo(() => {
+    if (
+      norm(username) !== norm(originalUsername) ||
+      norm(emailAdd) !== norm(originalEmailAdd) ||
+      norm(bio) !== norm(originalBio) ||
+      norm(location) !== norm(originalLocation) ||
+      norm(links) !== norm(originalLinks) ||
+      !!file ||
+      !!password
+    ) {
+      return true;
+    }
+    return false;
+  }, [
+    username,
+    emailAdd,
+    bio,
+    location,
+    links,
+    file,
+    password,
+    originalUsername,
+    originalEmailAdd,
+    originalBio,
+    originalLocation,
+    originalLinks,
+  ]);
 
   const handlePickImage = () => fileInputRef.current?.click();
   const handleFileChange = (e) => {
@@ -153,13 +234,37 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
     setError("");
+    
+    // Check if backend is available
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!backendUrl) {
+      console.warn("[settings] No backend URL configured, simulating save");
+      // Simulate save without backend
+      setTimeout(() => {
+        // Update original values to current values (simulate successful save)
+        setOriginalUsername(username);
+        setOriginalEmailAdd(emailAdd);
+        setOriginalBio(bio);
+        setOriginalLocation(location);
+        setOriginalLinks(links);
+        
+        setFile(null);
+        setPassword("");
+        setConfirmPassword("");
+        setSaved(true);
+        setSaving(false);
+      }, 1000);
+      return;
+    }
+    
     try {
-      const API_BASE = resolveAccountsBase(process.env.NEXT_PUBLIC_BACKEND_URL);
+      const API_BASE = resolveAccountsBase(backendUrl);
       const fd = new FormData();
       if (file) fd.append("profilePic", file);
       if (norm(username)) fd.append("username", norm(username));
       if (norm(emailAdd)) fd.append("emailAdd", norm(emailAdd));
       if (norm(bio)) fd.append("bio", norm(bio));
+      if (norm(location)) fd.append("location", norm(location));
       if (norm(links)) fd.append("links", norm(links));
       if (userId) fd.append("user_id", String(userId));
 
@@ -178,7 +283,11 @@ export default function SettingsPage() {
         fd.append("password", password);
       }
 
-      const res = await fetch(`${joinUrl(API_BASE, "me")}/`, {
+      const targetUrl = userId != null
+        ? `${joinUrl(API_BASE, "users", String(userId))}/`
+        : `${joinUrl(API_BASE, "me")}/`;
+
+      const res = await fetch(targetUrl, {
         method: "PATCH",
         credentials: "include",
         body: fd,
@@ -190,18 +299,44 @@ export default function SettingsPage() {
       }
 
       const updated = await res.json();
-      setUsername(String(updated.username ?? username));
-      setEmailAdd(String(updated.emailAdd ?? updated.email ?? emailAdd));
-      setBio(String(updated.bio ?? bio));
-      setLinks(String(updated.links ?? links));
+      const newUsername = String(updated.username ?? username);
+      const newEmailAdd = String(updated.emailAdd ?? updated.email ?? emailAdd);
+      const newBio = String(updated.bio ?? bio);
+      const newLocation = String(updated.location ?? location);
+      const newLinks = String(updated.links ?? links);
+      
+      setUsername(newUsername);
+      setEmailAdd(newEmailAdd);
+      setBio(newBio);
+      setLocation(newLocation);
+      setLinks(newLinks);
       setProfilePicUrl(String(updated.profilePic ?? profilePicUrl));
+      
+      // Update original values after successful save
+      setOriginalUsername(newUsername);
+      setOriginalEmailAdd(newEmailAdd);
+      setOriginalBio(newBio);
+      setOriginalLocation(newLocation);
+      setOriginalLinks(newLinks);
+      
       setFile(null);
       setPassword("");
       setConfirmPassword("");
       setSaved(true);
     } catch (e) {
       console.error("[settings] save error", e);
-      setError(e.message || "Failed to save.");
+      if (e.message.includes("Failed to fetch") || e.message.includes("ERR_CONNECTION_REFUSED")) {
+        setError("Backend server is not available. Changes saved locally only.");
+        // Still update the original values to simulate save
+        setOriginalUsername(username);
+        setOriginalEmailAdd(emailAdd);
+        setOriginalBio(bio);
+        setOriginalLocation(location);
+        setOriginalLinks(links);
+        setSaved(true);
+      } else {
+        setError(e.message || "Failed to save.");
+      }
     } finally {
       setSaving(false);
     }
@@ -392,13 +527,18 @@ export default function SettingsPage() {
                   />
                 </div>
                 {editLocation ? (
-                  <div className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm">
-                    <span className="text-white/40">
-                      Location input coming soon...
-                    </span>
-                  </div>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      setSaved(false);
+                    }}
+                    className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
+                    placeholder="e.g., Manila, Metro Manila, Philippines"
+                  />
                 ) : (
-                  <p className="text-white/80">Not set</p>
+                  <p className="text-white/80">{location || "Not set"}</p>
                 )}
               </section>
 

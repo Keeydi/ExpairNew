@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { useSession } from "next-auth/react";
-
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
+import { useParams } from "next/navigation";
 import clsx from "clsx";
-import {ChevronDownIcon,
+import {
+  ChevronDownIcon,
   ChevronUpIcon,
   PencilIcon,
   Star,
@@ -17,796 +16,8 @@ import {ChevronDownIcon,
   Flag,
 } from "lucide-react";
 
-// ===== XP / Level / Rank based on CUMULATIVE THRESHOLDS =====
-// LVL_CAPS[L-1] = total XP at END of level L (inclusive thresholds)
-const LVL_CAPS = [
-  50, 75, 100, 125, 150,
-  175, 200, 230, 260, 300,
-  350, 400, 460, 520, 600, 700, 800, 900, 1000, 1100,
-  1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200, 3500,
-  3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000,
-  8500, 9000, 9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300,
-  15000, 15800, 16600, 17500, 18400, 19300, 20300, 21300, 22300, 23300,
-  24300, 25400, 26500, 27700, 28900, 30100, 31300, 32600, 33900, 35200,
-  36500, 37900, 39300, 40700, 42100, 43600, 45100, 46600, 48100, 49600,
-  51100, 52700, 54300, 55900, 57500, 59200, 60900, 62600, 64300, 66000,
-  67700, 69500, 71300, 73100, 74900, 76700, 78500, 80300, 82100, 85000
-];
-
-const clampLevel = (lvl) => Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
-
-const getRankTitle = (lvl) => {
-  const L = clampLevel(lvl);
-  if (L <= 5)  return "Unranked";
-  if (L <= 10) return "Dwarf Star";
-  if (L <= 20) return "Rising Star";
-  if (L <= 30) return "Shining Star";
-  if (L <= 40) return "Giant";
-  if (L <= 50) return "Supergiant";
-  if (L <= 60) return "Stellar";
-  if (L <= 70) return "Radiant";
-  if (L <= 80) return "Cosmic";
-  if (L <= 90) return "Luminary";
-  if (L <= 99) return "Ethereal";
-  return "Celestial"; // 100
-};
-
-// Width of the current level band (XP range inside this level)
-const getLevelWidth = (lvl) => {
-  const idx = clampLevel(lvl) - 1;
-  const prev = idx === 0 ? 0 : LVL_CAPS[idx - 1];
-  return LVL_CAPS[idx] - prev;
-};
-
-// Derive level + in-level progress from lifetime total XP (tot_xppts)
-// Inclusive boundary: exact cap stays on the same level
-const deriveFromTotalXp = (totalXp) => {
-  const t = Math.max(0, Number(totalXp) || 0);
-  let idx = LVL_CAPS.findIndex((cap) => t <= cap);
-  if (idx === -1) idx = LVL_CAPS.length - 1; // clamp to 100
-  const level = idx + 1;
-  const prevCap = idx === 0 ? 0 : LVL_CAPS[idx - 1];
-  const currCap = LVL_CAPS[idx];
-  const xpInLevel = Math.max(0, t - prevCap);
-  const levelWidth = currCap - prevCap;
-  return { level, rank: getRankTitle(level), xpInLevel, levelWidth, prevCap, currCap };
-};
-// ===== end helpers =====
-
-const safeFixed = (val, digits = 1) => {
-  const n = Number(val);
-  return Number.isFinite(n) ? n.toFixed(digits) : (0).toFixed(digits);
-};
-
-const RAW = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
-const API_BASE = RAW.includes("/api/accounts")
-  ? RAW.replace(/\/+$/, "")
-  : `${RAW.replace(/\/+$/, "")}/api/accounts`;
-
 const inter = Inter({ subsets: ["latin"] });
 
-export default function ProfilePage() {
-
-  const { data: session } = useSession();
-  const params = useParams();
-  const [error, setError] = useState(null);
-  
-  const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
-  const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
-  const [sortOption, setSortOption] = useState("Latest");
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
-
-  const slug = useMemo(() => {
-    const raw = params?.userId;
-    return Array.isArray(raw) ? raw[0] : raw || null;
-  }, [params]);
-  
-
-    // For Basic Information editing
-  const [basicInfoEditing, setBasicInfoEditing] = useState(false);
-  const [editableFirstName, setEditableFirstName] = useState("");
-  const [editableLastName,  setEditableLastName]  = useState("");
-  const [editableBio,       setEditableBio]       = useState("");
-
-  const [basicInfoSaving, setBasicInfoSaving] = useState(false);
-  const [basicInfoError,  setBasicInfoError]  = useState(null);
-
-
-  const [user, setUser] = useState({
-    firstName: "",
-    lastName: "",
-    username: "",
-    joined: "",
-    rating: 0,   
-    reviews: 0,
-    level: 1,
-    rank: "Unranked",
-    xpPoints: 0,
-    tot_xppts: 0,
-      
-});
-
-  useEffect(() => {
-    if (!user) return;
-    if (!basicInfoEditing) {
-      setEditableFirstName(user.firstName || "");
-      setEditableLastName(user.lastName || "");
-      setEditableBio(user.bio || "");
-    }
-  }, [user, basicInfoEditing]);
-
-  
-
-  const RAW_ORIGIN = RAW.replace(/\/api\/accounts\/?$/, "");
-
-  const toAbsolute = (u) => {
-  if (!u) return null;
-  try {
-    // If u is already absolute, URL(u) keeps it; if it's relative, it resolves vs RAW_ORIGIN
-    return new URL(u, RAW_ORIGIN).href;
-  } catch {
-    return u;
-  }
-};
-
-  useEffect(() => {
-  if (!slug) return;
-
-  const isNumeric = /^\d+$/.test(String(slug));
-  const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
-
-  if (!(slug === "me" || isNumeric || isUsername)) {
-    setError("Invalid profile URL.");       
-    return;
-  }
-
-  let cancelled = false;
-
-  (async () => {
-    try {
-      const isNumeric = /^\d+$/.test(String(slug));
-      const url =
-      slug === "me"
-        ? `${API_BASE}/me/`
-        : isNumeric
-          ? `${API_BASE}/users/${slug}/`
-          : `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
-
-      const headers = { Accept: "application/json" };
-      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
-
-      console.log("[profile] GET", url);
-      const res = await fetch(url, {
-        headers,
-        credentials: slug === "me" ? "include" : "same-origin",
-      });
-      console.log("[profile] status", res.status);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (cancelled) return;
-
-      setUser((prev) => ({
-        ...prev,
-        firstName: data.first_Name || "",
-        lastName:  data.last_Name  || "",
-        username:  data.username   || "",
-        id: (Number(data.id ?? data.user_id ?? (isNumeric ? slug : null)) || null),
-        profilePic: data.profilePic || null,
-        joined:    data.created_at
-          ? new Date(data.created_at).toLocaleString(undefined, { month: "long", year: "numeric" })
-          : "",
-        rating:    Number(data.avgStars ?? data.rating) || 0,
-        reviews:   Number(data.ratingCount ?? data.reviews) || 0,
-        bio:       data.bio || prev.bio || "",
-        is_verified: Boolean(data.is_verified),
-        userVerifyId: data.userVerifyId || null,
-        id:        (isNumeric ? Number(slug) : Number(data.id ?? data.user_id ?? 0)) || prev.id || null,
-        /* derive level, rank, and in-level progress from lifetime XP */
-        ...(() => {
-          const totalXp = Number(data.tot_xppts ?? data.tot_XpPts ?? data.totalXp ?? 0);
-          const d = deriveFromTotalXp(totalXp);
-          return { tot_xppts: totalXp, level: d.level, rank: d.rank, xpPoints: d.xpInLevel, _lvlWidth: d.levelWidth };
-        })(),
-      }));
-
-      const userId = isNumeric ? String(slug) : String(data.id ?? data.user_id ?? "");
-      if (userId) {
-        const [iRes, sRes] = await Promise.all([
-          fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
-          fetch(`${API_BASE}/users/${userId}/skills/`,    { headers }),
-        ]);
-        const [iJson, sJson] = await Promise.all([iRes.json(), sRes.json()]);
-        if (cancelled) return;
-
-        setUserInterests(Array.isArray(iJson?.interests) ? iJson.interests : []);
-        setSelectedSkillGroups(Array.isArray(sJson?.skill_groups) ? sJson.skill_groups : []);
-      }
-    } catch (e) {
-      console.error("[profile] load error", e);
-      setError("Failed to load profile.");
-    }
-  })();
-
-  return () => { cancelled = true; };
-}, [slug, session?.accessToken]);
-
-  useEffect(() => {
-    if (!user) return;
-    if (!basicInfoEditing) {
-      // keep edit fields in sync when not editing
-      setEditableFirstName?.(user.firstName || "");
-      setEditableLastName?.(user.lastName || "");
-      setEditableBio?.(user.bio || "");
-    }
-  }, [user, basicInfoEditing]);
-
-  const [credentials, setCredentials] = useState([
-    {
-      title: "Adobe Certified Expert (ACE)",
-      org: "Adobe Systems Inc",
-      issueDate: "March 2023",
-      expiryDate: "March 2026",
-      id: "ACE-123456789",
-      url: "https://adobe.com/cert/ACE-123456789",
-      skills: ["Graphic Design", "Illustration", "Animation"],
-    },
-    {
-      title: "Certified Graphic Designer (CGD)",
-      org: "Graphic Designers of Canada (GDC)",
-      issueDate: "June 2022",
-      expiryDate: "June 2025",
-      id: "CGD-987654321",
-      url: "https://gdc.net/cert/CGD-987654321",
-      skills: ["Graphic Design", "Illustration"],
-    },
-    {
-      title: "Google Analytics Certified",
-      org: "Google",
-      issueDate: "August 2023",
-      expiryDate: "August 2026",
-      id: "GA-123456789",
-      url: "https://skillshop.exceedlms.com/student/award/GA-123456789",
-      skills: ["Data Analysis", "Marketing", "SEO"],
-    },
-  ]);
-  const [showAllCreds, setShowAllCreds] = useState(false);
-  const [reviews, setReviews] = useState([
-    {
-      requester: "David Chen",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "May 12",
-      requestTitle: "Corporate Training",
-      offerTitle: "Gardening",
-      rating: 5.0,
-      reviewDescription:
-        "John was patient and clear in his corporate training sessions. He adapted well to my learning pace and made the experience enjoyable. I learned a lot thanks to his help.",
-      likes: 42,
-    },
-    {
-      requester: "Sarah Kim",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "June 10",
-      requestTitle: "Personal Training",
-      offerTitle: "Graphic Design",
-      rating: 4.5,
-      reviewDescription:
-        "John was a dedicated personal trainer who tailored workouts to my needs. He was punctual, encouraging, and professional throughout our sessions. I highly recommend him for anyone looking to improve their fitness.",
-      likes: 34,
-    },
-    {
-      requester: "Michael Lee",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "June 2",
-      requestTitle: "Illustration",
-      offerTitle: "Web Development",
-      rating: 4.0,
-      reviewDescription:
-        "John provided excellent illustration work for my website graphics. He was responsive to feedback and delivered quality designs on time. It was a pleasure collaborating with him.",
-      likes: 21,
-    },
-    {
-      requester: "Priya Patel",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "May 20",
-      requestTitle: "Tutoring",
-      offerTitle: "Language Instruction",
-      rating: 3.5,
-      reviewDescription:
-        "John helped me with tutoring sessions and was very organized. There were a few small misunderstandings initially, but he was quick to address them. Overall, a reliable trade partner.",
-      likes: 15,
-    },
-    {
-      requester: "Mark Thompson",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "April 15",
-      requestTitle: "Event Planning",
-      offerTitle: "Handyman Services",
-      rating: 4.2,
-      reviewDescription:
-        "John was very helpful setting up for my event and offered useful handyman services on site. He was punctual and easy to communicate with. I’d gladly trade with him again.",
-      likes: 18,
-    },
-  ]);
-
-  const handleDeleteReview = (reviewToDelete) => {
-    // Filter out the review to be deleted and update the state
-    setReviews(reviews.filter((review) => review !== reviewToDelete));
-  };
-
-  const toggleCategory = (index) => {
-    setExpanded((prev) => {
-      const newState = [...prev];
-      newState[index] = !newState[index];
-      return newState;
-    });
-  };
-
-  // Determine if viewing own profile
-  // Replace with actual logged-in user ID logic from your auth system
-  const loggedInUserId = "123"; // Example: get from auth context
-  const isOwnProfile = true;
-
-  // Mock data for review ratings to match a 4.3 average for 25 reviews
-  const reviewRatings = {
-    5: 12,
-    4: 10,
-    3: 2,
-    2: 1,
-    1: 0,
-    0: 0,
-  };
-
-  // Function to render stars based on a rating, now using filled and outlined stars
-  const renderStars = (rating) => {
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-    const stars = [];
-
-    // Full stars
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Star
-          key={`full-${i}`}
-          className="w-4 h-4 fill-[#906EFF] text-[#906EFF]"
-        />
-      );
-    }
-    // Half star
-    if (hasHalfStar) {
-      stars.push(
-        <div key="half" className="relative w-4 h-4">
-          <Star className="absolute w-4 h-4 text-gray-300 stroke-2" />
-          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
-            <Star className="w-4 h-4 fill-[#906EFF] text-[#906EFF]" />
-          </div>
-        </div>
-      );
-    }
-    // Empty stars with a clearer border
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300 stroke-2" />
-      );
-    }
-    return stars;
-  };
-
-  // Full list of main categories (used for adding interests/skills)
-  const mainCategories = [
-    "Creative & Design",
-    "Technical & IT",
-    "Business & Management",
-    "Communication & Interpersonal",
-    "Health & Wellness",
-    "Education & Training",
-    "Home & Lifestyle",
-    "Handiwork & Maintenance",
-    "Digital & Social Media",
-    "Language & Translation",
-    "Financial & Accounting",
-    "Sports & Fitness",
-    "Arts & Performance",
-    "Culture & Diversity",
-    "Research & Critical Thinking",
-  ];
-
-  // Full subcategory mapping (used when adding a specific skill)
-  const subcategories = {
-    "Creative & Design": [
-      "Graphic Design",
-      "Photography",
-      "Video Editing",
-      "Illustration",
-      "Animation",
-    ],
-    "Technical & IT": [
-      "Web Development",
-      "Software Development",
-      "IT Support",
-      "Network Administration",
-      "Cybersecurity",
-    ],
-    "Business & Management": [
-      "Project Management",
-      "Business Consulting",
-      "Human Resources",
-      "Operations Management",
-      "Marketing Strategy",
-    ],
-    "Communication & Interpersonal": [
-      "Customer Service",
-      "Public Relations",
-      "Copywriting",
-      "Translation",
-      "Social Media Management",
-    ],
-    "Health & Wellness": [
-      "Nutrition Coaching",
-      "Personal Training",
-      "Mental Health Counseling",
-      "Yoga Instruction",
-      "Physical Therapy",
-    ],
-    "Education & Training": [
-      "Tutoring",
-      "Language Instruction",
-      "Corporate Training",
-      "Curriculum Development",
-      "Test Preparation",
-    ],
-    "Home & Lifestyle": [
-      "Interior Decorating",
-      "Cleaning Services",
-      "Gardening",
-      "Event Planning",
-      "Personal Assistance",
-    ],
-    "Handiwork & Maintenance": [
-      "Furniture Assembly",
-      "Sewing & Alterations",
-      "Handyman Services",
-      "Painting & Decorating",
-      "Crafting",
-    ],
-    "Digital & Social Media": [
-      "Social Media Management",
-      "Content Creation",
-      "SEO",
-      "Digital Advertising",
-      "Email Marketing",
-    ],
-    "Language & Translation": [
-      "Translation",
-      "Interpretation",
-      "Language Tutoring",
-      "Transcription",
-      "Localization",
-    ],
-    "Financial & Accounting": [
-      "Bookkeeping",
-      "Tax Preparation",
-      "Financial Planning",
-      "Payroll Services",
-      "Auditing",
-    ],
-    "Sports & Fitness": [
-      "Personal Training",
-      "Group Fitness Instruction",
-      "Sports Coaching",
-      "Nutrition for Athletes",
-      "Physical Therapy",
-    ],
-    "Arts & Performance": [
-      "Music Lessons",
-      "Dance Instruction",
-      "Acting Coaching",
-      "Visual Arts",
-      "Creative Writing",
-    ],
-    "Culture & Diversity": [
-      "Diversity Training",
-      "Cultural Consulting",
-      "Language & Cultural Exchange",
-      "Community Outreach",
-      "Inclusion Workshops",
-    ],
-    "Research & Critical Thinking": [
-      "Market Research",
-      "Data Analysis",
-      "Academic Research",
-      "Competitive Analysis",
-      "Strategic Planning",
-    ],
-  };
-
-  // A smaller list used to render the UI initially (this was in your original file).
-  const skillCategories = [
-    {
-      name: "Creative & Design",
-      skills: ["Graphic Design", "Illustration", "Photography"],
-    },
-    {
-      name: "Education & Training",
-      skills: ["Tutoring", "Test Preparation"],
-    },
-    {
-      name: "Home & Lifestyle",
-      skills: ["Event Planning"],
-    },
-    {
-      name: "Sports & Fitness",
-      skills: ["Personal Training", "Sports Coaching", "Physical Therapy"],
-    },
-    {
-      name: "Arts & Performance",
-      skills: ["Creative Writing", "Visual Arts"],
-    },
-  ];
-
-  const interestsInitial = [
-    "Digital Art",
-    "Photography",
-    "Travel",
-    "Indie Music",
-    "Film Analysis",
-  ];
-
-  // ----------------------------
-  // NEW: Editable Skills & Interests
-  // ----------------------------
-
-  // verification popup state
-  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending" | "verified"
-  const [idFile, setIdFile] = useState(null); // File object
-  const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
-
-  useEffect(() => {
-  const v = user?.is_verified
-    ? "verified"
-    : user?.userVerifyId
-      ? "pending"
-      : "unverified";
-  setVerificationStatus(v);
-}, [user?.is_verified, user?.userVerifyId]);
-
-
- // call this when input changes
-  const handleIdFileChange = (file) => {
-    if (!file) {
-      setIdFile(null);
-      setIdPreviewUrl(null);
-      return;
-    }
-
-    setIdFile(file);
-
-    // if it's an image, create a preview URL
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setIdPreviewUrl(url);
-    } else {
-      setIdPreviewUrl(null);
-    }
-  };
-  
-  async function handleSubmitVerification() {
-  try {
-    if (!idFile) {
-      alert("Please choose a file first.");
-      return;
-    }
-    const fd = new FormData();
-    fd.append("userVerifyId", idFile);
-    if (user?.id) fd.append("user_id", String(user.id)); // works even without auth cookie
-
-    const headers = { Accept: "application/json" };
-    if (session?.accessToken) {
-      headers.Authorization = `Bearer ${session.accessToken}`;
-    }
-
-    const res = await fetch(`${API_BASE}/me/`, {
-      method: "PATCH",
-      credentials: "include",
-      headers, // DO NOT set Content-Type when sending FormData
-      body: fd,
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Upload failed (${res.status}): ${txt.slice(0, 120)}`);
-    }
-
-    const updated = await res.json();
-    // reflect backend response in local state
-    setUser(prev => ({
-      ...prev,
-      userVerifyId: updated.userVerifyId || prev.userVerifyId || null,
-      is_verified: Boolean(updated.is_verified),
-    }));
-
-    // frontend UX: immediately show "pending"
-    setVerificationStatus("pending");
-    setShowVerificationPopup(false);
-    setIdFile(null);
-    setIdPreviewUrl(null);
-  } catch (e) {
-    console.error("[verify upload] error", e);
-    alert(e.message || "Upload failed.");
-  }
-}
-
-
-  // editing toggles
-  const [skillsEditing, setSkillsEditing] = useState(false);
-  const [interestsEditing, setInterestsEditing] = useState(false);
-
-  // For adding specific skills in a category
-  const [selectedSpecificSkills, setSelectedSpecificSkills] = useState([]);
-
-  // For adding interests
-  const [selectedInterests, setSelectedInterests] = useState([]);
-
-  // selected skills state:
-  // array of objects: { category: "Creative & Design", skills: ["Graphic Design", ...] }
-  // initialize with a few groups derived from skillCategories (you can adjust this initial state)
-  const [selectedSkillGroups, setSelectedSkillGroups] = useState(() =>
-    skillCategories.map((g) => ({ category: g.name, skills: [...g.skills] }))
-  );
-
-  // interests
-  const [userInterests, setUserInterests] = useState(interestsInitial);
-
-  // add/remove category (removes whole group)
-  const removeSkillCategory = (category) => {
-    setSelectedSkillGroups((prev) =>
-      prev.filter((g) => g.category !== category)
-    );
-  };
-
-  // remove a specific skill within a category
-  const removeSpecificSkill = (category, skillToRemove) => {
-    setSelectedSkillGroups(
-      (prev) =>
-        prev
-          .map((g) =>
-            g.category === category
-              ? { ...g, skills: g.skills.filter((s) => s !== skillToRemove) }
-              : g
-          )
-          .filter((g) => g.skills.length > 0) // optional: remove empty groups
-    );
-  };
-
-  // Add flow state for skills add form
-  const [showAddSkillForm, setShowAddSkillForm] = useState(false);
-  const [addSkillCategory, setAddSkillCategory] = useState("");
-  const [addSkillSub, setAddSkillSub] = useState("");
-
-  // Add skill action (category -> specific skill)
-  const totalSpecificSkillsCount = selectedSkillGroups.reduce(
-    (sum, g) => sum + g.skills.length,
-    0
-  );
-
-  const MAX_SKILLS = 6;
-
-  const handleAddSkill = () => {
-    if (!addSkillCategory || selectedSpecificSkills.length === 0) return;
-
-    if (
-      selectedSkillGroups.length >= 6 &&
-      !selectedSkillGroups.some((g) => g.category === addSkillCategory)
-    ) {
-      alert("You can only have up to 6 general skills.");
-      return;
-    }
-
-    setSelectedSkillGroups((prev) => {
-      const existing = prev.find((g) => g.category === addSkillCategory);
-      if (existing) {
-        if (existing.skills.length + selectedSpecificSkills.length > 5) {
-          alert("Max 5 specific skills per category.");
-          return prev;
-        }
-        return prev.map((g) =>
-          g.category === addSkillCategory
-            ? {
-                ...g,
-                skills: [...new Set([...g.skills, ...selectedSpecificSkills])],
-              }
-            : g
-        );
-      }
-      return [
-        ...prev,
-        { category: addSkillCategory, skills: selectedSpecificSkills },
-      ];
-    });
-
-    setAddSkillCategory("");
-    setSelectedSpecificSkills([]);
-    setShowAddSkillForm(false);
-  };
-
-  // Interests add/remove
-  const removeInterest = (interest) => {
-    setUserInterests((prev) => prev.filter((i) => i !== interest));
-  };
-
-  const [showAddInterestForm, setShowAddInterestForm] = useState(false);
-  const [addInterestValue, setAddInterestValue] = useState("");
-
-
-  const handleAddInterest = () => {
-    setUserInterests((prev) => [...new Set([...prev, ...selectedInterests])]);
-    setSelectedInterests([]);
-    setShowAddInterestForm(false);
-  };
-
-  // ----------------------------
-  // existing memoized reviews etc
-  // ----------------------------
-  const sortedReviews = useMemo(() => {
-    let sorted = [...reviews];
-    if (sortOption === "Latest") {
-      sorted.sort(
-        (a, b) =>
-          new Date(b.tradeCompletionDate) - new Date(a.tradeCompletionDate)
-      );
-    } else if (sortOption === "Highest Rating") {
-      sorted.sort((a, b) => b.rating - a.rating);
-    } else if (sortOption === "Lowest Rating") {
-      sorted.sort((a, b) => a.rating - b.rating);
-    }
-    return sorted;
-  }, [reviews, sortOption]);
-
-  const handleSortChange = (option) => {
-    setSortOption(option);
-    setShowSortDropdown(false);
-  };
-
-  // Handler for editing all credentials
-  const handleEditAllCredentials = () => {
-    setEditingCredentials("all");
-  };
-
-  // Handler for editing a single credential
-  const handleEditSingleCredential = (credential) => {
-    setEditingCredentials(credential);
-  };
-
-  // Handler for saving changes
-  const handleSaveCredentials = (updatedCredentials) => {
-    if (Array.isArray(editingCredentials)) {
-      setCredentials(updatedCredentials);
-    } else {
-      const updatedList = credentials.map((cred) =>
-        cred.id === updatedCredentials[0].id ? updatedCredentials[0] : cred
-      );
-      setCredentials(updatedList);
-    }
-    setEditingCredentials(null);
-  };
-
-  // Conditionally render the edit page or the profile page
-  if (editingCredentials) {
-    const credsToEdit =
-      editingCredentials === "all" ? credentials : [editingCredentials];
-    return (
-      <div
-        className={`px-6 pb-20 pt-10 mx-auto max-w-[940px] text-white ${inter.className}`}
-      >
-        <EditCredentialsPage
-          credentialsToEdit={credsToEdit}
-          onCancel={() => setEditingCredentials(null)}
-          onSave={handleSaveCredentials}
-        />
-      </div>
-    );
-  }
 // Inline Button component
 const Button = ({ children, className, onClick, ...props }) => {
   return (
@@ -837,7 +48,7 @@ const TradePill = ({ content }) => {
 };
 
 // Inline ReviewCard component with updated design
-const ReviewCard = ({ review }) => {
+const ReviewCard = ({ review, onTradeAgain }) => {
   const {
     requester,
     tradePartner,
@@ -893,6 +104,11 @@ const ReviewCard = ({ review }) => {
     window.location.href = "/help#help-form";
   };
 
+  // Handle "Trade Again" button click
+  const handleTradeAgainClick = () => {
+    onTradeAgain(tradePartner);
+  };
+
   return (
     <div
       className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
@@ -935,7 +151,7 @@ const ReviewCard = ({ review }) => {
 
         <div className="relative flex items-center gap-5 text-white text-sm">
           {/* Rating number on the left */}
-          <span className="text-lg">{safeFixed(user.rating, 1)}</span>
+          <span className="text-lg">{rating.toFixed(1)}</span>
           <div className="flex items-center gap-[5px]">
             {renderStars(rating)}
           </div>
@@ -953,19 +169,19 @@ const ReviewCard = ({ review }) => {
         {/* Trade Details Section */}
         <div className="flex-1 flex flex-col gap-[25px]">
           <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+            <h6 className="text-base text-white/50 whitespace-nowrap">
               Name requested
             </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{requestTitle}</span>
+            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
+              <span className="whitespace-nowrap text-[#C1C9E1]">{requestTitle}</span>
             </div>
           </div>
           <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+            <h6 className="text-base text-white/50 whitespace-nowrap">
               In exchange for
             </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{offerTitle}</span>
+            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
+              <span className="whitespace-nowrap text-[#C1C9E1]">{offerTitle}</span>
             </div>
           </div>
         </div>
@@ -992,17 +208,18 @@ const ReviewCard = ({ review }) => {
           <span>{likes + (isLiked ? 1 : 0)}</span>
         </div>
         <div className="flex gap-4">
-          <Button
+          <Button 
             className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
-            onClick={() => onTradeAgain?.(review)}
+            onClick={handleTradeAgainClick}
           >
             Trade again
           </Button>
-
           <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
             View details
           </Button>
         </div>
+
+
       </div>
     </div>
   );
@@ -1195,24 +412,6 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   // Function to add a new empty credential
   const addCredential = () => {
     setFormData([...formData, defaultCredential]);
-  };
-
-  // --- Trade Again modal state ---
-  const [showRepeatModal, setShowRepeatModal] = useState(false);
-  const [repeatReview, setRepeatReview] = useState(null);
-
-  const openRepeatModal = (review) => {
-    setRepeatReview(review);
-    setShowRepeatModal(true);
-  };
-  const closeRepeatModal = () => {
-    setShowRepeatModal(false);
-    setRepeatReview(null);
-  };
-  const confirmRepeatTrade = () => {
-    // placeholder; backend integration later
-    alert(`Trade request sent to ${repeatReview?.requester || "user"}.`);
-    closeRepeatModal();
   };
 
   return (
@@ -1424,69 +623,575 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   );
 };
 
-const isDirty =
-  basicInfoEditing &&
-  (
-    (editableFirstName ?? "") !== (user.firstName ?? "") ||
-    (editableLastName  ?? "") !== (user.lastName  ?? "") ||
-    (editableBio       ?? "") !== (user.bio       ?? "")
+export default function ProfilePage() {
+  const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
+  const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
+  const [sortOption, setSortOption] = useState("Latest");
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  
+  // Dialog states for Trade Again flow
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [selectedTradePartner, setSelectedTradePartner] = useState(null);
+  const [credentials, setCredentials] = useState([
+    {
+      title: "Adobe Certified Expert (ACE)",
+      org: "Adobe Systems Inc",
+      issueDate: "March 2023",
+      expiryDate: "March 2026",
+      id: "ACE-123456789",
+      url: "https://adobe.com/cert/ACE-123456789",
+      skills: ["Graphic Design", "Illustration", "Animation"],
+    },
+    {
+      title: "Certified Graphic Designer (CGD)",
+      org: "Graphic Designers of Canada (GDC)",
+      issueDate: "June 2022",
+      expiryDate: "June 2025",
+      id: "CGD-987654321",
+      url: "https://gdc.net/cert/CGD-987654321",
+      skills: ["Graphic Design", "Illustration"],
+    },
+    {
+      title: "Google Analytics Certified",
+      org: "Google",
+      issueDate: "August 2023",
+      expiryDate: "August 2026",
+      id: "GA-123456789",
+      url: "https://skillshop.exceedlms.com/student/award/GA-123456789",
+      skills: ["Data Analysis", "Marketing", "SEO"],
+    },
+    {
+      title: "Certified Photographer (CP)",
+      org: "Professional Photographers of America (PPA)",
+      issueDate: "December 2023",
+      expiryDate: "December 2026",
+      id: "PPA-11223344",
+      url: "https://ppa.com/cert/PPA-11223344",
+      skills: ["Photography", "Studio Lighting"],
+    },
+    {
+      title: "Storytelling for Video Certificate",
+      org: "Coursera",
+      issueDate: "February 2024",
+      expiryDate: "N/A",
+      id: "COUR-987654321",
+      url: "https://coursera.org/verify/COUR-987654321",
+      skills: ["Video Editing", "Creative Writing"],
+    },
+  ]);
+  const [showAllCreds, setShowAllCreds] = useState(false);
+  const [reviews, setReviews] = useState([
+    {
+      requester: "David Chen",
+      tradePartner: "John Doe",
+      tradeCompletionDate: "May 12",
+      requestTitle: "Corporate Training",
+      offerTitle: "Gardening",
+      rating: 5.0,
+      reviewDescription:
+        "John was patient and clear in his corporate training sessions. He adapted well to my learning pace and made the experience enjoyable. I learned a lot thanks to his help.",
+      likes: 42,
+    },
+    {
+      requester: "Sarah Kim",
+      tradePartner: "John Doe",
+      tradeCompletionDate: "June 10",
+      requestTitle: "Personal Training",
+      offerTitle: "Graphic Design",
+      rating: 4.5,
+      reviewDescription:
+        "John was a dedicated personal trainer who tailored workouts to my needs. He was punctual, encouraging, and professional throughout our sessions. I highly recommend him for anyone looking to improve their fitness.",
+      likes: 34,
+    },
+    {
+      requester: "Michael Lee",
+      tradePartner: "John Doe",
+      tradeCompletionDate: "June 2",
+      requestTitle: "Illustration",
+      offerTitle: "Web Development",
+      rating: 4.0,
+      reviewDescription:
+        "John provided excellent illustration work for my website graphics. He was responsive to feedback and delivered quality designs on time. It was a pleasure collaborating with him.",
+      likes: 21,
+    },
+    {
+      requester: "Priya Patel",
+      tradePartner: "John Doe",
+      tradeCompletionDate: "May 20",
+      requestTitle: "Tutoring",
+      offerTitle: "Language Instruction",
+      rating: 3.5,
+      reviewDescription:
+        "John helped me with tutoring sessions and was very organized. There were a few small misunderstandings initially, but he was quick to address them. Overall, a reliable trade partner.",
+      likes: 15,
+    },
+    {
+      requester: "Mark Thompson",
+      tradePartner: "John Doe",
+      tradeCompletionDate: "April 15",
+      requestTitle: "Event Planning",
+      offerTitle: "Handyman Services",
+      rating: 4.2,
+      reviewDescription:
+        "John was very helpful setting up for my event and offered useful handyman services on site. He was punctual and easy to communicate with. I’d gladly trade with him again.",
+      likes: 18,
+    },
+  ]);
+
+  const handleDeleteReview = (reviewToDelete) => {
+    // Filter out the review to be deleted and update the state
+    setReviews(reviews.filter((review) => review !== reviewToDelete));
+  };
+
+  // Handle "Trade Again" button click
+  const handleTradeAgainClick = (tradePartner) => {
+    setSelectedTradePartner(tradePartner);
+    setShowConfirmDialog(true);
+  };
+
+  // Handle confirmation dialog actions
+  const handleConfirmTradeAgain = () => {
+    setShowConfirmDialog(false);
+    setShowSuccessDialog(true);
+    // In a real app, you would send the trade invitation here
+    console.log(`Sent trade again invitation to ${selectedTradePartner}`);
+  };
+
+  const handleCancelTradeAgain = () => {
+    setShowConfirmDialog(false);
+    setSelectedTradePartner(null);
+  };
+
+  const handleSuccessDialogClose = () => {
+    setShowSuccessDialog(false);
+    setSelectedTradePartner(null);
+  };
+
+  const handleGoToPendingTrades = () => {
+    setShowSuccessDialog(false);
+    setSelectedTradePartner(null);
+    window.location.href = "/home/trades/pending";
+  };
+
+  const toggleCategory = (index) => {
+    setExpanded((prev) => {
+      const newState = [...prev];
+      newState[index] = !newState[index];
+      return newState;
+    });
+  };
+
+  const [user, setUser] = useState({
+    firstName: "John",
+    lastName: "Doe",
+    bio: "Passionate video editor with 4+ years of experience crafting engaging content for creators and small brands. Always up to trade skills and help others grow—let's connect and collaborate!",
+    username: "johndoe",
+    joined: "March 2025",
+    rating: 4.8,
+    reviews: 24,
+    rank: "Rising Star",
+    level: 7,
+    verified: false,
+  });
+
+  // Determine if viewing own profile
+  // Replace with actual logged-in user ID logic from your auth system
+  const loggedInUserId = "123"; // Example: get from auth context
+  const isOwnProfile = true;
+
+  const params = useParams();
+
+  // Mock data for review ratings to match a 4.3 average for 25 reviews
+  const reviewRatings = {
+    5: 12,
+    4: 10,
+    3: 2,
+    2: 1,
+    1: 0,
+    0: 0,
+  };
+
+  // Function to render stars based on a rating, now using filled and outlined stars
+  const renderStars = (rating) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    const stars = [];
+
+    // Full stars
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <Star
+          key={`full-${i}`}
+          className="w-4 h-4 fill-[#906EFF] text-[#906EFF]"
+        />
+      );
+    }
+    // Half star
+    if (hasHalfStar) {
+      stars.push(
+        <div key="half" className="relative w-4 h-4">
+          <Star className="absolute w-4 h-4 text-gray-300 stroke-2" />
+          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
+            <Star className="w-4 h-4 fill-[#906EFF] text-[#906EFF]" />
+          </div>
+        </div>
+      );
+    }
+    // Empty stars with a clearer border
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300 stroke-2" />
+      );
+    }
+    return stars;
+  };
+
+  // Full list of main categories (used for adding interests/skills)
+  const mainCategories = [
+    "Creative & Design",
+    "Technical & IT",
+    "Business & Management",
+    "Communication & Interpersonal",
+    "Health & Wellness",
+    "Education & Training",
+    "Home & Lifestyle",
+    "Handiwork & Maintenance",
+    "Digital & Social Media",
+    "Language & Translation",
+    "Financial & Accounting",
+    "Sports & Fitness",
+    "Arts & Performance",
+    "Culture & Diversity",
+    "Research & Critical Thinking",
+  ];
+
+  // Full subcategory mapping (used when adding a specific skill)
+  const subcategories = {
+    "Creative & Design": [
+      "Graphic Design",
+      "Photography",
+      "Video Editing",
+      "Illustration",
+      "Animation",
+    ],
+    "Technical & IT": [
+      "Web Development",
+      "Software Development",
+      "IT Support",
+      "Network Administration",
+      "Cybersecurity",
+    ],
+    "Business & Management": [
+      "Project Management",
+      "Business Consulting",
+      "Human Resources",
+      "Operations Management",
+      "Marketing Strategy",
+    ],
+    "Communication & Interpersonal": [
+      "Customer Service",
+      "Public Relations",
+      "Copywriting",
+      "Translation",
+      "Social Media Management",
+    ],
+    "Health & Wellness": [
+      "Nutrition Coaching",
+      "Personal Training",
+      "Mental Health Counseling",
+      "Yoga Instruction",
+      "Physical Therapy",
+    ],
+    "Education & Training": [
+      "Tutoring",
+      "Language Instruction",
+      "Corporate Training",
+      "Curriculum Development",
+      "Test Preparation",
+    ],
+    "Home & Lifestyle": [
+      "Interior Decorating",
+      "Cleaning Services",
+      "Gardening",
+      "Event Planning",
+      "Personal Assistance",
+    ],
+    "Handiwork & Maintenance": [
+      "Furniture Assembly",
+      "Sewing & Alterations",
+      "Handyman Services",
+      "Painting & Decorating",
+      "Crafting",
+    ],
+    "Digital & Social Media": [
+      "Social Media Management",
+      "Content Creation",
+      "SEO",
+      "Digital Advertising",
+      "Email Marketing",
+    ],
+    "Language & Translation": [
+      "Translation",
+      "Interpretation",
+      "Language Tutoring",
+      "Transcription",
+      "Localization",
+    ],
+    "Financial & Accounting": [
+      "Bookkeeping",
+      "Tax Preparation",
+      "Financial Planning",
+      "Payroll Services",
+      "Auditing",
+    ],
+    "Sports & Fitness": [
+      "Personal Training",
+      "Group Fitness Instruction",
+      "Sports Coaching",
+      "Nutrition for Athletes",
+      "Physical Therapy",
+    ],
+    "Arts & Performance": [
+      "Music Lessons",
+      "Dance Instruction",
+      "Acting Coaching",
+      "Visual Arts",
+      "Creative Writing",
+    ],
+    "Culture & Diversity": [
+      "Diversity Training",
+      "Cultural Consulting",
+      "Language & Cultural Exchange",
+      "Community Outreach",
+      "Inclusion Workshops",
+    ],
+    "Research & Critical Thinking": [
+      "Market Research",
+      "Data Analysis",
+      "Academic Research",
+      "Competitive Analysis",
+      "Strategic Planning",
+    ],
+  };
+
+  // A smaller list used to render the UI initially (this was in your original file).
+  const skillCategories = [
+    {
+      name: "Creative & Design",
+      skills: ["Graphic Design", "Illustration", "Photography"],
+    },
+    {
+      name: "Education & Training",
+      skills: ["Tutoring", "Test Preparation"],
+    },
+    {
+      name: "Home & Lifestyle",
+      skills: ["Event Planning"],
+    },
+    {
+      name: "Sports & Fitness",
+      skills: ["Personal Training", "Sports Coaching", "Physical Therapy"],
+    },
+    {
+      name: "Arts & Performance",
+      skills: ["Creative Writing", "Visual Arts"],
+    },
+  ];
+
+  const interestsInitial = [
+    "Digital Art",
+    "Photography",
+    "Travel",
+    "Indie Music",
+    "Film Analysis",
+  ];
+
+  // ----------------------------
+  // NEW: Editable Skills & Interests
+  // ----------------------------
+
+  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState("unverified"); // "unverified" | "pending"
+  const [idFile, setIdFile] = useState(null);
+
+  // For Basic Information editing
+  const [basicInfoEditing, setBasicInfoEditing] = useState(false);
+  const [editableFirstName, setEditableFirstName] = useState(
+    user.firstName || ""
+  );
+  const [editableLastName, setEditableLastName] = useState(user.lastName || "");
+  const [editableBio, setEditableBio] = useState(user?.bio || "");
+
+  // editing toggles
+  const [skillsEditing, setSkillsEditing] = useState(false);
+  const [interestsEditing, setInterestsEditing] = useState(false);
+
+  // For adding specific skills in a category
+  const [selectedSpecificSkills, setSelectedSpecificSkills] = useState([]);
+
+  // For adding interests
+  const [selectedInterests, setSelectedInterests] = useState([]);
+
+  // selected skills state:
+  // array of objects: { category: "Creative & Design", skills: ["Graphic Design", ...] }
+  // initialize with a few groups derived from skillCategories (you can adjust this initial state)
+  const [selectedSkillGroups, setSelectedSkillGroups] = useState(() =>
+    skillCategories.map((g) => ({ category: g.name, skills: [...g.skills] }))
   );
 
-  async function handleSaveBasicInfo() {
-  setBasicInfoSaving(true);
-  setBasicInfoError(null);
-  try {
-    // Reuse your existing base URL logic in this file
-    const RAW = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
-    const API_BASE = RAW.includes("/api/accounts")
-      ? RAW.replace(/\/+$/, "")
-      : `${RAW.replace(/\/+$/, "")}/api/accounts`;
+  // interests
+  const [userInterests, setUserInterests] = useState(interestsInitial);
 
-    const body = {
-      first_Name: editableFirstName ?? "",
-      last_Name:  editableLastName ?? "",
-      bio:        editableBio ?? "",
-      user_id: user?.id ?? null,
-    };
+  // add/remove category (removes whole group)
+  const removeSkillCategory = (category) => {
+    setSelectedSkillGroups((prev) =>
+      prev.filter((g) => g.category !== category)
+    );
+  };
 
-    const headers = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    };
-    if (session?.accessToken) {
-      headers.Authorization = `Bearer ${session.accessToken}`;
+  // remove a specific skill within a category
+  const removeSpecificSkill = (category, skillToRemove) => {
+    setSelectedSkillGroups(
+      (prev) =>
+        prev
+          .map((g) =>
+            g.category === category
+              ? { ...g, skills: g.skills.filter((s) => s !== skillToRemove) }
+              : g
+          )
+          .filter((g) => g.skills.length > 0) // optional: remove empty groups
+    );
+  };
+
+  // Add flow state for skills add form
+  const [showAddSkillForm, setShowAddSkillForm] = useState(false);
+  const [addSkillCategory, setAddSkillCategory] = useState("");
+  const [addSkillSub, setAddSkillSub] = useState("");
+
+  // Add skill action (category -> specific skill)
+  const totalSpecificSkillsCount = selectedSkillGroups.reduce(
+    (sum, g) => sum + g.skills.length,
+    0
+  );
+
+  const MAX_SKILLS = 6;
+
+  const handleAddSkill = () => {
+    if (!addSkillCategory || selectedSpecificSkills.length === 0) return;
+
+    if (
+      selectedSkillGroups.length >= 6 &&
+      !selectedSkillGroups.some((g) => g.category === addSkillCategory)
+    ) {
+      alert("You can only have up to 6 general skills.");
+      return;
     }
 
-    const res = await fetch(`${API_BASE}/me/`, {
-      method: "PATCH",
-      headers,
-      credentials: "include", // works for cookie or JWT setups
-      body: JSON.stringify(body),
+    setSelectedSkillGroups((prev) => {
+      const existing = prev.find((g) => g.category === addSkillCategory);
+      if (existing) {
+        if (existing.skills.length + selectedSpecificSkills.length > 5) {
+          alert("Max 5 specific skills per category.");
+          return prev;
+        }
+        return prev.map((g) =>
+          g.category === addSkillCategory
+            ? {
+                ...g,
+                skills: [...new Set([...g.skills, ...selectedSpecificSkills])],
+              }
+            : g
+        );
+      }
+      return [
+        ...prev,
+        { category: addSkillCategory, skills: selectedSpecificSkills },
+      ];
     });
 
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Save failed (${res.status}): ${txt.slice(0, 200)}`);
+    setAddSkillCategory("");
+    setSelectedSpecificSkills([]);
+    setShowAddSkillForm(false);
+  };
+
+  // Interests add/remove
+  const removeInterest = (interest) => {
+    setUserInterests((prev) => prev.filter((i) => i !== interest));
+  };
+
+  const [showAddInterestForm, setShowAddInterestForm] = useState(false);
+  const [addInterestValue, setAddInterestValue] = useState("");
+
+  const handleAddInterest = () => {
+    setUserInterests((prev) => [...new Set([...prev, ...selectedInterests])]);
+    setSelectedInterests([]);
+    setShowAddInterestForm(false);
+  };
+
+  // ----------------------------
+  // existing memoized reviews etc
+  // ----------------------------
+  const sortedReviews = useMemo(() => {
+    let sorted = [...reviews];
+    if (sortOption === "Latest") {
+      sorted.sort(
+        (a, b) =>
+          new Date(b.tradeCompletionDate) - new Date(a.tradeCompletionDate)
+      );
+    } else if (sortOption === "Highest Rating") {
+      sorted.sort((a, b) => b.rating - a.rating);
+    } else if (sortOption === "Lowest Rating") {
+      sorted.sort((a, b) => a.rating - b.rating);
     }
+    return sorted;
+  }, [reviews, sortOption]);
 
-    const updated = await res.json();
+  const handleSortChange = (option) => {
+    setSortOption(option);
+    setShowSortDropdown(false);
+  };
 
-    // Minimal merge: only touch the fields we edited
-    setUser(prev => ({
-      ...prev,
-      firstName: updated.first_Name ?? editableFirstName ?? prev.firstName,
-      lastName:  updated.last_Name  ?? editableLastName  ?? prev.lastName,
-      bio:       updated.bio        ?? editableBio       ?? prev.bio,
-    }));
+  // Handler for editing all credentials
+  const handleEditAllCredentials = () => {
+    setEditingCredentials("all");
+  };
 
-    setBasicInfoEditing(false);
-  } catch (e) {
-    console.error("[basic info save] error", e);
-    setBasicInfoError(e.message || "Failed to save.");
-  } finally {
-    setBasicInfoSaving(false);
+  // Handler for editing a single credential
+  const handleEditSingleCredential = (credential) => {
+    setEditingCredentials(credential);
+  };
+
+  // Handler for saving changes
+  const handleSaveCredentials = (updatedCredentials) => {
+    if (Array.isArray(editingCredentials)) {
+      setCredentials(updatedCredentials);
+    } else {
+      const updatedList = credentials.map((cred) =>
+        cred.id === updatedCredentials[0].id ? updatedCredentials[0] : cred
+      );
+      setCredentials(updatedList);
+    }
+    setEditingCredentials(null);
+  };
+
+  // Conditionally render the edit page or the profile page
+  if (editingCredentials) {
+    const credsToEdit =
+      editingCredentials === "all" ? credentials : [editingCredentials];
+    return (
+      <div
+        className={`px-6 pb-20 pt-10 mx-auto max-w-[940px] text-white ${inter.className}`}
+      >
+        <EditCredentialsPage
+          credentialsToEdit={credsToEdit}
+          onCancel={() => setEditingCredentials(null)}
+          onSave={handleSaveCredentials}
+        />
+      </div>
+    );
   }
-}
 
   // Original Profile Page content
   return (
@@ -1501,12 +1206,11 @@ const isDirty =
         {/* Profile Picture */}
         <div className="w-[200px] h-[200px] relative flex-shrink-0">
           <Image
-            src={toAbsolute(user?.profilePic) || "/assets/defaultavatar.png"}
-            alt={`${user?.firstName || ""} ${user?.lastName || ""}`}
+            src="/assets/defaultavatar.png"
+            alt={`${user.name}'s avatar`}
             width={200}
             height={200}
             className="rounded-full shadow-[0_0_50px_#906EFF99] object-cover"
-            
           />
         </div>
 
@@ -1532,9 +1236,7 @@ const isDirty =
                 />
               </div>
             ) : (
-              <h3 className="text-[26px] font-semibold">
-                 {`${user.firstName} ${user.lastName}`.trim() || "—"}
-              </h3>
+              <h3 className="text-[26px] font-semibold">{`${user.firstName} ${user.lastName}`}</h3>
             )}
             {user.verified && (
               <Icon
@@ -1546,8 +1248,8 @@ const isDirty =
 
           {/* Username + Joined Date */}
           <div className="flex text-white/50 text-[16px] mb-[20px] gap-[25px]">
-            <span>@{user.username || "—"}</span>
-            <span>Joined {user.joined || "—"}</span>
+            <span>@{user.username}</span>
+            <span>Joined {user.joined}</span>
           </div>
 
           {/* Buttons: Edit, Settings (only if own profile) */}
@@ -1555,12 +1257,7 @@ const isDirty =
             <div className="absolute top-0 right-0 flex gap-4">
               <button
                 className="text-white hover:bg-[#1A0F3E] px-3 py-2 flex items-center gap-2 rounded-[10px] transition"
-                onClick={() => {
-                  setEditableFirstName(user?.firstName || "");
-                  setEditableLastName(user?.lastName || "");
-                  setEditableBio(user?.bio || "");
-                  setBasicInfoEditing(true);
-                }}
+                onClick={() => setBasicInfoEditing(true)}
               >
                 <Icon icon="mdi:pencil" className="w-5 h-5" />
                 Edit
@@ -1602,29 +1299,16 @@ const isDirty =
                 width={20}
                 height={20}
               />
-                <span>{(user?.rank || "Rank").toString().charAt(0).toUpperCase() + (user?.rank || "Rank").toString().slice(1)}</span>
+              <span>{user.rank}</span>
             </div>
 
-            {/* Level Bar Section */}
             <div className="flex items-center gap-2">
-              {/* Track */}
-              <div className="relative w-[220px] h-[20px] rounded-[32px] border-2 border-white overflow-hidden">
-                {/* Fill */}
-                <div
-                  className="h-full rounded-[32px] transition-all duration-500"
-                style={{
-                  // percent = in-level XP / width of this level band
-                  width: `${(() => {
-                    const width = getLevelWidth(user.level || 1);
-                    const gained = Number(user.xpPoints) || 0;
-                    return Math.min((gained / (width || 1)) * 100, 100);
-                  })()}%`,
-                  minWidth: (Number(user.xpPoints) || 0) > 0 ? "6px" : "0",
-                  backgroundImage:
-                    "linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)",
-                }}
+              <Image
+                src="/assets/lvlbar.png"
+                alt="Level bar"
+                width={220}
+                height={20}
               />
-              </div>
               <span className="text-[16px]">LVL {user.level}</span>
             </div>
           </div>
@@ -1645,70 +1329,50 @@ const isDirty =
 
           {/* Save / Cancel when editing */}
           {basicInfoEditing && (
-            <div className="flex flex-col gap-2 mb-4">
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  onClick={handleSaveBasicInfo}
-                  disabled={!isDirty || basicInfoSaving}
-                  className={clsx(
-                    "text-white rounded-[15px]",
-                    basicInfoSaving ? "bg-[#0038FF]/70" : "bg-[#0038FF]"
-                  )}
-                >
-                  {basicInfoSaving ? "Saving..." : "Save"}
-                </Button>
-
-                <Button
-                  type="button"
-                  onClick={() => setBasicInfoEditing(false)}
-                  disabled={basicInfoSaving}
-                  className="bg-white/10 text-white rounded-[15px]"
-                >
-                  Cancel
-                </Button>
-              </div>
-
-              {/* inline feedback */}
-              {basicInfoError && (
-                <p className="text-red-400 text-sm">{basicInfoError}</p>
-              )}
+            <div className="flex gap-3 mb-4">
+              <Button
+                onClick={() => {
+                  setUser((prev) => ({
+                    ...prev,
+                    firstName: editableFirstName,
+                    lastName: editableLastName,
+                    name: `${editableFirstName} ${editableLastName}`,
+                    bio: editableBio,
+                  }));
+                  setBasicInfoEditing(false);
+                }}
+                className="bg-[#0038FF] text-white rounded-[15px]"
+              >
+                Save
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditableFirstName(user.firstName || "");
+                  setEditableLastName(user.lastName || "");
+                  setEditableBio(user.bio);
+                  setBasicInfoEditing(false);
+                }}
+                className="bg-white/10 text-white rounded-[15px]"
+              >
+                Cancel
+              </Button>
             </div>
           )}
 
-          {/* Get Verified Button area */}
-          {isOwnProfile && (
+          {/* Get Verified Button */}
+          {isOwnProfile && !user.verified && (
             <div className="w-full flex justify-end">
-              {verificationStatus === "unverified" && (
-                <button
-                  onClick={() => setShowVerificationPopup(true)}
-                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2"
-                >
-                  <Icon icon="material-symbols:verified" className="w-4 h-4" />
-                  <span>Get Verified</span>
-                </button>
-              )}
-              {verificationStatus === "pending" && (
-                <button
-                  disabled
-                  className="bg-gray-600 text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2"
-                >
-                  <Icon icon="mdi:clock-outline" className="w-4 h-4" />
-                  <span>Waiting for Verification</span>
-                </button>
-              )}
-
-              {/* Verified state */}
-              {verificationStatus === "verified" && (
-                <div className="flex items-center gap-2 bg-green-600/25 border border-green-500/70 text-green-200 rounded-[14px] px-3 py-1.5 text-sm">
-                  <Icon icon="mdi:check-circle" className="w-4 h-4" />
-                  <span>Verified</span>
-                </div>
-              )}
+              <Button
+                className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC] flex items-center gap-2"
+                onClick={() => setShowVerificationPopup(true)}
+              >
+                <Icon icon="material-symbols:verified" className="w-4 h-4" />
+                Get Verified
+              </Button>
             </div>
           )}
         </div>
-      </div>          
+      </div>
 
       {/* ==== YOUR SKILLS ==== */}
       <div className="mt-[50px] flex flex-col gap-[25px]">
@@ -1895,8 +1559,6 @@ const isDirty =
           </div>
         )}
       </div>
-
-      
 
       {/* ==== YOUR INTERESTS ==== */}
       <div className="mt-[50px] flex flex-col gap-[25px]">
@@ -2152,10 +1814,10 @@ const isDirty =
             <div className="flex flex-col">
               <div className="flex items-end gap-[10px]">
                 <span className="text-[40px] font-bold leading-none">
-                  {safeFixed(user.rating, 1)}
+                  {user.rating.toFixed(1)}
                 </span>
                 <span className="text-[16px] text-white/50 pb-2">
-                  ({Number(user.reviews) || 0})
+                  ({user.reviews})
                 </span>
               </div>
               <div className="flex items-center mt-[20px]">
@@ -2192,134 +1854,130 @@ const isDirty =
                 key={index}
                 review={review}
                 onDelete={handleDeleteReview}
+                onTradeAgain={handleTradeAgainClick}
               />
             ))}
           </div>
         </div>
       </div>
 
-      {/* === Verification Popup (improved UI) === */}
+      {/* === Verification Popup === */}
       {showVerificationPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[420px] shadow-lg border border-white/20">
-            <div className="flex items-start justify-between">
-              <h3 className="text-white text-lg font-semibold">
-                Upload your ID
-              </h3>
-              <button
-                onClick={() => {
-                  // close & clear selection
-                  setShowVerificationPopup(false);
-                  setIdFile(null);
-                  if (idPreviewUrl) {
-                    URL.revokeObjectURL(idPreviewUrl);
-                    setIdPreviewUrl(null);
-                  }
-                }}
-                className="p-1 rounded hover:bg-white/10"
-                aria-label="Close verification popup"
-              >
-                <Icon icon="mdi:close" className="w-5 h-5 text-white/70" />
-              </button>
-            </div>
-
-            <p className="text-white/70 text-sm mt-2 mb-4">
+          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[400px] shadow-lg border border-white/20">
+            <h3 className="text-white text-lg font-semibold mb-4">
+              Upload your ID
+            </h3>
+            <p className="text-white/70 text-sm mb-4">
               Please upload a clear image or PDF of your government-issued ID.
-              Accepted: PDF, PNG, or JPEG. Max 15&nbsp;MB.
             </p>
 
-            {/* Upload control */}
-            <div className="flex items-center gap-3 mb-5">
+            <div className="mb-4">
               <input
-                id="id-upload"
                 type="file"
                 accept="image/*,application/pdf"
-                className="hidden"
-                onChange={(e) => handleIdFileChange(e.target.files?.[0] ?? null)
-                }
+                onChange={(e) => setIdFile(e.target.files[0])}
+                className="block w-full text-white"
               />
-
-              {/* Visible button (label) */}
-              <label
-                htmlFor="id-upload"
-                className="cursor-pointer inline-flex items-center gap-2 rounded-[12px] px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm border border-white/20"
-              >
-                <Icon icon="mdi:upload" className="w-4 h-4" />
-                Upload file
-              </label>
-
-              {/* Filename or preview */}
-              <div className="flex-1 min-w-0">
-                {idFile ? (
-                  <div className="flex items-center gap-3">
-                    {idPreviewUrl ? (
-                      <img
-                        src={idPreviewUrl}
-                        alt="ID preview"
-                        className="w-12 h-8 object-cover rounded-sm border border-white/10"
-                      />
-                    ) : (
-                      <span className="inline-block w-12 h-8 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/70">
-                        PDF
-                      </span>
-                    )}
-                    <span className="text-white/80 text-sm truncate">
-                      {idFile.name}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setIdFile(null);
-                        if (idPreviewUrl) {
-                          URL.revokeObjectURL(idPreviewUrl);
-                          setIdPreviewUrl(null);
-                        }
-                        // clear the native input too
-                        const el = document.getElementById("id-upload");
-                        if (el) el.value = "";
-                      }}
-                      className="ml-2 text-white/60 hover:text-white/90"
-                      aria-label="Remove selected file"
-                      type="button"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-white/60 text-sm">
-                    No file selected
-                  </span>
-                )}
-              </div>
             </div>
 
             <div className="flex justify-end gap-3">
-              <button
+              <Button
                 onClick={() => {
-                  // cancel
                   setShowVerificationPopup(false);
                   setIdFile(null);
-                  if (idPreviewUrl) {
-                    URL.revokeObjectURL(idPreviewUrl);
-                    setIdPreviewUrl(null);
-                  }
-                  const el = document.getElementById("id-upload");
-                  if (el) el.value = "";
                 }}
-                className="bg-white/10 text-white rounded-[15px] px-4 py-2 hover:bg-white/20"
+                className="bg-white/10 text-white rounded-[15px]"
               >
                 Cancel
-              </button>
-
-              <button
-                onClick={handleSubmitVerification}
-                disabled={!idFile}
-                className={`rounded-[15px] px-4 py-2 shadow ${
-                  idFile
-                    ? "bg-[#0038FF] hover:bg-[#1a4dff] text-white"
-                    : "bg-white/10 text-white/40 cursor-not-allowed"
-                }`}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!idFile) {
+                    alert("Please upload an ID first.");
+                    return;
+                  }
+                  setVerificationStatus("pending");
+                  setShowVerificationPopup(false);
+                  alert(
+                    "Your verification will be processed. You will be notified once approved."
+                  );
+                }}
+                className="bg-[#0038FF] text-white rounded-[15px]"
               >
                 Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trade Again Confirmation Dialog */}
+      {showConfirmDialog && selectedTradePartner && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={handleCancelTradeAgain}></div>
+          <div className="relative flex flex-col items-center justify-center w-[500px] h-[200px] bg-[#120A2A]/95 border-2 border-[#0038FF] shadow-[0px_4px_15px_#284CCC] backdrop-blur-[10px] rounded-[20px] overflow-hidden z-50">
+            {/* Background gradients */}
+            <div className="absolute top-[-50px] left-[-50px] w-[150px] h-[150px] rounded-full bg-[#0038FF]/15 blur-[40px]"></div>
+            <div className="absolute bottom-[-40px] right-[-40px] w-[120px] h-[120px] rounded-full bg-[#906EFF]/15 blur-[40px]"></div>
+
+            {/* Close button */}
+            <button 
+              className="absolute top-4 right-4 text-white hover:text-gray-300"
+              onClick={handleCancelTradeAgain}
+            >
+              <Icon icon="lucide:x" className="w-[20px] h-[20px]" />
+            </button>
+
+            <div className="flex flex-col items-center gap-6 w-full px-8 relative z-10">
+              <h2 className="font-bold text-[20px] text-center text-white leading-tight">
+                Are you sure you want to trade again with {selectedTradePartner}?
+              </h2>
+              <div className="flex flex-row gap-4">
+                <button 
+                  className="flex items-center justify-center w-[120px] h-[40px] border-2 border-[#0038FF] rounded-[15px] text-[#0038FF] text-[16px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#0038FF]/10 transition-colors"
+                  onClick={handleCancelTradeAgain}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="flex items-center justify-center w-[120px] h-[40px] bg-[#0038FF] rounded-[15px] text-white text-[16px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
+                  onClick={handleConfirmTradeAgain}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trade Again Success Dialog */}
+      {showSuccessDialog && selectedTradePartner && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={handleSuccessDialogClose}></div>
+          <div className="relative flex flex-col items-center justify-center w-[500px] h-[200px] bg-[#120A2A]/95 border-2 border-[#0038FF] shadow-[0px_4px_15px_#284CCC] backdrop-blur-[10px] rounded-[20px] overflow-hidden z-50">
+            {/* Background gradients */}
+            <div className="absolute top-[-50px] left-[-50px] w-[150px] h-[150px] rounded-full bg-[#0038FF]/15 blur-[40px]"></div>
+            <div className="absolute bottom-[-40px] right-[-40px] w-[120px] h-[120px] rounded-full bg-[#906EFF]/15 blur-[40px]"></div>
+
+            {/* Close button */}
+            <button 
+              className="absolute top-4 right-4 text-white hover:text-gray-300"
+              onClick={handleSuccessDialogClose}
+            >
+              <Icon icon="lucide:x" className="w-[20px] h-[20px]" />
+            </button>
+
+            <div className="flex flex-col items-center gap-6 w-full px-8 relative z-10">
+              <h2 className="font-bold text-[20px] text-center text-white leading-tight">
+                Trade invitation successfully sent.
+              </h2>
+              <button 
+                className="flex items-center justify-center w-[180px] h-[40px] bg-[#0038FF] rounded-[15px] text-white text-[16px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
+                onClick={handleGoToPendingTrades}
+              >
+                Go to Pending Trades
               </button>
             </div>
           </div>
