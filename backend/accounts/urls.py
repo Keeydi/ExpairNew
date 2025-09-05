@@ -9,7 +9,7 @@ urlpatterns = [
     path('complete-registration/', views.complete_registration, name='complete_registration'),
 
     path('skills/general/', views.list_general_skills),
-    path('skills/interests/', views.add_user_interests),
+    path('skills/interests/', views.user_interests),
     path('skills/specific/', views.list_specific_skills),
     path('skills/user/', views.add_user_skills),
 

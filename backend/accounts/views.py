@@ -78,7 +78,7 @@ def _public_user_payload(user, request=None):
             status = "PENDING"
         else:
             status = "UNVERIFIED"
-            
+
     if status == "UNVERIFIED" and getattr(user, "userVerifyId", None) and not bool(getattr(user, "is_verified", False)):
         status = "PENDING"
 
@@ -121,31 +121,49 @@ def user_detail_by_username(request, username: str):
     return Response(_public_user_payload(user, request), status=200)
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def user_interests(request, user_id: int):
-    """
-    Returns a simple list of general interests (GenSkill.genCateg) for a user.
-    """
-    qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
-    interests = [ui.genSkills_id.genCateg for ui in qs]
-    return Response({"interests": interests})
 
-@api_view(['GET'])
+
+@api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([AllowAny])
 def user_skills(request, user_id: int):
     """
-    Returns grouped specific skills: [{category, skills: [specName,...]}]
+    GET -> return all user's skills, grouped by categories
+    POST -> add new skills
+    DELETE -> remove skills from the user
     """
-    from collections import defaultdict
-    groups = defaultdict(list)
-    qs = UserSkill.objects.filter(user_id=user_id).select_related("specSkills__genSkills_id")
-    for us in qs:
-        gen = us.specSkills.genSkills_id.genCateg
-        spec = us.specSkills.specName
-        groups[gen].append(spec)
-    data = [{"category": k, "skills": sorted(v)} for k, v in groups.items()]
-    return Response({"skill_groups": data})
+    if request.method == 'POST':
+        serializer = UserSkillBulkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user_id = serializer.validated_data['user_id']
+        items = serializer.validated_data['items']
+
+        # Insert new skills in bulk
+        for item in items:
+            for skill_id in item.get('specskills_ids', []):
+                UserSkill.objects.create(user_id=user_id, specSkills_id=skill_id)
+
+        return Response({"message": "Skills added successfully."}, status=201)
+
+    elif request.method == 'DELETE':
+        # Delete selected skills
+        skill_ids_to_delete = request.data.get('specskills_ids', [])
+        UserSkill.objects.filter(user_id=user_id, specSkills_id__in=skill_ids_to_delete).delete()
+        return Response({"message": "Skills removed successfully."}, status=200)
+
+    else:
+        # GET: Return grouped user skills
+        skills = UserSkill.objects.filter(user_id=user_id).select_related("specSkills__genSkills_id")
+        skill_groups = {}
+        for skill in skills:
+            category = skill.specSkills.genSkills_id.genCateg
+            skill_name = skill.specSkills.specName
+            if category not in skill_groups:
+                skill_groups[category] = []
+            skill_groups[category].append(skill_name)
+
+        return Response({"skill_groups": skill_groups}, status=200)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -229,33 +247,70 @@ def list_general_skills(request):
     data = GenSkillSerializer(qs, many=True).data
     return Response(data)
 
-@api_view(['POST'])
-def add_user_interests(request):
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([AllowAny])
+def user_interests(request, user_id: int):
     """
-    Body JSON: { "user_id": 123, "genSkills_ids": [1,3,5] }
-    Inserts rows into userinterests_tbl (one per selected general category).
+    GET -> returns user's interests
+    POST -> add new interests  
+    DELETE -> remove interests
     """
-    ser = UserInterestBulkSerializer(data=request.data)
-    ser.is_valid(raise_exception=True)
-    user_id = ser.validated_data['user_id']
-    ids = ser.validated_data['genSkills_ids']
-
-    created = 0
-    for gid in ids:
-        # Avoid duplicates: try to find first, create if none
-        try:
-            gen = GenSkill.objects.get(pk=gid)
-            _, was_created = UserInterest.objects.get_or_create(
-                user_id=user_id,
-                genSkills_id_id=int(gid)
-            )
-            if was_created:
-                created += 1
-        except IntegrityError:
-            # In case you later add a DB unique constraint, ignore duplicates gracefully
-            pass
-
-    return Response({"added_or_existing": created}, status=status.HTTP_201_CREATED)
+    
+    if request.method == 'GET':
+        """
+        Returns a simple list of general interests (GenSkill.genCateg) for a user.
+        """
+        qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
+        interests = [ui.genSkills_id.genCateg for ui in qs]
+        return Response({"interests": interests})
+    
+    elif request.method == 'POST':
+        """
+        Add new interests for a user.
+        Body JSON: { "genSkills_ids": [1,3,5] }
+        """
+        ser = UserInterestBulkSerializer(data={
+            "user_id": user_id,
+            "genSkills_ids": request.data.get('genSkills_ids', [])
+        })
+        ser.is_valid(raise_exception=True)
+        
+        ids = ser.validated_data['genSkills_ids']
+        created = 0
+        
+        for gid in ids:
+            try:
+                gen = GenSkill.objects.get(pk=gid)
+                _, was_created = UserInterest.objects.get_or_create(
+                    user_id=user_id,
+                    genSkills_id_id=int(gid)
+                )
+                if was_created:
+                    created += 1
+            except GenSkill.DoesNotExist:
+                continue
+            except IntegrityError:
+                # Handle duplicate entries gracefully
+                pass
+        
+        return Response({"added": created}, status=status.HTTP_201_CREATED)
+    
+    elif request.method == 'DELETE':
+        """
+        Remove interests from a user.
+        Body JSON: { "genSkills_ids": [1,3,5] }
+        """
+        gen_skills_ids = request.data.get('genSkills_ids', [])
+        
+        if not gen_skills_ids:
+            return Response({"error": "genSkills_ids required"}, status=400)
+        
+        deleted_count, _ = UserInterest.objects.filter(
+            user_id=user_id,
+            genSkills_id_id__in=gen_skills_ids
+        ).delete()
+        
+        return Response({"removed": deleted_count}, status=200)
 
 @api_view(['GET'])
 def list_specific_skills(request):

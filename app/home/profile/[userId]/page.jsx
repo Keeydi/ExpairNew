@@ -73,7 +73,6 @@ export default function ProfilePage() {
 
   const { data: session } = useSession();
   const params = useParams();
-  const [error, setError] = useState(null);
   
   const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
   const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
@@ -202,8 +201,22 @@ export default function ProfilePage() {
         const [iJson, sJson] = await Promise.all([iRes.json(), sRes.json()]);
         if (cancelled) return;
 
-        setUserInterests(Array.isArray(iJson?.interests) ? iJson.interests : []);
-        setSelectedSkillGroups(Array.isArray(sJson?.skill_groups) ? sJson.skill_groups : []);
+        const interests = Array.isArray(iJson?.interests) ? iJson.interests : [];
+        setUserInterests(interests);
+        setOriginalUserInterests(interests); // Store original for cancel/comparison
+        
+        // Transform and store both original and current skills
+        if (sJson?.skill_groups && typeof sJson.skill_groups === 'object') {
+          const skillGroupsArray = Object.entries(sJson.skill_groups).map(([category, skills]) => ({
+            category,
+            skills: Array.isArray(skills) ? skills : []
+          }));
+          setSelectedSkillGroups(skillGroupsArray);
+          setOriginalSkillGroups(skillGroupsArray); // Store original for cancel/comparison
+        } else {
+          setSelectedSkillGroups([]);
+          setOriginalSkillGroups([]);
+        }
       }
     } catch (e) {
       console.error("[profile] load error", e);
@@ -223,6 +236,7 @@ export default function ProfilePage() {
       setEditableBio?.(user.bio || "");
     }
   }, [user, basicInfoEditing]);
+
 
   const [credentials, setCredentials] = useState([
     {
@@ -326,8 +340,6 @@ export default function ProfilePage() {
   };
 
   // Determine if viewing own profile
-  // Replace with actual logged-in user ID logic from your auth system
-  const loggedInUserId = "123"; // Example: get from auth context
   const isOwnProfile = true;
 
   // Mock data for review ratings to match a 4.3 average for 25 reviews
@@ -504,30 +516,6 @@ export default function ProfilePage() {
     ],
   };
 
-  // A smaller list used to render the UI initially (this was in your original file).
-  const skillCategories = [
-    {
-      name: "Creative & Design",
-      skills: ["Graphic Design", "Illustration", "Photography"],
-    },
-    {
-      name: "Education & Training",
-      skills: ["Tutoring", "Test Preparation"],
-    },
-    {
-      name: "Home & Lifestyle",
-      skills: ["Event Planning"],
-    },
-    {
-      name: "Sports & Fitness",
-      skills: ["Personal Training", "Sports Coaching", "Physical Therapy"],
-    },
-    {
-      name: "Arts & Performance",
-      skills: ["Creative Writing", "Visual Arts"],
-    },
-  ];
-
   const interestsInitial = [
     "Digital Art",
     "Photography",
@@ -537,7 +525,7 @@ export default function ProfilePage() {
   ];
 
   // ----------------------------
-  // NEW: Editable Skills & Interests
+  // Verification state
   // ----------------------------
 
   // verification popup state
@@ -555,8 +543,6 @@ export default function ProfilePage() {
   ).toLowerCase();
   setVerificationStatus(s);
   }, [user?.verification_status, user?.is_verified, user?.userVerifyId]);
-
-
 
  // call this when input changes
   const handleIdFileChange = (file) => {
@@ -632,27 +618,101 @@ export default function ProfilePage() {
 }
 
 
-  // editing toggles
-  const [skillsEditing, setSkillsEditing] = useState(false);
-  const [interestsEditing, setInterestsEditing] = useState(false);
+  // ----------------------------
+  // Skills Editing 
+  // ----------------------------
 
-  // For adding specific skills in a category
+  const [skillsEditing, setSkillsEditing] = useState(false);
+  const [skillsSaving, setSkillsSaving] = useState(false);
+  const [skillsError, setSkillsError] = useState(null);
+
+  // Track original skills for comparison and cancel functionality
+  const [originalSkillGroups, setOriginalSkillGroups] = useState([]);
+  const [selectedSkillGroups, setSelectedSkillGroups] = useState([]);
+
+  // For adding skills
+  const [showAddSkillForm, setShowAddSkillForm] = useState(false);
+  const [addSkillCategory, setAddSkillCategory] = useState("");
   const [selectedSpecificSkills, setSelectedSpecificSkills] = useState([]);
 
-  // For adding interests
-  const [selectedInterests, setSelectedInterests] = useState([]);
+  // Helper function to find differences between original and current skills
+  const getSkillsDifferences = () => {
+    const currentSkillsFlat = new Set();
+    const originalSkillsFlat = new Set();
+    
+    // Flatten current skills into a Set of "category|skill" strings
+    selectedSkillGroups.forEach(group => {
+      group.skills.forEach(skill => {
+        currentSkillsFlat.add(`${group.category}|${skill}`);
+      });
+    });
+    
+    // Flatten original skills
+    originalSkillGroups.forEach(group => {
+      group.skills.forEach(skill => {
+        originalSkillsFlat.add(`${group.category}|${skill}`);
+      });
+    });
+    
+    // Find skills to add (in current but not in original)
+    const skillsToAdd = [...currentSkillsFlat].filter(skill => !originalSkillsFlat.has(skill));
+    
+    // Find skills to remove (in original but not in current)
+    const skillsToRemove = [...originalSkillsFlat].filter(skill => !currentSkillsFlat.has(skill));
+    
+    return { skillsToAdd, skillsToRemove };
+  };
 
-  // selected skills state:
-  // array of objects: { category: "Creative & Design", skills: ["Graphic Design", ...] }
-  // initialize with a few groups derived from skillCategories (you can adjust this initial state)
-  const [selectedSkillGroups, setSelectedSkillGroups] = useState(() =>
-    skillCategories.map((g) => ({ category: g.name, skills: [...g.skills] }))
-  );
+  // Function to get general skill ID from category name
+  const getGeneralSkillId = async (categoryName) => {
+    try {
+      const headers = { Accept: "application/json" };
+      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      
+      const res = await fetch(`${API_BASE}/skills/general/`, { headers });
+      if (!res.ok) throw new Error(`Failed to fetch general skills: ${res.status}`);
+      
+      const generalSkills = await res.json();
+      const skill = generalSkills.find(s => s.genCateg === categoryName);
+      return skill ? skill.genSkills_id : null;
+    } catch (e) {
+      console.error('[getGeneralSkillId] error', e);
+      throw e;
+    }
+  };
 
-  // interests
-  const [userInterests, setUserInterests] = useState(interestsInitial);
+  // Function to get specific skill IDs from names within a category
+  const getSpecificSkillIds = async (categoryName, skillNames) => {
+    try {
+      const genSkillId = await getGeneralSkillId(categoryName);
+      if (!genSkillId) throw new Error(`General skill not found: ${categoryName}`);
+      
+      const headers = { Accept: "application/json" };
+      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      
+      const res = await fetch(`${API_BASE}/skills/specific/?genskills_id=${genSkillId}`, { headers });
+      if (!res.ok) throw new Error(`Failed to fetch specific skills: ${res.status}`);
+      
+      const specificSkills = await res.json();
+      const skillIds = [];
+      
+      skillNames.forEach(skillName => {
+        const skill = specificSkills.find(s => s.specName === skillName);
+        if (skill) {
+          skillIds.push(skill.specSkills_id);
+        } else {
+          console.warn(`Specific skill not found: ${skillName} in ${categoryName}`);
+        }
+      });
+      
+      return skillIds;
+    } catch (e) {
+      console.error('[getSpecificSkillIds] error', e);
+      throw e;
+    }
+  };
 
-  // add/remove category (removes whole group)
+    // add/remove category (removes whole group)
   const removeSkillCategory = (category) => {
     setSelectedSkillGroups((prev) =>
       prev.filter((g) => g.category !== category)
@@ -672,19 +732,6 @@ export default function ProfilePage() {
           .filter((g) => g.skills.length > 0) // optional: remove empty groups
     );
   };
-
-  // Add flow state for skills add form
-  const [showAddSkillForm, setShowAddSkillForm] = useState(false);
-  const [addSkillCategory, setAddSkillCategory] = useState("");
-  const [addSkillSub, setAddSkillSub] = useState("");
-
-  // Add skill action (category -> specific skill)
-  const totalSpecificSkillsCount = selectedSkillGroups.reduce(
-    (sum, g) => sum + g.skills.length,
-    0
-  );
-
-  const MAX_SKILLS = 6;
 
   const handleAddSkill = () => {
     if (!addSkillCategory || selectedSpecificSkills.length === 0) return;
@@ -724,20 +771,323 @@ export default function ProfilePage() {
     setShowAddSkillForm(false);
   };
 
+
+  // Main save function
+const handleSaveSkills = async () => {
+  if (!user?.id) {
+    setSkillsError("User ID not found");
+    return;
+  }
+
+  setSkillsSaving(true);
+  setSkillsError(null);
+  
+  try {
+    const { skillsToAdd, skillsToRemove } = getSkillsDifferences();
+    
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (session?.accessToken) {
+      headers.Authorization = `Bearer ${session.accessToken}`;
+    }
+
+    // Remove skills first
+    if (skillsToRemove.length > 0) {
+      // Group skills to remove by category
+      const removeByCategory = {};
+      
+      for (const skillStr of skillsToRemove) {
+        const [category, skillName] = skillStr.split('|');
+        if (!removeByCategory[category]) {
+          removeByCategory[category] = [];
+        }
+        removeByCategory[category].push(skillName);
+      }
+      
+      // Get skill IDs and remove them
+      for (const [category, skillNames] of Object.entries(removeByCategory)) {
+        try {
+          const skillIds = await getSpecificSkillIds(category, skillNames);
+          
+          if (skillIds.length > 0) {
+            const deleteRes = await fetch(`${API_BASE}/users/${user.id}/skills/`, {
+              method: 'DELETE',
+              headers,
+              body: JSON.stringify({
+                specskills_ids: skillIds
+              })
+            });
+            
+            if (!deleteRes.ok) {
+              const errorText = await deleteRes.text();
+              throw new Error(`Failed to delete skills: ${errorText}`);
+            }
+          }
+        } catch (e) {
+          console.error(`Error removing skills from ${category}:`, e);
+          throw e;
+        }
+      }
+    }
+
+    // Add new skills
+    if (skillsToAdd.length > 0) {
+      // Group skills to add by category
+      const addByCategory = {};
+      
+      for (const skillStr of skillsToAdd) {
+        const [category, skillName] = skillStr.split('|');
+        if (!addByCategory[category]) {
+          addByCategory[category] = [];
+        }
+        addByCategory[category].push(skillName);
+      }
+      
+      // Build the payload for adding skills
+      const items = [];
+      
+      for (const [category, skillNames] of Object.entries(addByCategory)) {
+        try {
+          const genSkillId = await getGeneralSkillId(category);
+          if (genSkillId) {
+            items.push({
+              genskills_id: genSkillId,
+              spec_names: skillNames
+            });
+          }
+        } catch (e) {
+          console.error(`Error preparing skills for ${category}:`, e);
+          throw e;
+        }
+      }
+      
+      if (items.length > 0) {
+        const addRes = await fetch(`${API_BASE}/skills/user/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            user_id: user.id,
+            items: items
+          })
+        });
+        
+        if (!addRes.ok) {
+          const errorText = await addRes.text();
+          throw new Error(`Failed to add skills: ${errorText}`);
+        }
+      }
+    }
+
+    // Update original skills to current state (successful save)
+    setOriginalSkillGroups([...selectedSkillGroups]);
+    setSkillsEditing(false);
+    setShowAddSkillForm(false);
+    
+    console.log('Skills saved successfully');
+    
+  } catch (e) {
+    console.error('[handleSaveSkills] error', e);
+    setSkillsError(e.message || "Failed to save skills");
+  } finally {
+    setSkillsSaving(false);
+  }
+};
+
+  // Cancel function to revert changes
+  const handleCancelSkills = () => {
+    setSelectedSkillGroups([...originalSkillGroups]);
+    setSkillsEditing(false);
+    setShowAddSkillForm(false);
+    setSkillsError(null);
+    setAddSkillCategory("");
+    setSelectedSpecificSkills([]);
+  };
+
+  // Check if there are unsaved changes
+  const hasUnsavedSkillsChanges = () => {
+    if (selectedSkillGroups.length !== originalSkillGroups.length) return true;
+    
+    const { skillsToAdd, skillsToRemove } = getSkillsDifferences();
+    return skillsToAdd.length > 0 || skillsToRemove.length > 0;
+  };
+
+  // ----------------------------
+  // Interests Editing 
+  // ----------------------------
+
+  // Interests editing state
+  const [interestsEditing, setInterestsEditing] = useState(false);
+  const [interestsSaving, setInterestsSaving] = useState(false);
+  const [interestsError, setInterestsError] = useState(null);
+  
+  // Track original interests for comparison and cancel functionality
+  const [originalUserInterests, setOriginalUserInterests] = useState([]);
+  const [userInterests, setUserInterests] = useState([]);
+
+  // For adding interests
+  const [showAddInterestForm, setShowAddInterestForm] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState([]);
+
+  // Helper function to find differences between original and current interests
+  const getInterestsDifferences = () => {
+  const currentSet = new Set(userInterests);
+  const originalSet = new Set(originalUserInterests);
+  
+  // Find interests to add (in current but not in original)
+  const interestsToAdd = userInterests.filter(interest => !originalSet.has(interest));
+  
+  // Find interests to remove (in original but not in current)
+  const interestsToRemove = originalUserInterests.filter(interest => !currentSet.has(interest));
+  
+  return { interestsToAdd, interestsToRemove };
+};
+
+  // Function to get general skill ID from category name
+  const getGeneralSkillIdForInterest = async (categoryName) => {
+    try {
+      const headers = { Accept: "application/json" };
+      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      
+      const res = await fetch(`${API_BASE}/skills/general/`, { headers });
+      if (!res.ok) throw new Error(`Failed to fetch general skills: ${res.status}`);
+      
+      const generalSkills = await res.json();
+      const skill = generalSkills.find(s => s.genCateg === categoryName);
+      return skill ? skill.genSkills_id : null;
+    } catch (e) {
+      console.error('[getGeneralSkillIdForInterest] error', e);
+      throw e;
+    }
+  };
+  
   // Interests add/remove
   const removeInterest = (interest) => {
     setUserInterests((prev) => prev.filter((i) => i !== interest));
   };
-
-  const [showAddInterestForm, setShowAddInterestForm] = useState(false);
-  const [addInterestValue, setAddInterestValue] = useState("");
-
 
   const handleAddInterest = () => {
     setUserInterests((prev) => [...new Set([...prev, ...selectedInterests])]);
     setSelectedInterests([]);
     setShowAddInterestForm(false);
   };
+
+  // Main save function for interests (updated to use combined endpoint)
+  const handleSaveInterests = async () => {
+    if (!user?.id) {
+      setInterestsError("User ID not found");
+      return;
+    }
+
+    setInterestsSaving(true);
+    setInterestsError(null);
+    
+    try {
+      const { interestsToAdd, interestsToRemove } = getInterestsDifferences();
+      
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+      if (session?.accessToken) {
+        headers.Authorization = `Bearer ${session.accessToken}`;
+      }
+
+      // Remove interests first (using the same endpoint with DELETE method)
+      if (interestsToRemove.length > 0) {
+        // Get general skill IDs for interests to remove
+        const removeGenSkillIds = [];
+        
+        for (const interest of interestsToRemove) {
+          try {
+            const genSkillId = await getGeneralSkillIdForInterest(interest);
+            if (genSkillId) {
+              removeGenSkillIds.push(genSkillId);
+            }
+          } catch (e) {
+            console.error(`Error getting ID for interest to remove ${interest}:`, e);
+          }
+        }
+        
+        if (removeGenSkillIds.length > 0) {
+          const deleteRes = await fetch(`${API_BASE}/users/${user.id}/interests/`, {
+            method: 'DELETE',
+            headers,
+            body: JSON.stringify({
+              genSkills_ids: removeGenSkillIds
+            })
+          });
+          
+          if (!deleteRes.ok) {
+            const errorText = await deleteRes.text();
+            throw new Error(`Failed to remove interests: ${errorText}`);
+          }
+        }
+      }
+
+      // Add new interests (using the same endpoint with POST method)
+      if (interestsToAdd.length > 0) {
+        // Get general skill IDs for the new interests
+        const addGenSkillIds = [];
+        
+        for (const interest of interestsToAdd) {
+          try {
+            const genSkillId = await getGeneralSkillIdForInterest(interest);
+            if (genSkillId) {
+              addGenSkillIds.push(genSkillId);
+            } else {
+              console.warn(`General skill ID not found for interest: ${interest}`);
+            }
+          } catch (e) {
+            console.error(`Error getting ID for interest ${interest}:`, e);
+            throw e;
+          }
+        }
+        
+        if (addGenSkillIds.length > 0) {
+          const addRes = await fetch(`${API_BASE}/users/${user.id}/interests/`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              genSkills_ids: addGenSkillIds
+            })
+          });
+          
+          if (!addRes.ok) {
+            const errorText = await addRes.text();
+            throw new Error(`Failed to add interests: ${errorText}`);
+          }
+        }
+      }
+
+      // Update original interests to current state (successful save)
+      setOriginalUserInterests([...userInterests]);
+      setInterestsEditing(false);
+      setShowAddInterestForm(false);
+      
+      console.log('Interests saved successfully');
+      
+    } catch (e) {
+      console.error('[handleSaveInterests] error', e);
+      setInterestsError(e.message || "Failed to save interests");
+    } finally {
+      setInterestsSaving(false);
+    }
+  };
+
+  const handleCancelInterests = () => {
+    setUserInterests([...originalUserInterests]);
+    setInterestsEditing(false);
+    setShowAddInterestForm(false);
+    setInterestsError(null);
+  };
+
+  const hasUnsavedInterestChanges = () => {
+  const { interestsToAdd, interestsToRemove } = getInterestsDifferences();
+  return interestsToAdd.length > 0 || interestsToRemove.length > 0;
+};
+
 
   // ----------------------------
   // existing memoized reviews etc
@@ -1720,25 +2070,65 @@ const isDirty =
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-[15px]">
             <h5 className="text-lg font-semibold">Your Skills</h5>
+            
             {isOwnProfile && (
-              <button
-                onClick={() => {
-                  setSkillsEditing((s) => !s);
-                  setShowAddSkillForm(false);
-                }}
-                aria-label="Edit skills"
-              >
-                <PencilIcon
-                  className={
-                    skillsEditing
-                      ? "w-5 h-5 text-[#906EFF]"
-                      : "w-5 h-5 text-white"
-                  }
-                />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    if (skillsEditing) {
+                      handleCancelSkills();
+                    } else {
+                      setSkillsEditing(true);
+                    }
+                  }}
+                  disabled={skillsSaving}
+                  aria-label="Edit skills"
+                >
+                  <PencilIcon
+                    className={
+                      skillsEditing
+                        ? "w-5 h-5 text-[#906EFF]"
+                        : "w-5 h-5 text-white"
+                    }
+                  />
+                </button>
+                
+                {skillsEditing && (
+                  <>
+                    <Button
+                      onClick={handleSaveSkills}
+                      disabled={skillsSaving || !hasUnsavedSkillsChanges()}
+                      className={clsx(
+                        "text-white text-sm rounded-[15px] px-4 py-2",
+                        skillsSaving 
+                          ? "bg-[#0038FF]/70" 
+                          : hasUnsavedSkillsChanges()
+                          ? "bg-[#0038FF] hover:bg-[#1a4dff]"
+                          : "bg-white/20 cursor-not-allowed"
+                      )}
+                    >
+                      {skillsSaving ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      onClick={handleCancelSkills}
+                      disabled={skillsSaving}
+                      className="bg-white/10 hover:bg-white/20 text-white text-sm rounded-[15px] px-4 py-2"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
+
+         {/* Error message */}
+          {skillsError && (
+            <div className="text-red-400 text-sm bg-red-900/20 border border-red-500/30 rounded-[10px] p-3">
+              {skillsError}
+            </div>
+          )}
 
         <div className="flex flex-wrap gap-x-4 gap-y-[10px]">
           {selectedSkillGroups.map((group, index) => (
@@ -1807,18 +2197,19 @@ const isDirty =
           ))}
 
           {/* + Add only visible in edit mode */}
-          {skillsEditing && (
-            <div className="flex items-center">
-              <button
-                onClick={() => setShowAddSkillForm((v) => !v)}
-                className="inline-flex items-center h-[30px] px-[12px] text-[16px] gap-2 rounded-[15px] border-2 border-dashed border-white text-white"
-                aria-label="Add skill"
-              >
-                + Add
-              </button>
-            </div>
-          )}
-        </div>
+            {skillsEditing && (
+              <div className="flex items-center">
+                <button
+                  onClick={() => setShowAddSkillForm((v) => !v)}
+                  disabled={skillsSaving}
+                  className="inline-flex items-center h-[30px] px-[12px] text-[16px] gap-2 rounded-[15px] border-2 border-dashed border-white text-white disabled:opacity-50"
+                  aria-label="Add skill"
+                >
+                  + Add
+                </button>
+              </div>
+            )}
+          </div>
 
         {showAddSkillForm && skillsEditing && (
           <div className="mt-3 flex flex-col gap-3 bg-[#120A2A] p-4 rounded-[15px]">
@@ -1908,22 +2299,55 @@ const isDirty =
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-[15px]">
             <h5 className="text-lg font-semibold">Your Interests</h5>
+
             {isOwnProfile && (
-              <button
-                onClick={() => {
-                  setInterestsEditing((s) => !s);
-                  setShowAddInterestForm(false);
-                }}
-                aria-label="Edit interests"
-              >
-                <PencilIcon
-                  className={
-                    interestsEditing
-                      ? "w-5 h-5 text-[#906EFF]"
-                      : "w-5 h-5 text-white"
-                  }
-                />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    if (interestsEditing) {
+                      handleCancelInterests();
+                    } else {
+                      setInterestsEditing(true);
+                    }
+                  }}
+                  disabled={skillsSaving}
+                  aria-label="Edit interests"
+                >
+                  <PencilIcon
+                    className={
+                      interestsEditing
+                        ? "w-5 h-5 text-[#906EFF]"
+                        : "w-5 h-5 text-white"
+                    }
+                  />
+                </button>
+                
+                {interestsEditing && (
+                  <>
+                    <Button
+                      onClick={handleSaveInterests}
+                      disabled={interestsSaving || !hasUnsavedInterestChanges()}
+                      className={clsx(
+                        "text-white text-sm rounded-[15px] px-4 py-2",
+                        interestsSaving 
+                          ? "bg-[#0038FF]/70" 
+                          : hasUnsavedInterestChanges()
+                          ? "bg-[#0038FF] hover:bg-[#1a4dff]"
+                          : "bg-white/20 cursor-not-allowed"
+                      )}
+                    >
+                      {interestsSaving ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      onClick={handleCancelInterests}
+                      disabled={interestsSaving}
+                      className="bg-white/10 hover:bg-white/20 text-white text-sm rounded-[15px] px-4 py-2"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
