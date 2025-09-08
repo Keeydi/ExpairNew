@@ -2,7 +2,7 @@
 
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Loader2, Pencil } from "lucide-react";
+import { ChevronLeft, Loader2, Pencil, Search, MapPin, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Inter } from "next/font/google";
@@ -34,7 +34,7 @@ export default function SettingsPage() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [links, setLinks] = useState("");
+  const [links, setLinks] = useState([]);
   const [location, setLocation] = useState("");
 
   // Original values for change detection
@@ -91,7 +91,7 @@ export default function SettingsPage() {
       setLoading(true);
       setError("");
       setSaved(false);
-      
+
       // Check if backend is available
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       if (!backendUrl) {
@@ -101,20 +101,20 @@ export default function SettingsPage() {
         setEmailAdd("");
         setBio("");
         setLocation("");
-        setLinks("");
+        setLinks([]);
         setProfilePicUrl("/assets/defaultavatar.png");
-        
+
         // Store as original values (empty)
         setOriginalUsername("");
         setOriginalEmailAdd("");
         setOriginalBio("");
         setOriginalLocation("");
-        setOriginalLinks("");
-        
+        setOriginalLinks([]);
+
         setLoading(false);
         return;
       }
-      
+
       try {
         const API_BASE = resolveAccountsBase(backendUrl);
         const url =
@@ -136,8 +136,16 @@ export default function SettingsPage() {
         const emailValue = String(data.emailAdd || data.email || "");
         const bioValue = String(data.bio || "");
         const locationValue = String(data.location || "");
-        const linksValue = String(data.links || "");
-        
+        let linksValue = [];
+        if (Array.isArray(data.links)) {
+          linksValue = data.links;
+        } else if (typeof data.links === "string" && data.links.trim() !== "") {
+          linksValue = data.links.split(",").map((l) => l.trim());
+        } else {
+          linksValue = [];
+        }
+        setLinks(Array.isArray(linksValue) ? linksValue : []);
+
         setUsername(usernameValue);
         setEmailAdd(emailValue);
         setBio(bioValue);
@@ -146,7 +154,7 @@ export default function SettingsPage() {
         setProfilePicUrl(
           String(data.profilePic || "/assets/defaultavatar.png")
         );
-        
+
         // Store original values for change detection
         setOriginalUsername(usernameValue);
         setOriginalEmailAdd(emailValue);
@@ -155,14 +163,17 @@ export default function SettingsPage() {
         setOriginalLinks(linksValue);
       } catch (e) {
         console.error("[settings] load error", e);
-        if (e.message.includes("Failed to fetch") || e.message.includes("ERR_CONNECTION_REFUSED")) {
+        if (
+          e.message.includes("Failed to fetch") ||
+          e.message.includes("ERR_CONNECTION_REFUSED")
+        ) {
           setError("Backend server is not available.");
           // Initialize with empty values so user can still interact with the form
           setOriginalUsername("");
           setOriginalEmailAdd("");
           setOriginalBio("");
           setOriginalLocation("");
-          setOriginalLinks("");
+          setOriginalLinks([]);
         } else {
           setError(e.message || "Failed to load settings.");
         }
@@ -199,7 +210,7 @@ export default function SettingsPage() {
       norm(emailAdd) !== norm(originalEmailAdd) ||
       norm(bio) !== norm(originalBio) ||
       norm(location) !== norm(originalLocation) ||
-      norm(links) !== norm(originalLinks) ||
+      JSON.stringify(links) !== JSON.stringify(originalLinks) ||
       !!file ||
       !!password
     ) {
@@ -234,7 +245,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
     setError("");
-    
+
     // Check if backend is available
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     if (!backendUrl) {
@@ -247,7 +258,7 @@ export default function SettingsPage() {
         setOriginalBio(bio);
         setOriginalLocation(location);
         setOriginalLinks(links);
-        
+
         setFile(null);
         setPassword("");
         setConfirmPassword("");
@@ -256,7 +267,7 @@ export default function SettingsPage() {
       }, 1000);
       return;
     }
-    
+
     try {
       const API_BASE = resolveAccountsBase(backendUrl);
       const fd = new FormData();
@@ -265,7 +276,10 @@ export default function SettingsPage() {
       if (norm(emailAdd)) fd.append("emailAdd", norm(emailAdd));
       if (norm(bio)) fd.append("bio", norm(bio));
       if (norm(location)) fd.append("location", norm(location));
-      if (norm(links)) fd.append("links", norm(links));
+      if (links.length > 0) {
+        // Store as JSON array (safer for backend)
+        fd.append("links", JSON.stringify(links));
+      }
       if (userId) fd.append("user_id", String(userId));
 
       if (password || confirmPassword) {
@@ -283,9 +297,10 @@ export default function SettingsPage() {
         fd.append("password", password);
       }
 
-      const targetUrl = userId != null
-        ? `${joinUrl(API_BASE, "users", String(userId))}/`
-        : `${joinUrl(API_BASE, "me")}/`;
+      const targetUrl =
+        userId != null
+          ? `${joinUrl(API_BASE, "users", String(userId))}/`
+          : `${joinUrl(API_BASE, "me")}/`;
 
       const res = await fetch(targetUrl, {
         method: "PATCH",
@@ -303,30 +318,53 @@ export default function SettingsPage() {
       const newEmailAdd = String(updated.emailAdd ?? updated.email ?? emailAdd);
       const newBio = String(updated.bio ?? bio);
       const newLocation = String(updated.location ?? location);
-      const newLinks = String(updated.links ?? links);
-      
+
+      let newLinks = [];
+      try {
+        if (Array.isArray(updated.links)) {
+          newLinks = updated.links;
+        } else if (
+          typeof updated.links === "string" &&
+          updated.links.trim() !== ""
+        ) {
+          // If backend accidentally sends a string, wrap it in an array
+          newLinks = [updated.links];
+        } else {
+          newLinks = links; // fallback
+        }
+      } catch {
+        newLinks = links;
+      }
       setUsername(newUsername);
       setEmailAdd(newEmailAdd);
       setBio(newBio);
       setLocation(newLocation);
-      setLinks(newLinks);
       setProfilePicUrl(String(updated.profilePic ?? profilePicUrl));
-      
+
       // Update original values after successful save
       setOriginalUsername(newUsername);
       setOriginalEmailAdd(newEmailAdd);
       setOriginalBio(newBio);
       setOriginalLocation(newLocation);
       setOriginalLinks(newLinks);
-      
+
       setFile(null);
       setPassword("");
       setConfirmPassword("");
       setSaved(true);
+      setEditUsername(false);
+      setEditPassword(false);
+      setEditLocation(false);
+      setEditLinks(false);
     } catch (e) {
       console.error("[settings] save error", e);
-      if (e.message.includes("Failed to fetch") || e.message.includes("ERR_CONNECTION_REFUSED")) {
-        setError("Backend server is not available. Changes saved locally only.");
+      if (
+        e.message.includes("Failed to fetch") ||
+        e.message.includes("ERR_CONNECTION_REFUSED")
+      ) {
+        setError(
+          "Backend server is not available. Changes saved locally only."
+        );
         // Still update the original values to simulate save
         setOriginalUsername(username);
         setOriginalEmailAdd(emailAdd);
@@ -342,10 +380,91 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCancel = () => {
+    setUsername(originalUsername);
+    setEmailAdd(originalEmailAdd);
+    setBio(originalBio);
+    setLocation(originalLocation);
+    setLinks(originalLinks);
+    setFile(null);
+    setPassword("");
+    setConfirmPassword("");
+    setEditUsername(false);
+    setEditPassword(false);
+    setEditLocation(false);
+    setEditLinks(false);
+    setSaved(false);
+    setError("");
+  };
+
   const menuItems = [
     { key: "profile", label: "Profile" },
     { key: "privacy", label: "Privacy & Security" },
   ];
+
+  const [suggestions, setSuggestions] = useState([]);
+
+  const fetchSuggestions = async (query) => {
+    if (!query) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        query
+      )}.json?autocomplete=true&limit=5&access_token=${token}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.features) {
+        setSuggestions(data.features);
+      }
+    } catch (err) {
+      console.error("Mapbox fetch error:", err);
+    }
+  };
+
+  const handleSelectSuggestion = (place) => {
+    setLocation(place.place_name);
+    setSuggestions([]); // clear dropdown
+    setSaved(false);
+  };
+
+  const handleSearch = async () => {
+    if (!location) return;
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        location
+      )}.json?limit=1&access_token=${token}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        setLocation(data.features[0].place_name);
+      }
+    } catch (err) {
+      console.error("Mapbox search error:", err);
+    }
+  };
+
+  const handleLinkChange = (index, value) => {
+    const updatedLinks = [...links];
+    updatedLinks[index] = value;
+    setLinks(updatedLinks);
+    setSaved(false);
+  };
+
+  const handleAddLink = () => {
+    setLinks([...links, ""]);
+    setSaved(false);
+  };
+
+  const handleRemoveLink = (index) => {
+    const updatedLinks = links.filter((_, i) => i !== index);
+    setLinks(updatedLinks);
+    setSaved(false);
+  };
 
   return (
     <div
@@ -526,17 +645,46 @@ export default function SettingsPage() {
                     onClick={() => setEditLocation(!editLocation)}
                   />
                 </div>
+
                 {editLocation ? (
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => {
-                      setLocation(e.target.value);
-                      setSaved(false);
-                    }}
-                    className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                    placeholder="e.g., Manila, Metro Manila, Philippines"
-                  />
+                  <div className="relative w-full">
+                    <Search
+                      className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      size={18}
+                    />
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => {
+                        setLocation(e.target.value);
+                        fetchSuggestions(e.target.value); // para gumana suggestions
+                        setSaved(false);
+                      }}
+                      placeholder="Search for your location here..."
+                      onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                      className="w-full h-[50px] sm:h-[57px] pl-12 pr-12 rounded-[12px] sm:rounded-[15px] border border-[rgba(255,255,255,0.4)] bg-[#120A2A] text-white text-[14px] sm:text-[16px] shadow focus:outline-none"
+                    />
+                    <MapPin
+                      onClick={handleSearch}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer"
+                      size={20}
+                    />
+
+                    {/* Dropdown suggestions */}
+                    {suggestions.length > 0 && (
+                      <ul className="absolute top-full left-0 right-0 mt-1 bg-[#120A2A] border border-[rgba(255,255,255,0.4)] rounded-[15px] shadow-lg overflow-hidden z-20">
+                        {suggestions.map((place) => (
+                          <li
+                            key={place.id}
+                            className="px-4 py-2 text-left text-white hover:bg-[#1a1a3d] cursor-pointer transition-colors"
+                            onClick={() => handleSelectSuggestion(place)}
+                          >
+                            {place.place_name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ) : (
                   <p className="text-white/80">{location || "Not set"}</p>
                 )}
@@ -551,24 +699,72 @@ export default function SettingsPage() {
                     onClick={() => setEditLinks(!editLinks)}
                   />
                 </div>
+
                 {editLinks ? (
-                  <textarea
-                    rows={2}
-                    value={links}
-                    onChange={(e) => {
-                      setLinks(e.target.value);
-                      setSaved(false);
-                    }}
-                    className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm resize-none"
-                    placeholder="Paste links to your website, portfolio, or socials"
-                  />
+                  <div className="flex-1 min-w-[200px] sm:min-w-[400px] text-left">
+                    <div className="max-h-[200px] sm:max-h-[310px] overflow-y-auto custom-scrollbar">
+                      {links.map((link, index) => (
+                        <div
+                          key={index}
+                          className="relative mb-[10px] sm:mb-[12px]"
+                        >
+                          <input
+                            type="url"
+                            value={link}
+                            onChange={(e) =>
+                              handleLinkChange(index, e.target.value)
+                            }
+                            placeholder="Link here"
+                            className="bg-[#120A2A] text-white border border-white/40 rounded-[10px] sm:rounded-[12px] w-full pr-8 sm:pr-10 h-[45px] sm:h-[50px] placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[15px] px-4 py-3"
+                          />
+                          <X
+                            className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-white/70 cursor-pointer"
+                            onClick={() => handleRemoveLink(index)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddLink}
+                      className="font-[400] text-[14px] sm:text-[15px] text-[#0038FF] hover:underline text-left mt-1"
+                    >
+                      + Add another link
+                    </button>
+                  </div>
                 ) : (
-                  <p className="text-white/80">{links || "Not set"}</p>
+                  <div>
+                    {links.length > 0 ? (
+                      <ul className="list-disc list-inside text-white/80">
+                        {links.map((link, index) => (
+                          <li key={index}>
+                            <a
+                              href={link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#4A9EFF] hover:underline"
+                            >
+                              {link}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-white/80">Not set</p>
+                    )}
+                  </div>
                 )}
               </section>
 
-              {/* Save */}
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="bg-[#1a1a3d] px-6 py-3 rounded-[10px] shadow text-sm text-white hover:bg-[#2a2a4d] transition"
+                >
+                  Cancel
+                </button>
                 <button
                   disabled={saving || loading || !isDirty}
                   onClick={handleSave}
