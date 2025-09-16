@@ -198,7 +198,8 @@ def user_credentials(request, user_id: int):
     elif request.method == 'POST':
         # Add new credential
         data = request.data.copy()
-        data['user'] = user_id  # Set the user ID
+        if 'user' not in data:
+            data['user'] = user_id  # Ensure user ID is set
         
         serializer = UserCredentialSerializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -220,7 +221,11 @@ def user_credentials(request, user_id: int):
         except UserCredential.DoesNotExist:
             return Response({"error": "Credential not found"}, status=404)
         
-        serializer = UserCredentialSerializer(credential, data=request.data, partial=True)
+        # Don't allow changing the user
+        data = request.data.copy()
+        data.pop('user', None)
+        
+        serializer = UserCredentialSerializer(credential, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         

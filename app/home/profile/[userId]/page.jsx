@@ -55,6 +55,14 @@ const deriveFromTotalXp = (totalXp) => {
   return { level, xpInLevel, levelWidth, prevCap, currCap };
 };
 
+// Helper function to format month input value to readable format
+const formatMonthYear = (monthValue) => {
+  if (!monthValue) return '';
+  const [year, month] = monthValue.split('-');
+  const date = new Date(year, month - 1);
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+};
+
 const safeFixed = (val, digits = 1) => {
   const n = Number(val);
   return Number.isFinite(n) ? n.toFixed(digits) : (0).toFixed(digits);
@@ -72,7 +80,7 @@ export default function ProfilePage() {
   const { data: session, status} = useSession();
   console.log("Session data:", session);
   console.log("=== ADDED DEBUG ===");
-console.log("Access token present:", !!session?.access);
+  console.log("Access token present:", !!session?.access);
 
   const params = useParams();
   
@@ -1369,9 +1377,17 @@ const handleSaveSkills = async () => {
   const [formData, setFormData] = useState(() => 
   Array.isArray(credentialsToEdit) && credentialsToEdit ? 
     credentialsToEdit.map((cred) => ({
-      ...cred,
-      skillCategory: "", 
-    })) : [defaultCredential] // Provide a default credential if none exist
+      // Map backend fields to frontend fields
+      title: cred.credential_title || "",
+      org: cred.issuer || "",
+      issueDate: cred.issue_date || "",
+      expiryDate: cred.expiry_date || "",
+      id: cred.cred_id || "",
+      url: cred.cred_url || "",
+      skills: cred.skills || [],
+      skillCategory: "",
+      usercred_id: cred.usercred_id, // Keep the backend ID for updates
+    })) : [defaultCredential]
 );
 
 
@@ -1492,7 +1508,7 @@ const handleSaveSkills = async () => {
                   </label>
                   <input
                     type="month" // Changed from type="date" to type="month"
-                    value={cred.issueDate}
+                    value={cred.issueDate ? cred.issueDate.slice(0, 7) : ""}
                     onChange={(e) =>
                       handleChange(index, "issueDate", e.target.value)
                     }
@@ -1504,7 +1520,7 @@ const handleSaveSkills = async () => {
                   <label className="text-sm text-white/50">Expiry Date</label>
                   <input
                     type="month" // Changed from type="date" to type="month"
-                    value={cred.expiryDate}
+                    value={cred.expiryDate ? cred.expiryDate.slice(0, 7) : ""}
                     onChange={(e) =>
                       handleChange(index, "expiryDate", e.target.value)
                     }
@@ -1656,17 +1672,99 @@ const handleSaveSkills = async () => {
   };
 
   // Handler for saving changes
-  const handleSaveCredentials = (updatedCredentials) => {
-    if (Array.isArray(editingCredentials)) {
-      setUserCredentials(updatedCredentials);
-    } else {
-      const updatedList = credentials.map((cred) =>
-        cred.id === updatedCredentials[0].id ? updatedCredentials[0] : cred
-      );
-      setUserCredentials(updatedList);
-    }
-    setEditingCredentials(null);
+  const handleSaveCredentials = async (updatedCredentials) => {
+  // helper: normalize <input type="month"> values like "2024-09" -> "2024-09-01"
+  const normalizeDate = (d) => {
+    if (!d) return null;
+    return /^\d{4}-\d{2}$/.test(d) ? `${d}-01` : d; // leave YYYY-MM-DD as-is
   };
+
+  try {
+    setCredentialsLoading(true);
+    setCredentialsError(null);
+
+    const headers = { 
+      Accept: "application/json", 
+      "Content-Type": "application/json" 
+    };
+    if (session?.access) {
+      headers.Authorization = `Bearer ${session.access}`;
+    }
+
+    // Process each credential
+    const credentialsArray = Array.isArray(updatedCredentials) ? updatedCredentials : [updatedCredentials];
+    
+    for (const cred of credentialsArray) {
+      // Build the payload with correct field mapping
+      const payload = {
+        user: user.id,  
+        credential_title: cred.title || "",
+        issuer: cred.org || "",
+        issue_date: normalizeDate(cred.issueDate),
+        expiry_date: normalizeDate(cred.expiryDate),
+        cred_id: cred.id || "",
+        cred_url: cred.url || "",
+      };
+
+      const isUpdate = cred.usercred_id; // Your backend uses 'usercred_id' as primary key
+      if (isUpdate) {
+        payload.usercred_id = isUpdate;
+      }
+
+      const method = isUpdate ? "PUT" : "POST";
+      
+      console.log(`[credentials] ${method} request:`, payload);
+
+      const res = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
+        method,
+        headers,
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`[credentials] ${method} failed:`, res.status, errorText);
+        throw new Error(`Save ${method} failed (${res.status}): ${errorText.slice(0, 200)}`);
+      }
+
+      const result = await res.json();
+      console.log(`[credentials] ${method} success:`, result);
+    }
+
+    // Re-fetch credentials to update UI with server state
+    const refetchHeaders = { Accept: "application/json" };
+    if (session?.access) {
+      refetchHeaders.Authorization = `Bearer ${session.access}`;
+    }
+
+    const refRes = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
+      method: "GET",
+      headers: refetchHeaders,
+      credentials: "include",
+    });
+
+    if (!refRes.ok) {
+      const errorText = await refRes.text();
+      console.warn(`[credentials] Refetch failed (${refRes.status}): ${errorText}`);
+      // Don't throw here - the save might have worked, just the refetch failed
+    } else {
+      const refJson = await refRes.json();
+      const credentials = refJson.credentials || refJson.results || refJson || [];
+      setUserCredentials(Array.isArray(credentials) ? credentials : []);
+    }
+
+    // Close the editor
+    setEditingCredentials(null);
+    
+  } catch (e) {
+    console.error("[credentials] save error:", e);
+    setCredentialsError(e.message || "Failed to save credentials");
+  } finally {
+    setCredentialsLoading(false);
+  }
+};
+
 
   // Conditionally render the edit page or the profile page
   if (editingCredentials) {
@@ -2643,7 +2741,7 @@ const isDirty =
 
                 {/* Group 2 */}
                 <div className="mt-[15px] text-[16px] text-white/50 leading-[1.6]">
-                  Issued {cred.issueDate} • Expires {cred.expiryDate}
+                  Issued {formatMonthYear(cred.issueDate)} • {cred.expiryDate ? `Expires ${formatMonthYear(cred.expiryDate)}` : 'No expiry'}
                   <br />
                   ID: {cred.id}
                 </div>

@@ -66,8 +66,8 @@ export default NextAuth({
   if (res.ok && data) {
     const user = {
       id: String(data.user_id || data.id),
-      access: data.access_token || data.access, // Ensure the access token is captured
-      refresh: data.refresh || data.refreshToken || data.refresh_token, 
+      access: data.access, 
+      refresh: data.refresh,
       username: data.username,
       email: data.email,
       first_name: data.first_name,
