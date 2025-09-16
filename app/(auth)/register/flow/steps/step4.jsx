@@ -10,8 +10,8 @@ const inter = Inter({ subsets: ["latin"] });
 
 // Category data with icons and selection state
 const categories = [
-  { id: 1, name: "Technical & IT", icon: "laptop" },
-  { id: 2, name: "Creative & Design", icon: "palette" },
+  { id: 1, name: "Creative & Design", icon: "palette" },
+  { id: 2, name: "Technical & IT", icon: "laptop" },
   { id: 3, name: "Business & Management", icon: "user-business" },
   { id: 4, name: "Communication & Interpersonal", icon: "communication" },
   { id: 5, name: "Health & Wellness", icon: "health" },
@@ -35,36 +35,26 @@ export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
   // 🔗 Map real DB ids by category name (e.g., { "Technical & IT": 3, ... })
   const [serverIdByName, setServerIdByName] = useState({});
 
-  // read user_id saved after Step 3
-const [userId, setUserId] = useState(0);
-useEffect(() => {
-  try {
-    const v = localStorage.getItem("user_id");
-    setUserId(v ? parseInt(v, 10) : 0);
-    console.log("Step4 user_id from localStorage:", v);
-  } catch (e) {
-    console.warn("Cannot access localStorage", e);
-  }
-}, []); 
-
   // Fetch real categories to get the correct genskills_id mapping
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("http://127.0.0.1:8000/api/accounts/skills/general/");
-        const data = await res.json(); // [{ genSkills_id, genCateg }]
-        // build a name->id dictionary
-        const map = {};
-        (Array.isArray(data) ? data : []).forEach((row) => {
-          map[row.genCateg] = row.genSkills_id;
-        });
-        setServerIdByName(map);
-      } catch (e) {
-        console.error("Failed to load general skills:", e);
-      }
-    };
-    load();
-  }, []);
+  const load = async () => {
+    try {
+      const res = await fetch('/api/dj/skills/general/'); // Remove unnecessary empty object
+      const data = await res.json(); // [{ genSkills_id, genCateg }]
+      
+      // Build a name->id dictionary
+      const map = {};
+      (Array.isArray(data) ? data : []).forEach((row) => {
+        map[row.genCateg] = row.genSkills_id;
+      });
+      setServerIdByName(map);  // Update state with the map of categories to IDs
+    } catch (e) {
+      console.error("Failed to load general skills:", e);  // Log any errors encountered
+    }
+  };
+  load();
+}, []);
+
 
   useEffect(() => {
     if (step4Data) {

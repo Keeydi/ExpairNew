@@ -1,6 +1,6 @@
-// pages/api/auth/[...nextauth].js
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
@@ -17,6 +17,8 @@ function decodeJwtExp(token) {
 export default NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt" },
+  
+  debug: process.env.NODE_ENV === "development",
 
   providers: [
     GoogleProvider({
@@ -24,117 +26,244 @@ export default NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       authorization: { params: { prompt: "select_account" } },
     }),
+    
+    CredentialsProvider({
+      id: "credentials",
+      name: "Credentials",
+      credentials: {
+        identifier: { label: "Email/Username", type: "text" },
+        password: { label: "Password", type: "password" }
+      },
+
+      async authorize(credentials) {
+  console.log("=== NEXTAUTH AUTHORIZE DEBUG ===");
+  console.log("Credentials received:", {
+    identifier: credentials?.identifier,
+    hasPassword: !!credentials?.password
+  });
+
+  const requestBody = {
+    identifier: credentials.identifier,
+    password: credentials.password,
+  };
+
+  const loginUrl = `${BACKEND_URL}/api/accounts/login/`;
+  console.log("Making request to:", loginUrl);
+
+  const res = await fetch(loginUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  console.log("Response status:", res.status);
+  const data = await res.json();
+  console.log("Response data:", data);
+
+  if (res.ok && data) {
+    const user = {
+      id: String(data.user_id || data.id),
+      access: data.access_token || data.access, // Ensure the access token is captured
+      refresh: data.refresh || data.refreshToken || data.refresh_token, 
+      username: data.username,
+      email: data.email,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      image: data.image
+    };
+
+    console.log("User object being returned:", JSON.stringify(user, null, 2));
+
+    return user;
+  }
+}
+
+    }),
   ],
 
-  pages: {
-    signIn: "/register", // adjust if you have a different sign-in page
-    error: "/signin",
-  },
-
   callbacks: {
-    /**
-     * After OAuth sign-in, call your Django endpoint to upsert the user.
-     * If your backend returns { access, refresh }, we stash them.
-     * If it returns just user info (no tokens), sign-in still succeeds (backward compatible).
-     */
-    async signIn({ user, account }) {
-      if (account?.provider !== "google") return true;
+  async signIn({ user, account, profile }) {
+  console.log("=== SIGNIN CALLBACK ===");
+  console.log("Account provider:", account?.provider);
+  console.log("Profile data:", profile);
 
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/accounts/google-login/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            provider: "google",
-          }),
-        });
+  if (account?.provider === "google") {
+    try {
+      console.log("Making request to Django google-login endpoint...");
+      
+      const res = await fetch(`${BACKEND_URL}/api/accounts/google-login/`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          email: profile?.email,
+          name: profile?.name,
+          image: profile?.picture,
+        }),
+      });
 
-        const ct = res.headers.get("content-type") || "";
-        const data = ct.includes("application/json") ? await res.json() : null;
-        if (!res.ok || !data) return false;
+      console.log("Response status:", res.status);
+      console.log("Response headers:", Object.fromEntries(res.headers.entries()));
 
-        // Map whatever your backend returns
-        if (data.user_id) user.id = data.user_id;
-        if (data.first_Name) user.first_Name = data.first_Name;
-        user.isNewUser = !!data.is_new;
-
-        // NEW: Pick up tokens if backend returns them now/soon
-        if (data.access) user.access = data.access;
-        if (data.refresh) user.refresh = data.refresh;
-
-        return true;
-      } catch (e) {
-        console.error("google-login failed:", e);
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await res.text();
+        console.error("Non-JSON response:", textResponse.substring(0, 500));
         return false;
       }
-    },
 
-    /**
-     * Store tokens in the NextAuth JWT and refresh as needed.
-     */
-    async jwt({ token, user }) {
-      // Initial sign-in: copy identifiers + tokens from `user` to `token`
-      if (user) {
-        if (user.id) token.id = user.id;
-        token.isNewUser = !!user.isNewUser;
-        if (user.first_Name) token.first_Name = user.first_Name;
+      const data = await res.json();
+      console.log("Response data:", data);
 
-        if (user.access) {
-          token.access = user.access;
-          token.accessExp = decodeJwtExp(user.access);
-        }
-        if (user.refresh) token.refresh = user.refresh;
+      if (!res.ok) {
+        console.error("Google login failed:", res.status, data);
+        return false;
       }
 
-      // If we have a refresh token and access has (almost) expired, refresh it
-      const now = Date.now();
-      const needsRefresh =
-        token.refresh && token.accessExp && now > token.accessExp - 30_000; // 30s skew
-
-      if (needsRefresh) {
-        try {
-          const r = await fetch(`${BACKEND_URL}/api/accounts/token/refresh/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh: token.refresh }),
-          });
-          if (r.ok) {
-            const data = await r.json();
-            if (data.access) {
-              token.access = data.access;
-              token.accessExp = decodeJwtExp(data.access);
-            }
-          } else {
-            // refresh failed -> drop tokens so protected calls fail gracefully
-            delete token.access;
-            delete token.accessExp;
-            delete token.refresh;
-          }
-        } catch (e) {
-          console.error("token refresh failed:", e);
-          delete token.access;
-          delete token.accessExp;
-          delete token.refresh;
-        }
+      if (data?.is_new) {
+        // New user: redirect to onboarding
+        console.log("New user detected, blocking signin for onboarding");
+        return false;
+      } else {
+        // Existing user: store tokens in user object for JWT callback
+        user.access = data.access;
+        user.refresh = data.refresh;
+        user.id = data.user_id;
+        user.username = data.username;
+        user.first_name = data.first_name;
+        user.last_name = data.last_name;
+        user.email = data.email;
+        if (data.image) user.image = data.image;
+        
+        console.log("Existing user, proceeding with signin");
+        return true;
       }
+    } catch (e) {
+      console.error("Google login request failed:", e);
+      return false;
+    }
+  }
 
-      return token;
-    },
+  return true; // Default for other login methods
+},
 
-    /**
-     * Expose access token to the client (e.g., for Authorization: Bearer ...)
-     */
+async jwt({ token, user, account }) {
+  console.log("=== JWT CALLBACK DETAILED ===");
+  console.log("Has user:", !!user);
+  console.log("Account provider:", account?.provider);
+  console.log("User keys:", user ? Object.keys(user) : "no user");
+  console.log("User.access:", !!user?.access);
+
+  // Initial sign in - user object is available
+  if (user && account) {
+    console.log("Processing initial sign in");
+
+    token.id = user.id;
+    token.isNewUser = user.isNewUser;
+
+    // Consolidated logic for both credentials and google providers
+    if (account.provider === "google" || account.provider === "credentials") {
+      token.access = user.access; // From your backend (for both credentials and google)
+      token.refresh = user.refresh; // From your backend (for both credentials and google)
+      token.username = user.username;
+      token.first_name = user.first_name;
+      token.last_name = user.last_name;
+      token.email = user.email;
+      if (user.image) token.image = user.image;
+    }
+
+    console.log("JWT token after initial sign in - has access token:", !!token.access);
+  }
+
+  // Token refresh logic (for both Google and credentials login)
+  if (token.access) {
+    const accessExpiry = decodeJwtExp(token.access);
+    const now = Date.now();
+
+    if (accessExpiry && accessExpiry < now) {
+      console.log("Access token expired, attempting refresh...");
+
+      // Refresh token logic (send refresh token to backend and get new access token)
+      const res = await fetch(`${BACKEND_URL}/api/accounts/token/refresh/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh: token.refresh }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.access) {
+        token.access = data.access; // Update with new access token
+      } else {
+        console.log("Token refresh failed:", res.status, data);
+        delete token.access; // Invalidate token if refresh fails
+      }
+    }
+  }
+
+  return token; // Return the updated token with the new values
+},
+
     async session({ session, token }) {
-      session.user = session.user || {};
-      if (token?.id) session.user.id = token.id;
-      session.user.is_new = !!token.isNewUser;
-      if (token.first_Name) session.user.first_Name = token.first_Name;
+      console.log("=== SESSION CALLBACK DETAILED ===");
+      console.log("Token keys:", token ? Object.keys(token) : "no token");
+      console.log("Token.access:", !!token?.access);
+      console.log("Full token object:", token);
+          
+      if (token?.access) {
+      session.access = token.access; // Store access token in session
+      console.log("Access token set in session:", session.access);
+    }
+      
+      if (token?.refresh) {
+        session.refresh = token.refresh;   
+      }
+      
+      if (token?.id) {
+        session.user.id = token.id;
+      }
+      
+      if (token?.first_name) {
+        session.user.first_name = token.first_name;
+      }
+      
+      if (token?.last_name) {
+        session.user.last_name = token.last_name;
+      }
+      
+      if (token?.username) {
+        session.user.username = token.username;
+      }
+      
+      if (token?.email) {
+        session.user.email = token.email;
+      }
+      
+      if (token?.image) {
+        session.user.image = token.image;
+      }
+      
+      if (token?.isNewUser !== undefined) {
+        session.isNewUser = token.isNewUser;
+      }
 
-      session.accessToken = token.access || null;
       return session;
+    }
+  },
+
+  events: {
+    async signIn(message) {
+      console.log("Sign in event:", message);
+    },
+    async signOut(message) {
+      console.log("Sign out event:", message);
     },
   },
 });

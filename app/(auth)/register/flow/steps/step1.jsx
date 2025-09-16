@@ -11,8 +11,8 @@ import { signOut } from "next-auth/react";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Step1({ step1Data, onDataSubmit, onNext }) {
-  const [firstName, setFirstName] = useState(step1Data?.firstName || "");
-  const [lastName, setLastName] = useState(step1Data?.lastName || "");
+  const [firstName, setFirstName] = useState(step1Data?.firstname || "");
+  const [lastName, setLastName] = useState(step1Data?.lastname || "");
   const [email, setEmail] = useState(step1Data?.email || "");
   const [username, setUsername] = useState(step1Data?.username || "");
   const [password, setPassword] = useState(step1Data?.password || "");
@@ -23,31 +23,14 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    if (step1Data) {
-      setFirstName(step1Data.firstName);
-      setLastName(step1Data.lastName);
-      setEmail(step1Data.email);
-      setUsername(step1Data.username);
-      setPassword(step1Data.password);
-    }
-  }, [step1Data]); 
-
-  useEffect(() => {
-    const emailLS = localStorage.getItem("prefill_email");
-    const nameLS  = localStorage.getItem("prefill_name");
-
-    if (emailLS || nameLS) {
-      // split name into first + last
-      const [first, ...rest] = (nameLS || "").trim().split(" ");
-      setFirstName(first || "");
-      setLastName(rest.join(" ") || "");
-      setEmail(emailLS || "");
-
-      // Optional: clear after prefill
-      localStorage.removeItem("prefill_email");
-      localStorage.removeItem("prefill_name");
-    }
-  }, []);
+  if (step1Data) {
+    setFirstName(step1Data.firstname || "");
+    setLastName(step1Data.lastname || "");
+    setEmail(step1Data.email || "");
+    setUsername(step1Data.username || "");
+    setPassword(step1Data.password || "");
+  }
+}, [step1Data]);
   
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },

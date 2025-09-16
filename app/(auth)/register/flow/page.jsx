@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import Step1 from "./steps/step1";
 import Step2 from "./steps/step2";
 import Step3 from "./steps/step3";
@@ -14,8 +15,20 @@ import { useRouter } from "next/navigation";
 export default function RegisterFlow() {
   const [step, setStep] = useState(1);
   const router = useRouter();
+  const { data: session, status } = useSession();
 
-  const completeRegistration = () => router.push("/home");
+  const completeRegistration = () => {
+    // Clear registration flags
+    setIsRegistering(false);
+    sessionStorage.removeItem('registrationComplete');
+    sessionStorage.removeItem('userEmail');
+    
+    // Redirect to sign-in page with success message
+    router.push("/signin?message=registration_complete");
+  };
+
+  // Prevent step reset when session changes during registration
+  const [isRegistering, setIsRegistering] = useState(false);
 
   // Hold step data
   const [step1Data, setStep1Data] = useState({
@@ -39,7 +52,7 @@ export default function RegisterFlow() {
   });
 
   const [step4Data, setStep4Data] = useState({
-    selectedCategories: [], // Store selected categories here
+    selectedCategories: [],
   });
 
   const [step5Data, setStep5Data] = useState([]);
@@ -52,12 +65,18 @@ export default function RegisterFlow() {
   const handleStep4Submit = (data) => setStep4Data(data);
   const handleStep5Submit = (data) => {
     setStep5Data(data);
-    // Also set the data that Step 6 needs (the selected categories)
     setStep6Data(data);
   };
   const handleStep6Submit = (data) => setStep6Data(data);
 
-  const nextStep = () => setStep((prev) => prev + 1);
+  const nextStep = () => {
+    if (step === 6) {
+      setIsRegistering(true); // Mark as in registration process
+      setStep(7); // Jump to Onboarding1 after Step6
+    } else {
+      setStep((prev) => prev + 1);
+    }
+  };
 
   // Check which step we are at and update the corresponding step data
   const prevStep = (stepData) => {
@@ -72,10 +91,13 @@ export default function RegisterFlow() {
         if (stepData) setStep4Data(stepData);
         break;
       case 5:
-        if (stepData) setStep5Data(stepData); // Pass data back to Step 5
+        if (stepData) setStep5Data(stepData);
         break;
       case 6:
-        if (stepData) setStep6Data(stepData); // Pass data back to Step 6
+        if (stepData) setStep6Data(stepData);
+        break;
+      case 7:
+        setIsRegistering(false); // Clear registration flag when going back
         break;
       default:
         break;
@@ -83,35 +105,51 @@ export default function RegisterFlow() {
     setStep((prev) => prev - 1);
   };
 
+  // Handle session changes - only redirect if not in registration flow
+  useEffect(() => {
+    // Don't redirect during registration or post-registration onboarding
+    const inPostRegFlow = sessionStorage.getItem('postRegistrationFlow') === 'true';
+    
+    if (isRegistering || step >= 7 || inPostRegFlow) {
+      console.log("Skipping redirect - in registration/onboarding flow");
+      return;
+    }
+    
+    if (status === "authenticated" && session) {
+      // User is already signed in and not in registration/onboarding
+      console.log("User already authenticated, redirecting to home");
+      router.push("/home");
+    }
+  }, [session, status, isRegistering, step, router]);
 
   return (
     <div>
       {step === 1 && (
         <Step1
-          step1Data={step1Data}  // Pass Step 1 data to Step 1
+          step1Data={step1Data}
           onDataSubmit={handleStep1Submit}
           onNext={nextStep}
         />
       )}
       {step === 2 && (
         <Step2
-          step2Data={step2Data}  // Pass Step 2 data to Step 2
+          step2Data={step2Data}
           onDataSubmit={handleStep2Submit}
           onNext={nextStep}
-          onPrev={prevStep}  // Pass prevStep to Step 2
+          onPrev={prevStep}
         />
       )}
       {step === 3 && (
         <Step3
-          step3Data={step3Data}  // Pass Step 3 data to Step 3
+          step3Data={step3Data}
           onDataSubmit={handleStep3Submit}
           onNext={nextStep}
-          onPrev={prevStep}  // Pass prevStep to Step 3
+          onPrev={prevStep}
         />
       )}
       {step === 4 && (
         <Step4
-          step4Data={step4Data} // Pass Step 4 data to Step 4
+          step4Data={step4Data}
           onDataSubmit={handleStep4Submit}
           onNext={nextStep}
           onPrev={prevStep}
@@ -119,23 +157,23 @@ export default function RegisterFlow() {
       )}
       {step === 5 && (
         <Step5
-          step5Data={step5Data}  // Pass `step5Data` as prop
-          onDataSubmit={handleStep5Submit} // Submit ranked categories to the parent
+          step5Data={step5Data}
+          onDataSubmit={handleStep5Submit}
           onNext={nextStep}
           onPrev={prevStep}
         />
       )}
       {step === 6 && (
-      <Step6
-        step1Data={step1Data}
-        step2Data={step2Data}
-        step3Data={step3Data}
-        step4Data={step4Data}
-        step5Data={step5Data}
-        step6Data={step6Data}
-        onDataSubmit={handleStep6Submit}
-        onNext={nextStep}
-        onPrev={prevStep}
+        <Step6
+          step1Data={step1Data}
+          step2Data={step2Data}
+          step3Data={step3Data}
+          step4Data={step4Data}
+          step5Data={step5Data}
+          step6Data={step6Data}
+          onDataSubmit={handleStep6Submit}
+          onNext={nextStep}
+          onPrev={prevStep}
         />
       )}
       

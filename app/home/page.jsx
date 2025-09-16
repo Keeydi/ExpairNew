@@ -179,17 +179,17 @@ export default function HomePage() {
     else if (hour >= 17 && hour < 22) { prefix = "Stellar evening"; emoji = "🌙"; }
 
     // 1) Prefer DB-backed name from session (Google or credentials via NextAuth)
-    let first =
-    (session?.user?.first_Name || "").trim() ||          // if you ever pass via NextAuth
-    (session?.user?.name || "").trim().split(" ")[0];    // Google fallback
+let first =
+  (session?.user?.first_name || "").trim() ||          
+  (session?.user?.name || "").trim().split(" ")[0];    
 
-    // 2) Fallbacks for credentials flow (what you may have stored after login)
-    if (!first && typeof window !== "undefined") {
-      const fromLS =
-        localStorage.getItem("first_Name") ||
-        localStorage.getItem("prefill_name") || "";
-      first = fromLS.trim().split(" ")[0];
-    }
+// 2) Only use localStorage if no session data exists
+if (!first && !session?.user && typeof window !== "undefined") {
+  const fromLS =
+    localStorage.getItem("first_name") ||
+    localStorage.getItem("prefill_name") || "";
+  first = fromLS.trim().split(" ")[0];
+}
     
     if (!first) {
       // derive from username/email as a last resort (optional)

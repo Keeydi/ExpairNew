@@ -10,8 +10,8 @@ const inter = Inter({ subsets: ["latin"] });
 
 // Skills data with selection state
 const skills = [
-  { id: 1, name: "Technical & IT", icon: "laptop" },
-  { id: 2, name: "Creative & Design", icon: "palette" },
+  { id: 1, name: "Creative & Design", icon: "palette" },
+  { id: 2, name: "Technical & IT", icon: "laptop" },
   { id: 3, name: "Business & Management", icon: "user-business" },
   { id: 4, name: "Communication & Interpersonal", icon: "communication" },
   { id: 5, name: "Health & Wellness", icon: "health" },

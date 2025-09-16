@@ -1,3 +1,4 @@
+import json
 from django.db.models import Q
 
 from rest_framework import status
@@ -7,27 +8,46 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-
-from .models import GenSkill, UserInterest, User
+from .models import GenSkill, UserInterest, User, VerificationStatus, UserCredential
 from .models import SpecSkill, UserSkill
-from .models import User
+from .models import User 
 
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
 from django.contrib.auth.hashers import check_password
 
-from .serializers import ProfileUpdateSerializer
+from .serializers import ProfileUpdateSerializer, UserCredentialSerializer
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
 from .serializers import UserSerializer
 from .serializers import GenSkillSerializer, UserInterestBulkSerializer
 
 
 @api_view(["GET", "PATCH"])
-@permission_classes([AllowAny])  # tighten later if you wire real auth
+@permission_classes([IsAuthenticated]) 
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def me(request):
-    # Resolve target: prefer authenticated user; else fall back to provided user_id (dev-friendly)
+    print("=== DJANGO ME VIEW DEBUG ===")
+    print(f"Request method: {request.method}")
+    print(f"Request path: {request.path}")
+    print(f"Authorization header: {request.META.get('HTTP_AUTHORIZATION', 'MISSING')}")
+    print(f"User authenticated: {request.user.is_authenticated}")
+    print(f"User type: {type(request.user)}")
+    print(f"User: {request.user}")
+    
+    if request.user.is_authenticated:
+        print(f"User ID: {request.user.id}")
+        print(f"User fields: {[f.name for f in request.user._meta.fields]}")
+        print(f"Username: {getattr(request.user, 'username', 'N/A')}")
+        print(f"Email: {getattr(request.user, 'email', 'N/A')}")
+        print(f"First name: {getattr(request.user, 'first_name', 'N/A')}")
+        print(f"Last name: {getattr(request.user, 'last_name', 'N/A')}")
+    else:
+        print("User is NOT authenticated!")
+        print(f"Anonymous user: {request.user}")
+        return Response({"detail": "Authentication credentials were not provided."}, status=401)
+    
     target = request.user if getattr(request.user, "id", None) else None
     if not target:
         uid = request.query_params.get("user_id") if request.method == "GET" else request.data.get("user_id")
@@ -44,7 +64,7 @@ def me(request):
     data.pop("user_id", None)  # not a serializer field; only used to resolve target
     serializer = ProfileUpdateSerializer(instance=target, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
-
+    
     # Save ONCE — ProfileUpdateSerializer.update() already flips is_verified=False
     updated = serializer.save()
 
@@ -60,14 +80,25 @@ def _public_user_payload(user, request=None):
     # Profile picture absolute URL (if any)
     pic = None
     if getattr(user, "profilePic", None):
-        url = user.profilePic.url
-        pic = request.build_absolute_uri(url) if request else url
+        # Construct the media URL path
+        media_path = f"/media/{user.profilePic}"
+        pic = request.build_absolute_uri(media_path) if request else media_path
 
     # Verification file absolute URL (if any)
-    verify_url = None    # e.g., /media/user_verifications/...
+    verify_url = None
     if getattr(user, "userVerifyId", None):
-        vurl = user.userVerifyId.url
-        verify_url = request.build_absolute_uri(vurl) if request else vurl
+        # Construct the media URL path
+        media_path = f"/media/{user.userVerifyId}"
+        verify_url = request.build_absolute_uri(media_path) if request else media_path
+
+    # Handle links field
+    links_array = []
+    if getattr(user, "links", None):
+        try:
+            links_array = json.loads(user.links)
+        except (json.JSONDecodeError, TypeError):
+            # If it's a string, convert to array
+            links_array = [user.links] if user.links else []
 
     # Enum status (safe even if column not present yet)
     status = getattr(user, "verification_status", None)
@@ -81,29 +112,55 @@ def _public_user_payload(user, request=None):
 
     if status == "UNVERIFIED" and getattr(user, "userVerifyId", None) and not bool(getattr(user, "is_verified", False)):
         status = "PENDING"
+        
 
+    payload = {
+        # Primary ID fields - include both variations for compatibility
+        "user_id": user.id,
+        "id": user.id,   
 
-    return {
-        "user_id": user.user_id,
+        # Basic info
         "username": user.username,
-        "first_Name": user.first_Name,
-        "last_Name": user.last_Name,
-        "emailAdd": user.emailAdd,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email, 
         "bio": user.bio,
+        "links": links_array,
+        
+        # Stats
         "avgStars": float(user.avgStars or 0),
         "ratingCount": int(user.ratingCount or 0),
+        "rating": float(user.avgStars or 0),  # Alternative field name
+        "reviews": int(user.ratingCount or 0),  # Alternative field name
+        
+        # Files
         "profilePic": pic,
+        
+        
+        # Dates
         "created_at": user.created_at,
+        
+        # XP and Level
         "level": int(user.level or 0),
         "tot_XpPts": int(user.tot_XpPts or 0),
+        "tot_xppts": int(user.tot_XpPts or 0),  # Alternative field name
+        "totalXp": int(user.tot_XpPts or 0),    # Alternative field name
 
-        "verification_status": status,         # "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED"
-
-        # Keep existing for back-compat
+        # Verification
+        "verification_status": status,
         "is_verified": bool(getattr(user, "is_verified", False)),
         "userVerifyId": verify_url,
     }
 
+    print(f"[DEBUG] _public_user_payload returning for user {user.id}:") 
+    print(f"  - first_name: '{payload['first_name']}'") 
+    print(f"  - last_name: '{payload['last_name']}'")   
+
+    print(f"  - profilePic: {payload['profilePic'] is not None}")
+    print(f"  - tot_XpPts: {payload['tot_XpPts']}")
+    print(f"  - verification_status: {payload['verification_status']}")
+
+    return payload
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -115,12 +172,75 @@ def user_detail(request, user_id: int):
 @permission_classes([AllowAny])
 def user_detail_by_username(request, username: str):
     try:
-        user = User.objects.get(username__iexact=username)
+        user = User.objects.get(username__iexact=username)  
     except User.DoesNotExist:
         return Response({"detail": "Not found."}, status=404)
     return Response(_public_user_payload(user, request), status=200)
 
 
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([AllowAny])
+def user_credentials(request, user_id: int):
+    """
+    GET -> return all user's credentials
+    POST -> add new credential
+    PUT -> update existing credential
+    DELETE -> remove credential
+    """
+    if request.method == 'GET':
+        credentials = UserCredential.objects.filter(user_id=user_id).select_related(
+            'genskills_id', 'specskills_id'
+        ).order_by('-created_at')
+        
+        serializer = UserCredentialSerializer(credentials, many=True)
+        return Response({"credentials": serializer.data}, status=200)
+
+    elif request.method == 'POST':
+        # Add new credential
+        data = request.data.copy()
+        data['user'] = user_id  # Set the user ID
+        
+        serializer = UserCredentialSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(serializer.data, status=201)
+
+    elif request.method == 'PUT':
+        # Update existing credential
+        credential_id = request.data.get('usercred_id')
+        if not credential_id:
+            return Response({"error": "usercred_id is required for updates"}, status=400)
+        
+        try:
+            credential = UserCredential.objects.get(
+                usercred_id=credential_id, 
+                user_id=user_id
+            )
+        except UserCredential.DoesNotExist:
+            return Response({"error": "Credential not found"}, status=404)
+        
+        serializer = UserCredentialSerializer(credential, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(serializer.data, status=200)
+
+    elif request.method == 'DELETE':
+        # Delete credential
+        credential_id = request.data.get('usercred_id')
+        if not credential_id:
+            return Response({"error": "usercred_id is required"}, status=400)
+        
+        try:
+            credential = UserCredential.objects.get(
+                usercred_id=credential_id, 
+                user_id=user_id
+            )
+            credential.delete()
+            return Response({"message": "Credential deleted successfully"}, status=200)
+        except UserCredential.DoesNotExist:
+            return Response({"error": "Credential not found"}, status=404)
 
 
 @api_view(['GET', 'POST', 'DELETE'])
@@ -168,6 +288,9 @@ def user_skills(request, user_id: int):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def google_login(request):
+    print("=== DJANGO GOOGLE LOGIN DEBUG ===")
+    print(f"Request data: {request.data}")
+    
     email = request.data.get('email')
     name = request.data.get('name')
     image = request.data.get('image')
@@ -176,10 +299,44 @@ def google_login(request):
         return Response({"error": "Email is required"}, status=400)
 
     try:
-        user = User.objects.get(emailAdd=email)
-        created = False
+        user = User.objects.get(email=email)
+        print(f"Existing user found: {user.username}")
+        
+        # Generate JWT tokens for existing user
+        try:
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            print("JWT tokens generated for Google login")
+        except Exception as token_error:
+            print(f"Token generation failed: {token_error}")
+            return Response({
+                "error": "Authentication system error. Please try again."
+            }, status=500)
+        
+        # Get user payload
+        user_payload = _public_user_payload(user, request)
+        
+        # Return user data with tokens (similar to regular login)
+        user_data = {
+            "access": access_token,        # ✅ Generated token
+            "refresh": refresh_token,      # ✅ Generated token
+            "user_id": user.id,       # ✅ Use user_id field
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "image": user_payload.get("profilePic"),
+            "is_new": False
+        }
+        
+        print(f"Returning existing user data with tokens")
+        return Response(user_data, status=200)
+        
     except User.DoesNotExist:
-        # New user — allow frontend to redirect to onboarding
+        print(f"New user with email: {email}")
+        # New user – return flag to redirect to onboarding
         return Response({
             "is_new": True,
             "email": email,
@@ -187,40 +344,102 @@ def google_login(request):
             "image": image
         }, status=200)
 
-    return Response({
-        "message": "Google login successful",
-        "user_id": user.user_id,
-        "created": created,
-        "username": user.username,
-        "email": user.emailAdd,
-        "first_Name": user.first_Name,
-        "is_new": False
-    }, status=200)
-
-
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login_user(request):
-    identifier = request.data.get('identifier')
-    password = request.data.get('password')
+    print("=== DJANGO LOGIN DEBUG ===")
+    print(f"Request method: {request.method}")
+    
+    # Extract credentials
+    identifier = request.data.get('identifier', '').strip()
+    password = request.data.get('password', '')
+    
+    print(f"Login attempt for identifier: '{identifier}'")
 
     if not identifier or not password:
-        return Response({"error": "Username/email and password are required."}, status=400)
+        return Response({
+            "error": "Username/email and password are required."
+        }, status=400)
 
     try:
-        user = User.objects.get(Q(username=identifier) | Q(emailAdd=identifier))
-    except User.DoesNotExist:
-        return Response({"error": "Invalid username/email or password."}, status=401)
+        # Find user by username or email (case-insensitive for email)
+        user_query = Q(username__iexact=identifier) | Q(email__iexact=identifier)
+        user = User.objects.filter(user_query).first()
+        
+        if not user:
+            print("No user found with that identifier")
+            return Response({
+                "error": "Invalid username/email or password."
+            }, status=401)
+        
+            print(f"User found: ID={user.id}, username='{user.username}'") 
+        
+        # Check password
+        if not check_password(password, user.password):
+            print("Password check failed")
+            return Response({
+                "error": "Invalid username/email or password."
+            }, status=401)
 
-    if not check_password(password, user.password):
-        return Response({"error": "Invalid username/email or password."}, status=401)
+        print("Password check successful")
 
-    return Response({
-        "message": "Login successful.",
-        "user_id": user.user_id,
-        "username": user.username,
-        "email": user.emailAdd,
-        "first_Name": user.first_Name, 
-    }, status=200)
+        # Generate JWT tokens
+        try:
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            print("JWT tokens generated successfully")
+            print(f"Access token length: {len(access_token)}")
+            print(f"Refresh token length: {len(refresh_token)}")
+        except Exception as token_error:
+            print(f"CRITICAL: Token generation failed: {token_error}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                "error": "Authentication system error. Please try again."
+            }, status=500)
+        
+        # Get user payload
+        user_payload = _public_user_payload(user, request)
+        
+        response_data = {
+            "message": "Login successful.",
+            "user_id": user.id,
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_Name": user.first_name,
+            "name": user.first_name,
+            "profilePic": user_payload.get("profilePic"),
+            "image": user_payload.get("profilePic"),
+            "access": access_token,
+            "refresh": refresh_token,
+        }
+        
+        print(f"Returning response with access token: {access_token[:50]}...")
+        return Response(response_data, status=200)
+        
+    except Exception as e:
+        print(f"Login error: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "error": "Login failed. Please try again."
+        }, status=500)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def logout_user(request):
+    refresh = request.data.get("refresh")
+    if not refresh:
+        return Response({"error": "Missing refresh token"}, status=400)
+    try:
+        token = RefreshToken(refresh)
+        token.blacklist()
+    except TokenError:
+        return Response({"error": "Invalid refresh token"}, status=400)
+    return Response({"message": "Logged out"}, status=200)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser]) 
@@ -239,6 +458,7 @@ def register_user(request):
     return Response(serializer.errors, status=400)
 
 @api_view(['GET'])
+@permission_classes([AllowAny]) 
 def list_general_skills(request):
     """
     Return all general skills from genskills_tbl.
@@ -247,72 +467,46 @@ def list_general_skills(request):
     data = GenSkillSerializer(qs, many=True).data
     return Response(data)
 
-@api_view(['GET', 'POST', 'DELETE'])
+@api_view(['POST'])
+def add_user_interests(request):
+    """
+    Body JSON: { "user_id": 123, "genSkills_ids": [1,3,5] }
+    Inserts rows into userinterests_tbl (one per selected general category).
+    """
+    ser = UserInterestBulkSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    user_id = ser.validated_data['user_id']
+    ids = ser.validated_data['genSkills_ids']
+
+    created = 0
+    for gid in ids:
+        # Avoid duplicates: try to find first, create if none
+        try:
+            gen = GenSkill.objects.get(pk=gid)
+            _, was_created = UserInterest.objects.get_or_create(
+                user_id=user_id,
+                genSkills_id_id=int(gid)
+            )
+            if was_created:
+                created += 1
+        except IntegrityError:
+            # In case you later add a DB unique constraint, ignore duplicates gracefully
+            pass
+
+    return Response({"added_or_existing": created}, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
 @permission_classes([AllowAny])
 def user_interests(request, user_id: int):
     """
-    GET -> returns user's interests
-    POST -> add new interests  
-    DELETE -> remove interests
+    Returns a simple list of general interests (GenSkill.genCateg) for a user.
     """
-    
-    if request.method == 'GET':
-        """
-        Returns a simple list of general interests (GenSkill.genCateg) for a user.
-        """
-        qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
-        interests = [ui.genSkills_id.genCateg for ui in qs]
-        return Response({"interests": interests})
-    
-    elif request.method == 'POST':
-        """
-        Add new interests for a user.
-        Body JSON: { "genSkills_ids": [1,3,5] }
-        """
-        ser = UserInterestBulkSerializer(data={
-            "user_id": user_id,
-            "genSkills_ids": request.data.get('genSkills_ids', [])
-        })
-        ser.is_valid(raise_exception=True)
-        
-        ids = ser.validated_data['genSkills_ids']
-        created = 0
-        
-        for gid in ids:
-            try:
-                gen = GenSkill.objects.get(pk=gid)
-                _, was_created = UserInterest.objects.get_or_create(
-                    user_id=user_id,
-                    genSkills_id_id=int(gid)
-                )
-                if was_created:
-                    created += 1
-            except GenSkill.DoesNotExist:
-                continue
-            except IntegrityError:
-                # Handle duplicate entries gracefully
-                pass
-        
-        return Response({"added": created}, status=status.HTTP_201_CREATED)
-    
-    elif request.method == 'DELETE':
-        """
-        Remove interests from a user.
-        Body JSON: { "genSkills_ids": [1,3,5] }
-        """
-        gen_skills_ids = request.data.get('genSkills_ids', [])
-        
-        if not gen_skills_ids:
-            return Response({"error": "genSkills_ids required"}, status=400)
-        
-        deleted_count, _ = UserInterest.objects.filter(
-            user_id=user_id,
-            genSkills_id_id__in=gen_skills_ids
-        ).delete()
-        
-        return Response({"removed": deleted_count}, status=200)
+    qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
+    interests = [ui.genSkills_id.genCateg for ui in qs]
+    return Response({"interests": interests})
 
 @api_view(['GET'])
+@permission_classes([AllowAny]) 
 def list_specific_skills(request):
     """
     GET /skills/specific/?genskills_id=2  -> list specs under a general category
@@ -380,86 +574,154 @@ def add_user_skills(request):
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
+@permission_classes([AllowAny]) 
 @transaction.atomic
 def complete_registration(request):
     """
     Complete user registration with profile, interests, and skills.
     Supports file uploads and full FormData payload.
     """
-
-    from django.contrib.auth.hashers import make_password
     import json
 
+    print("=== COMPLETE REGISTRATION DEBUG ===")
+    print("Request data keys:", list(request.data.keys()))
+    print("Request files:", list(request.FILES.keys()))
+
     # Get and validate user fields
-    first_Name = request.data.get("first_Name", "")
-    last_Name = request.data.get("last_Name", "")
+    first_name = request.data.get("first_name", "")
+    last_name = request.data.get("last_name", "")
     username = request.data.get("username", "")
-    emailAdd = request.data.get("emailAdd", "")
+    email = request.data.get("email", "")
     password = request.data.get("password", "")
     profilePic = request.FILES.get("profilePic")
     userVerifyId = request.FILES.get("userVerifyId")
     bio = request.data.get("bio", "")
     location = request.data.get("location", "")
-    links = request.data.get("links", "")
-    genSkills_ids_raw = request.data.get("genSkills_ids", "[]")
-    specSkills_raw = request.data.get("specSkills", "{}")
+    
+    # Handle files from request.FILES
+    profilePic = request.FILES.get("profilePic")
+    userVerifyId = request.FILES.get("userVerifyId")
+    
+    # Handle links as JSON array
+    links_raw = request.data.get("links", "[]")
+    try:
+        links_array = json.loads(links_raw)
+        # Store as JSON string in database
+        links = json.dumps(links_array) if links_array else ""
+    except json.JSONDecodeError:
+        print(f"Failed to parse links: {links_raw}")
+        links = ""
 
+    print(f"Files received - profilePic: {profilePic is not None}, userVerifyId: {userVerifyId is not None}")
+    print(f"Links parsed: {links}")
+    print(f"User data: {username}, {email}, {first_name}, {last_name}")
+
+    # Validate required fields
+    if not username or not email or not password:
+        return Response({
+            "error": "Username, email, and password are required"
+        }, status=400)
+
+    # Check if user already exists
+    if User.objects.filter(username=username).exists():
+        return Response({"error": "Username already exists"}, status=400)
+    
+    if User.objects.filter(email=email).exists():
+        return Response({"error": "Email already exists"}, status=400)
+
+    # Handling genSkills_ids (Array of IDs)
+    genSkills_ids_raw = request.data.get("genSkills_ids", "[]")
+    
     try:
         genSkills_ids = json.loads(genSkills_ids_raw)
+    except json.JSONDecodeError:
+        return Response({"error": "Invalid format for genSkills_ids"}, status=400)
+
+    # Handling specSkills (Object with arrays)
+    specSkills_raw = request.data.get("specSkills", "{}")
+    try:
         specSkills = json.loads(specSkills_raw)
     except json.JSONDecodeError:
-        return Response({"error": "Invalid JSON format in genSkills_ids or specSkills"}, status=400)
+        return Response({"error": "Invalid format for specSkills"}, status=400)
 
-    # Create user
-    serializer = UserSerializer(data={
-        "first_Name": first_Name,
-        "last_Name": last_Name,
-        "username": username,
-        "emailAdd": emailAdd,
-        "password": make_password(password),
-        "profilePic": profilePic,
-        "userVerifyId": userVerifyId,
-        "bio": bio,
-        "location": location,
-        "links": links,
-    })
+    # Ensure genSkills_ids is a list of integers
+    if isinstance(genSkills_ids, list):
+        genSkills_ids = [int(id) for id in genSkills_ids if str(id).isdigit()]
+    else:
+        return Response({"error": "genSkills_ids should be an array"}, status=400)
 
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=400)
+    try:
+        # Create user using the custom manager (REMOVE the duplicate Django auth call)
+        user = User.objects.create_user(
+            username=username,
+            email=email, 
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            bio=bio,
+            location=location,
+            links=links,
+        )
 
-    user = serializer.save()
-    user_id = user.user_id
+        # Handle file uploads separately since they're not regular fields
+        if profilePic:
+            user.profilePic = profilePic
+            
+        if userVerifyId:
+            user.userVerifyId = userVerifyId
+            user.verification_status = VerificationStatus.PENDING
+            user.is_verified = False
+        
+        user.save()
 
-    # Save general interests (step 5)
-    for gid in genSkills_ids:
-        try:
-            GenSkill.objects.get(pk=gid)
-            UserInterest.objects.get_or_create(
-                user_id=user_id,
-                genSkills_id_id=gid
-            )
-        except GenSkill.DoesNotExist:
-            continue
+        print(f"User created successfully with ID: {user.id}")
+        user_id = user.id
 
-    # Save specific skills (step 6)
-    for gid_str, spec_ids in specSkills.items():
-        try:
-            gid = int(gid_str)
-            for sid in spec_ids:
-                try:
-                    spec = SpecSkill.objects.get(pk=sid, genSkills_id_id=gid)
-                    UserSkill.objects.get_or_create(
-                        user_id=user_id,
-                        specSkills_id=sid
-                    )
-                except SpecSkill.DoesNotExist:
-                    continue
-        except ValueError:
-            continue
+        # Save general interests
+        interests_added = 0
+        for gid in genSkills_ids:
+            try:
+                GenSkill.objects.get(pk=gid)
+                UserInterest.objects.get_or_create(
+                    user_id=user.id,
+                    genSkills_id_id=gid
+                )
+                interests_added += 1
+            except GenSkill.DoesNotExist:
+                print(f"GenSkill {gid} does not exist")
+                continue
 
-    return Response({
-        "message": "Registration completed successfully",
-        "user_id": user_id,
-        "interests_added": len(genSkills_ids),
-        "skills_added": sum(len(v) for v in specSkills.values())
-    }, status=200)
+        # Save specific skills
+        skills_added = 0
+        for gid_str, spec_ids in specSkills.items():
+            try:
+                gid = int(gid_str)
+                for sid in spec_ids:
+                    try:
+                        spec = SpecSkill.objects.get(pk=sid, genSkills_id_id=gid)
+                        UserSkill.objects.get_or_create(
+                            user_id=user.id,
+                            specSkills_id=sid
+                        )
+                        skills_added += 1
+                    except SpecSkill.DoesNotExist:
+                        print(f"SpecSkill {sid} does not exist for GenSkill {gid}")
+                        continue
+            except ValueError:
+                continue
+
+        return Response({
+            "message": "Registration completed successfully",
+            "user_id": user.id,
+            "interests_added": interests_added,
+            "skills_added": skills_added
+        }, status=201)
+
+    except Exception as e:
+        print(f"Registration error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "error": f"Registration failed: {str(e)}"
+        }, status=500)
+

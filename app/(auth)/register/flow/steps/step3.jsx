@@ -51,15 +51,18 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
   };
 
   const handleContinue = () => {
-    onDataSubmit({
-      profilePicFile,
-      userIDFile,
-      userIDFileName,
-      introduction,
-      links,
-    });
-    onNext(); // Proceed to Step 4
-  };
+  // Filter out empty links and ensure it's an array
+  const filteredLinks = links.filter(link => link && link.trim() !== "");
+  
+  onDataSubmit({
+    profilePicFile,
+    userIDFile,
+    userIDFileName,
+    introduction,
+    links: filteredLinks, // Keep as array, don't stringify here
+  });
+  onNext();
+};
 
   const handlePrev = () => {
     onPrev({ profilePicFile, userIDFile, userIDFileName, introduction, links });

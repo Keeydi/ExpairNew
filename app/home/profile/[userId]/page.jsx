@@ -18,7 +18,6 @@ import {ChevronDownIcon,
 } from "lucide-react";
 
 // ===== XP / Level  based on CUMULATIVE THRESHOLDS =====
-// LVL_CAPS[L-1] = total XP at END of level L (inclusive thresholds)
 const LVL_CAPS = [
   50, 75, 100, 125, 150,
   175, 200, 230, 260, 300,
@@ -55,7 +54,6 @@ const deriveFromTotalXp = (totalXp) => {
   const levelWidth = currCap - prevCap;
   return { level, xpInLevel, levelWidth, prevCap, currCap };
 };
-// ===== end helpers =====
 
 const safeFixed = (val, digits = 1) => {
   const n = Number(val);
@@ -71,10 +69,16 @@ const inter = Inter({ subsets: ["latin"] });
 
 export default function ProfilePage() {
 
-  const { data: session } = useSession();
+  const { data: session, status} = useSession();
+  console.log("Session data:", session);
+  console.log("=== ADDED DEBUG ===");
+console.log("Access token present:", !!session?.access);
+
   const params = useParams();
   
-  const [editingCredentials, setEditingCredentials] = useState(null); // null, 'all', or a specific credential object
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true); // To handle loading state
+
   const [expanded, setExpanded] = useState(Array(5).fill(false)); // Initialize state for all categories
   const [sortOption, setSortOption] = useState("Latest");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -96,8 +100,8 @@ export default function ProfilePage() {
 
 
   const [user, setUser] = useState({
-    firstName: "",
-    lastName: "",
+    firstname: "",
+    lastname: "",
     username: "",
     joined: "",
     rating: 0,   
@@ -111,13 +115,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user) return;
     if (!basicInfoEditing) {
-      setEditableFirstName(user.firstName || "");
-      setEditableLastName(user.lastName || "");
+      setEditableFirstName(user.firstname || "");
+      setEditableLastName(user.lastname || "");
       setEditableBio(user.bio || "");
     }
   }, [user, basicInfoEditing]);
-
-  
 
   const RAW_ORIGIN = RAW.replace(/\/api\/accounts\/?$/, "");
 
@@ -132,141 +134,228 @@ export default function ProfilePage() {
 };
 
   useEffect(() => {
-  if (!slug) return;
+    console.log("=== USEEFFECT RUNNING ===");
+    console.log("Slug:", slug);
+    console.log("Session:", session);
 
-  const isNumeric = /^\d+$/.test(String(slug));
-  const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
+    if (!slug) return;
+    if (status === "loading") return; // Wait for session to load
 
-  if (!(slug === "me" || isNumeric || isUsername)) {
-    setError("Invalid profile URL.");       
-    return;
-  }
+    // Only require authentication for "me" endpoint
+    if (slug === "me" && !session?.access) {
+      console.error("[profile] NO ACCESS TOKEN for /me endpoint");
+      setError("Authentication required");
+      return;
+    }
+
+    console.log("=== PROFILE LOAD START ===");
+    console.log("Slug:", slug);
+    console.log("Session status:", status);
+    console.log("Full session object:", JSON.stringify(session, null, 2));
+
+    const isNumeric = /^\d+$/.test(String(slug));
+    const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
+
+    if (!(slug === "me" || isNumeric || isUsername)) {
+      setError("Invalid profile URL.");       
+      return;
+    }
 
   let cancelled = false;
 
   (async () => {
     try {
-      const isNumeric = /^\d+$/.test(String(slug));
-      const url =
-      slug === "me"
-        ? `${API_BASE}/me/`
-        : isNumeric
-          ? `${API_BASE}/users/${slug}/`
-          : `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+      setError(null);
+      
+      let url;
+      if (slug === "me") {
+        url = `${API_BASE}/me/`;
+      } else if (isNumeric) {
+        url = `${API_BASE}/users/${slug}/`;
+      } else {
+        url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+      }
 
-      const headers = { Accept: "application/json" };
-      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      console.log("[profile] Making request to:", url);
 
-      console.log("[profile] GET", url);
+      const headers = { 
+        Accept: "application/json",
+        'Content-Type': 'application/json'
+      };
+      
+      // Only add auth header if we have a token
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+        console.log("[profile] Authorization header set");
+      } else {
+        console.log("[profile] No access token available");
+      }
+      
+      // Make the request and log everything
       const res = await fetch(url, {
+        method: 'GET',
         headers,
-        credentials: slug === "me" ? "include" : "same-origin",
+        credentials: "include",
       });
-      console.log("[profile] status", res.status);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      console.log("[profile] Response received:", res.status);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[profile] Request failed:", res.status, errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
+      
       const data = await res.json();
+      console.log("[profile] Data received:", data);
+      
       if (cancelled) return;
 
+      // Map the user data
+      console.log("[profile] Mapping user data from:", data);
+      
       setUser((prev) => ({
         ...prev,
-        firstName: data.first_Name || "",
-        lastName:  data.last_Name  || "",
+        firstname: data.first_name || data.firstname || "",
+        lastname:  data.last_name  || data.lastname  || "",
         username:  data.username   || "",
-        id: (Number(data.id ?? data.user_id ?? (isNumeric ? slug : null)) || null),
+        id: Number(data.user_id ?? data.id ?? (isNumeric ? slug : null)) || null,
         profilePic: data.profilePic || null,
-        joined:    data.created_at
+        joined: data.created_at
           ? new Date(data.created_at).toLocaleString(undefined, { month: "long", year: "numeric" })
           : "",
-        rating:    Number(data.avgStars ?? data.rating) || 0,
-        reviews:   Number(data.ratingCount ?? data.reviews) || 0,
-        bio:       data.bio || prev.bio || "",
+        rating: Number(data.avgStars ?? data.rating) || 0,
+        reviews: Number(data.ratingCount ?? data.reviews) || 0,
+        bio: data.bio || "",
         is_verified: Boolean(data.is_verified),
-        verification_status: data.verification_status ?? prev?.verification_status ?? null,
+        verification_status: data.verification_status ?? null,
         userVerifyId: data.userVerifyId || null,
-        id:        (isNumeric ? Number(slug) : Number(data.id ?? data.user_id ?? 0)) || prev.id || null,
-        /* derive level progress from  XP */
+        
+        // XP calculation
         ...(() => {
-          const totalXp = Number(data.tot_xppts ?? data.tot_XpPts ?? data.totalXp ?? 0);
+          const totalXp = Number(data.tot_XpPts ?? data.tot_xppts ?? data.totalXp ?? 0);
           const d = deriveFromTotalXp(totalXp);
-          return { tot_xppts: totalXp, level: d.level, xpPoints: d.xpInLevel, _lvlWidth: d.levelWidth };
+          return { 
+            tot_xppts: totalXp, 
+            level: d.level, 
+            xpPoints: d.xpInLevel, 
+            _lvlWidth: d.levelWidth 
+          };
         })(),
       }));
 
-      const userId = isNumeric ? String(slug) : String(data.id ?? data.user_id ?? "");
+      console.log("[profile] User state updated successfully");
+
+      // Load interests and skills
+      const userId = isNumeric ? String(slug) : String(data.user_id ?? data.id ?? "");
       if (userId) {
+        console.log("[profile] Loading interests and skills for user:", userId);
+        
         const [iRes, sRes] = await Promise.all([
           fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
           fetch(`${API_BASE}/users/${userId}/skills/`,    { headers }),
         ]);
-        const [iJson, sJson] = await Promise.all([iRes.json(), sRes.json()]);
-        if (cancelled) return;
-
-        const interests = Array.isArray(iJson?.interests) ? iJson.interests : [];
-        setUserInterests(interests);
-        setOriginalUserInterests(interests); // Store original for cancel/comparison
         
-        // Transform and store both original and current skills
-        if (sJson?.skill_groups && typeof sJson.skill_groups === 'object') {
-          const skillGroupsArray = Object.entries(sJson.skill_groups).map(([category, skills]) => ({
-            category,
-            skills: Array.isArray(skills) ? skills : []
-          }));
-          setSelectedSkillGroups(skillGroupsArray);
-          setOriginalSkillGroups(skillGroupsArray); // Store original for cancel/comparison
-        } else {
-          setSelectedSkillGroups([]);
-          setOriginalSkillGroups([]);
+        console.log("[profile] Interests response:", iRes.status);
+        console.log("[profile] Skills response:", sRes.status);
+        
+        if (iRes.ok && sRes.ok) {
+          const [iJson, sJson] = await Promise.all([iRes.json(), sRes.json()]);
+          
+          if (cancelled) return;
+
+          console.log("[profile] Interests data:", iJson);
+          console.log("[profile] Skills data:", sJson);
+
+          const interests = Array.isArray(iJson?.interests) ? iJson.interests : [];
+          setUserInterests(interests);
+          setOriginalUserInterests(interests);
+          
+          if (sJson?.skill_groups && typeof sJson.skill_groups === 'object') {
+            const skillGroupsArray = Object.entries(sJson.skill_groups).map(([category, skills]) => ({
+              category,
+              skills: Array.isArray(skills) ? skills : []
+            }));
+            setSelectedSkillGroups(skillGroupsArray);
+            setOriginalSkillGroups(skillGroupsArray);
+          } else {
+            setSelectedSkillGroups([]);
+            setOriginalSkillGroups([]);
+          }
         }
       }
     } catch (e) {
-      console.error("[profile] load error", e);
-      setError("Failed to load profile.");
+      console.error("[profile] Load error:", e);
+      console.error("[profile] Error stack:", e.stack);
+      setError(`Failed to load profile: ${e.message}`);
     }
   })();
 
   return () => { cancelled = true; };
-}, [slug, session?.accessToken]);
+}, [slug, session?.access, status]);
 
   useEffect(() => {
     if (!user) return;
     if (!basicInfoEditing) {
       // keep edit fields in sync when not editing
-      setEditableFirstName?.(user.firstName || "");
-      setEditableLastName?.(user.lastName || "");
+      setEditableFirstName?.(user.firstname || "");
+      setEditableLastName?.(user.lastname || "");
       setEditableBio?.(user.bio || "");
     }
   }, [user, basicInfoEditing]);
 
+   // Fetch credentials from the API
+  useEffect(() => {
+  // Only fetch if we have a user ID
+  if (!user?.id) return;
 
-  const [credentials, setCredentials] = useState([
-    {
-      title: "Adobe Certified Expert (ACE)",
-      org: "Adobe Systems Inc",
-      issueDate: "March 2023",
-      expiryDate: "March 2026",
-      id: "ACE-123456789",
-      url: "https://adobe.com/cert/ACE-123456789",
-      skills: ["Graphic Design", "Illustration", "Animation"],
-    },
-    {
-      title: "Certified Graphic Designer (CGD)",
-      org: "Graphic Designers of Canada (GDC)",
-      issueDate: "June 2022",
-      expiryDate: "June 2025",
-      id: "CGD-987654321",
-      url: "https://gdc.net/cert/CGD-987654321",
-      skills: ["Graphic Design", "Illustration"],
-    },
-    {
-      title: "Google Analytics Certified",
-      org: "Google",
-      issueDate: "August 2023",
-      expiryDate: "August 2026",
-      id: "GA-123456789",
-      url: "https://skillshop.exceedlms.com/student/award/GA-123456789",
-      skills: ["Data Analysis", "Marketing", "SEO"],
-    },
-  ]);
+  const fetchCredentials = async () => {
+    setCredentialsLoading(true);
+    setCredentialsError(null);
+    
+    try {
+      const headers = { 
+        Accept: "application/json",
+        'Content-Type': 'application/json'
+      };
+      
+      // Add auth header if available
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+      }
+
+      // Fix: Use user.id instead of user object, and use consistent API_BASE
+      const response = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
+        method: 'GET',
+        headers,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch credentials (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log("[credentials] Data received:", data);
+
+      // Handle different possible response structures
+      const credentials = data.credentials || data.results || data || [];
+      setUserCredentials(Array.isArray(credentials) ? credentials : []);
+
+    } catch (error) {
+      console.error("[credentials] Fetch error:", error);
+      setCredentialsError(error.message || "Failed to load credentials");
+      setUserCredentials([]); // Reset to empty array on error
+    } finally {
+      setCredentialsLoading(false);
+    }
+  };
+
+  fetchCredentials();
+}, [user?.id, session?.access]);
+
+
   const [showAllCreds, setShowAllCreds] = useState(false);
   const [reviews, setReviews] = useState([
     {
@@ -574,8 +663,8 @@ export default function ProfilePage() {
     if (user?.id) fd.append("user_id", String(user.id)); // works even without auth cookie
 
     const headers = { Accept: "application/json" };
-    if (session?.accessToken) {
-      headers.Authorization = `Bearer ${session.accessToken}`;
+    if (session?.access) {
+      headers.Authorization = `Bearer ${session.access}`;
     }
 
     const res = await fetch(`${API_BASE}/me/`, {
@@ -667,7 +756,7 @@ export default function ProfilePage() {
   const getGeneralSkillId = async (categoryName) => {
     try {
       const headers = { Accept: "application/json" };
-      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      if (session?.access) headers.Authorization = `Bearer ${session.access}`;
       
       const res = await fetch(`${API_BASE}/skills/general/`, { headers });
       if (!res.ok) throw new Error(`Failed to fetch general skills: ${res.status}`);
@@ -688,7 +777,7 @@ export default function ProfilePage() {
       if (!genSkillId) throw new Error(`General skill not found: ${categoryName}`);
       
       const headers = { Accept: "application/json" };
-      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      if (session?.access) headers.Authorization = `Bearer ${session.access}`;
       
       const res = await fetch(`${API_BASE}/skills/specific/?genskills_id=${genSkillId}`, { headers });
       if (!res.ok) throw new Error(`Failed to fetch specific skills: ${res.status}`);
@@ -789,8 +878,8 @@ const handleSaveSkills = async () => {
       Accept: "application/json",
       "Content-Type": "application/json",
     };
-    if (session?.accessToken) {
-      headers.Authorization = `Bearer ${session.accessToken}`;
+    if (session?.access) {
+      headers.Authorization = `Bearer ${session.access}`;
     }
 
     // Remove skills first
@@ -948,7 +1037,7 @@ const handleSaveSkills = async () => {
   const getGeneralSkillIdForInterest = async (categoryName) => {
     try {
       const headers = { Accept: "application/json" };
-      if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+      if (session?.access) headers.Authorization = `Bearer ${session.access}`;
       
       const res = await fetch(`${API_BASE}/skills/general/`, { headers });
       if (!res.ok) throw new Error(`Failed to fetch general skills: ${res.status}`);
@@ -990,8 +1079,8 @@ const handleSaveSkills = async () => {
         Accept: "application/json",
         "Content-Type": "application/json",
       };
-      if (session?.accessToken) {
-        headers.Authorization = `Bearer ${session.accessToken}`;
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
       }
 
       // Remove interests first (using the same endpoint with DELETE method)
@@ -1112,247 +1201,32 @@ const handleSaveSkills = async () => {
     setShowSortDropdown(false);
   };
 
-  // Handler for editing all credentials
-  const handleEditAllCredentials = () => {
-    setEditingCredentials("all");
-  };
+  // ----------------------------
+  // credentials Editing 
+  // ----------------------------
+  const [userCredentials, setUserCredentials] = useState([]);
 
-  // Handler for editing a single credential
-  const handleEditSingleCredential = (credential) => {
-    setEditingCredentials(credential);
-  };
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [credentialsError, setCredentialsError] = useState(null);
+  const [editingCredentials, setEditingCredentials] = useState(null); // null | "all" | credential object
 
-  // Handler for saving changes
-  const handleSaveCredentials = (updatedCredentials) => {
-    if (Array.isArray(editingCredentials)) {
-      setCredentials(updatedCredentials);
-    } else {
-      const updatedList = credentials.map((cred) =>
-        cred.id === updatedCredentials[0].id ? updatedCredentials[0] : cred
-      );
-      setCredentials(updatedList);
-    }
-    setEditingCredentials(null);
-  };
-
-  // Conditionally render the edit page or the profile page
-  if (editingCredentials) {
-    const credsToEdit =
-      editingCredentials === "all" ? credentials : [editingCredentials];
+  // Inline Button component
+  const Button = ({ children, className, onClick, ...props }) => {
     return (
-      <div
-        className={`px-6 pb-20 pt-10 mx-auto max-w-[940px] text-white ${inter.className}`}
+      <button
+        className={clsx(
+          "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2",
+          className
+        )}
+        onClick={onClick}
+        {...props}
       >
-        <EditCredentialsPage
-          credentialsToEdit={credsToEdit}
-          onCancel={() => setEditingCredentials(null)}
-          onSave={handleSaveCredentials}
-        />
-      </div>
+        {children}
+      </button>
     );
-  }
-// Inline Button component
-const Button = ({ children, className, onClick, ...props }) => {
-  return (
-    <button
-      className={clsx(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2",
-        className
-      )}
-      onClick={onClick}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-};
-
-// Inline helper for Trade Details to keep code clean
-const TradePill = ({ content }) => {
-  return (
-    <div
-      className={clsx(
-        "inline-flex items-center px-[15px] py-[10px] text-[13px] rounded-full border-2 text-white overflow-hidden"
-      )}
-    >
-      <span className="whitespace-nowrap">{content}</span>
-    </div>
-  );
-};
-
-// Inline ReviewCard component with updated design
-const ReviewCard = ({ review }) => {
-  const {
-    requester,
-    tradePartner,
-    tradeCompletionDate,
-    requestTitle,
-    offerTitle,
-    rating,
-    reviewDescription,
-    likes,
-  } = review;
-  const [isLiked, setIsLiked] = useState(false);
-
-  // Function to render stars based on a rating
-  const renderStars = (rating) => {
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-    const stars = [];
-
-    // Full stars
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Star
-          key={`full-${i}`}
-          className="w-5 h-5 fill-[#906EFF] text-[#906EFF]"
-        />
-      );
-    }
-    // Half star
-    if (hasHalfStar) {
-      stars.push(
-        <div key="half" className="relative w-5 h-5">
-          <Star className="absolute w-5 h-5 text-gray-300 stroke-2" />
-          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
-            <Star className="w-5 h-5 fill-[#906EFF] text-[#906EFF]" />
-          </div>
-        </div>
-      );
-    }
-    // Empty stars
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Star key={`empty-${i}`} className="w-5 h-5 text-gray-300 stroke-2" />
-      );
-    }
-    return stars;
   };
 
-  // Function to handle the report action
-  const handleReport = () => {
-    // In a real app, this would be a client-side navigation or a more complex interaction
-    console.log(`Navigating to help form for reporting review by ${requester}`);
-    window.location.href = "/help#help-form";
-  };
-
-  return (
-    <div
-      className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
-      style={{
-        background:
-          "radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)",
-      }}
-    >
-      <div className="flex justify-between items-start">
-        {/* User and Partner Avatars with 'X' separator, names, and date */}
-        <div className="flex items-start gap-[15px]">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              {/* Use the defaultavatar.png for the review cards */}
-              <Image
-                src="/assets/defaultavatar.png"
-                alt={`${tradePartner}'s avatar`}
-                width={35}
-                height={35}
-                className="rounded-full object-cover"
-              />
-              <Icon icon="ic:baseline-close" className="w-4 h-4 text-white" />
-              {/* Use the defaultavatar.png for the review cards */}
-              <Image
-                src="/assets/defaultavatar.png"
-                alt={`${requester}'s avatar`}
-                width={35}
-                height={35}
-                className="rounded-full object-cover"
-              />
-              <div className="flex flex-col justify-start">
-                <span className="font-semibold text-white text-base">{`${tradePartner} & ${requester}`}</span>
-                <span className="text-white/50 text-base">
-                  {tradeCompletionDate}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative flex items-center gap-5 text-white text-sm">
-          {/* Rating number on the left */}
-          <span className="text-lg">{safeFixed(user.rating, 1)}</span>
-          <div className="flex items-center gap-[5px]">
-            {renderStars(rating)}
-          </div>
-          <button
-            onClick={handleReport}
-            className="p-1 rounded-full hover:bg-white/10 transition"
-          >
-            <Flag className="w-5 h-5 cursor-pointer text-white/50" />
-          </button>
-        </div>
-      </div>
-
-      {/* Trade Details and Review Text */}
-      <div className="flex flex-col md:flex-row gap-[25px] w-full">
-        {/* Trade Details Section */}
-        <div className="flex-1 flex flex-col gap-[25px]">
-          <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
-              Name requested
-            </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{requestTitle}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
-              In exchange for
-            </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{offerTitle}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Review Text Section */}
-        <div className="flex-1 flex flex-col gap-2 md:text-right">
-          <p className="text-white text-base">{reviewDescription}</p>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-center mt-2">
-        <div className="flex items-center gap-1.5 text-white text-sm">
-          <button
-            onClick={() => setIsLiked(!isLiked)}
-            className="transition-transform transform hover:scale-110"
-          >
-            <Heart
-              className={clsx(
-                "w-5 h-5 transition-colors duration-300",
-                isLiked ? "fill-[#906EFF] stroke-[#906EFF]" : "stroke-white"
-              )}
-            />
-          </button>
-          <span>{likes + (isLiked ? 1 : 0)}</span>
-        </div>
-        <div className="flex gap-4">
-          <Button
-            className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
-            onClick={() => onTradeAgain?.(review)}
-          >
-            Trade again
-          </Button>
-
-          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
-            View details
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
+  const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   // Main Categories and Subcategories data
   const mainCategories = [
     "Creative & Design",
@@ -1492,12 +1366,15 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   };
 
   // Initialize state with the credentials data passed as a prop, adding a skillCategory field
-  const [formData, setFormData] = useState(() =>
+  const [formData, setFormData] = useState(() => 
+  Array.isArray(credentialsToEdit) && credentialsToEdit ? 
     credentialsToEdit.map((cred) => ({
       ...cred,
-      skillCategory: "", // Initialize new skillCategory field
-    }))
-  );
+      skillCategory: "", 
+    })) : [defaultCredential] // Provide a default credential if none exist
+);
+
+
 
   // Helper function to update a specific field of a specific credential
   const handleChange = (index, field, value) => {
@@ -1707,7 +1584,7 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
                       ))}
                   </select>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {cred.skills.map((skill, skillIndex) => (
+                    {(cred.skills || []).map((skill, skillIndex) => (
                       <div
                         key={skillIndex}
                         className="inline-flex items-center gap-1.5 bg-white/10 text-white text-xs px-3 py-1 rounded-full cursor-default"
@@ -1768,27 +1645,258 @@ const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
   );
 };
 
+  // Handler for editing all credentials
+  const handleEditAllCredentials = () => {
+    setEditingCredentials("all");
+  };
+
+  // Handler for editing a single credential
+  const handleEditSingleCredential = (credential) => {
+    setEditingCredentials(credential);
+  };
+
+  // Handler for saving changes
+  const handleSaveCredentials = (updatedCredentials) => {
+    if (Array.isArray(editingCredentials)) {
+      setUserCredentials(updatedCredentials);
+    } else {
+      const updatedList = credentials.map((cred) =>
+        cred.id === updatedCredentials[0].id ? updatedCredentials[0] : cred
+      );
+      setUserCredentials(updatedList);
+    }
+    setEditingCredentials(null);
+  };
+
+  // Conditionally render the edit page or the profile page
+  if (editingCredentials) {
+    const credsToEdit =
+      editingCredentials === "all" ? userCredentials : [editingCredentials];
+    return (
+      <div
+        className={`px-6 pb-20 pt-10 mx-auto max-w-[940px] text-white ${inter.className}`}
+      >
+        <EditCredentialsPage
+          credentialsToEdit={credsToEdit}
+          onCancel={() => setEditingCredentials(null)}
+          onSave={handleSaveCredentials}
+        />
+      </div>
+    );
+  }
+
+// Inline helper for Trade Details to keep code clean
+const TradePill = ({ content }) => {
+  return (
+    <div
+      className={clsx(
+        "inline-flex items-center px-[15px] py-[10px] text-[13px] rounded-full border-2 text-white overflow-hidden"
+      )}
+    >
+      <span className="whitespace-nowrap">{content}</span>
+    </div>
+  );
+};
+
+// Inline ReviewCard component with updated design
+const ReviewCard = ({ review }) => {
+  const {
+    requester,
+    tradePartner,
+    tradeCompletionDate,
+    requestTitle,
+    offerTitle,
+    rating,
+    reviewDescription,
+    likes,
+  } = review;
+  const [isLiked, setIsLiked] = useState(false);
+
+  // Function to render stars based on a rating
+  const renderStars = (rating) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    const stars = [];
+
+    // Full stars
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <Star
+          key={`full-${i}`}
+          className="w-5 h-5 fill-[#906EFF] text-[#906EFF]"
+        />
+      );
+    }
+    // Half star
+    if (hasHalfStar) {
+      stars.push(
+        <div key="half" className="relative w-5 h-5">
+          <Star className="absolute w-5 h-5 text-gray-300 stroke-2" />
+          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
+            <Star className="w-5 h-5 fill-[#906EFF] text-[#906EFF]" />
+          </div>
+        </div>
+      );
+    }
+    // Empty stars
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <Star key={`empty-${i}`} className="w-5 h-5 text-gray-300 stroke-2" />
+      );
+    }
+    return stars;
+  };
+
+  // Function to handle the report action
+  const handleReport = () => {
+    // In a real app, this would be a client-side navigation or a more complex interaction
+    console.log(`Navigating to help form for reporting review by ${requester}`);
+    window.location.href = "/help#help-form";
+  };
+
+  return (
+    <div
+      className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
+      style={{
+        background:
+          "radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)",
+      }}
+    >
+      <div className="flex justify-between items-start">
+        {/* User and Partner Avatars with 'X' separator, names, and date */}
+        <div className="flex items-start gap-[15px]">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              {/* Use the defaultavatar.png for the review cards */}
+              <Image
+                src="/assets/defaultavatar.png"
+                alt={`${tradePartner}'s avatar`}
+                width={35}
+                height={35}
+                className="rounded-full object-cover"
+              />
+              <Icon icon="ic:baseline-close" className="w-4 h-4 text-white" />
+              {/* Use the defaultavatar.png for the review cards */}
+              <Image
+                src="/assets/defaultavatar.png"
+                alt={`${requester}'s avatar`}
+                width={35}
+                height={35}
+                className="rounded-full object-cover"
+              />
+              <div className="flex flex-col justify-start">
+                <span className="font-semibold text-white text-base">{`${tradePartner} & ${requester}`}</span>
+                <span className="text-white/50 text-base">
+                  {tradeCompletionDate}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative flex items-center gap-5 text-white text-sm">
+          {/* Rating number on the left */}
+          <span className="text-lg">{safeFixed(user.rating, 1)}</span>
+          <div className="flex items-center gap-[5px]">
+            {renderStars(rating)}
+          </div>
+          <button
+            onClick={handleReport}
+            className="p-1 rounded-full hover:bg-white/10 transition"
+          >
+            <Flag className="w-5 h-5 cursor-pointer text-white/50" />
+          </button>
+        </div>
+      </div>
+
+      {/* Trade Details and Review Text */}
+      <div className="flex flex-col md:flex-row gap-[25px] w-full">
+        {/* Trade Details Section */}
+        <div className="flex-1 flex flex-col gap-[25px]">
+          <div className="flex items-center gap-[15px] w-full">
+            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+              Name requested
+            </h6>
+            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
+              <span className="whitespace-nowrap">{requestTitle}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-[15px] w-full">
+            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+              In exchange for
+            </h6>
+            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
+              <span className="whitespace-nowrap">{offerTitle}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Review Text Section */}
+        <div className="flex-1 flex flex-col gap-2 md:text-right">
+          <p className="text-white text-base">{reviewDescription}</p>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center mt-2">
+        <div className="flex items-center gap-1.5 text-white text-sm">
+          <button
+            onClick={() => setIsLiked(!isLiked)}
+            className="transition-transform transform hover:scale-110"
+          >
+            <Heart
+              className={clsx(
+                "w-5 h-5 transition-colors duration-300",
+                isLiked ? "fill-[#906EFF] stroke-[#906EFF]" : "stroke-white"
+              )}
+            />
+          </button>
+          <span>{likes + (isLiked ? 1 : 0)}</span>
+        </div>
+        <div className="flex gap-4">
+          <Button
+            className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+            onClick={() => onTradeAgain?.(review)}
+          >
+            Trade again
+          </Button>
+
+          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
+            View details
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const isDirty =
   basicInfoEditing &&
   (
-    (editableFirstName ?? "") !== (user.firstName ?? "") ||
-    (editableLastName  ?? "") !== (user.lastName  ?? "") ||
+    (editableFirstName ?? "") !== (user.firstname ?? "") ||
+    (editableLastName  ?? "") !== (user.lastname  ?? "") ||
     (editableBio       ?? "") !== (user.bio       ?? "")
   );
 
   async function handleSaveBasicInfo() {
+  console.log("=== ENHANCED SAVE DEBUG ===");
+  console.log("Full session object:", JSON.stringify(session, null, 2));
+  console.log("Session.access exists:", !!session?.access);
+  console.log("Session.accessToken exists:", !!session?.accessToken);
+  console.log("Session.user.access exists:", !!session?.user?.access);
+  
   setBasicInfoSaving(true);
   setBasicInfoError(null);
+  
   try {
-    // Reuse your existing base URL logic in this file
     const RAW = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
     const API_BASE = RAW.includes("/api/accounts")
       ? RAW.replace(/\/+$/, "")
       : `${RAW.replace(/\/+$/, "")}/api/accounts`;
 
     const body = {
-      first_Name: editableFirstName ?? "",
-      last_Name:  editableLastName ?? "",
+      first_name: editableFirstName ?? "",
+      last_name:  editableLastName ?? "",
       bio:        editableBio ?? "",
       user_id: user?.id ?? null,
     };
@@ -1797,33 +1905,60 @@ const isDirty =
       Accept: "application/json",
       "Content-Type": "application/json",
     };
-    if (session?.accessToken) {
-      headers.Authorization = `Bearer ${session.accessToken}`;
+
+    // Try multiple possible token locations
+    let token = null;
+    if (session?.access) {
+      token = session.access;
+      console.log("Using session.access token");
+    } else if (session?.accessToken) {
+      token = session.accessToken;
+      console.log("Using session.accessToken token");
+    } else if (session?.user?.access) {
+      token = session.user.access;
+      console.log("Using session.user.access token");
     }
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      console.log("Authorization header set with token");
+    } else {
+      console.log("No access token found, relying on cookies");
+    }
+
+    console.log("Making request to:", `${API_BASE}/me/`);
+    console.log("Request headers:", headers);
+    console.log("Request body:", body);
 
     const res = await fetch(`${API_BASE}/me/`, {
       method: "PATCH",
       headers,
-      credentials: "include", // works for cookie or JWT setups
+      credentials: "include", // Always include cookies
       body: JSON.stringify(body),
     });
 
+    console.log("Response status:", res.status);
+    console.log("Response headers:", [...res.headers.entries()]);
+
     if (!res.ok) {
       const txt = await res.text();
+      console.log("Error response body:", txt);
       throw new Error(`Save failed (${res.status}): ${txt.slice(0, 200)}`);
     }
 
     const updated = await res.json();
+    console.log("Success response:", updated);
 
-    // Minimal merge: only touch the fields we edited
     setUser(prev => ({
       ...prev,
-      firstName: updated.first_Name ?? editableFirstName ?? prev.firstName,
-      lastName:  updated.last_Name  ?? editableLastName  ?? prev.lastName,
+      firstname: updated.first_name ?? editableFirstName ?? prev.firstname,
+      lastname:  updated.last_name  ?? editableLastName  ?? prev.lastname,
       bio:       updated.bio        ?? editableBio       ?? prev.bio,
     }));
 
     setBasicInfoEditing(false);
+    console.log("Save completed successfully");
+    
   } catch (e) {
     console.error("[basic info save] error", e);
     setBasicInfoError(e.message || "Failed to save.");
@@ -1846,7 +1981,7 @@ const isDirty =
         <div className="w-[200px] h-[200px] relative flex-shrink-0">
           <Image
             src={toAbsolute(user?.profilePic) || "/assets/defaultavatar.png"}
-            alt={`${user?.firstName || ""} ${user?.lastName || ""}`}
+            alt={`${user?.firstname || ""} ${user?.lastname || ""}`}
             width={200}
             height={200}
             className="rounded-full shadow-[0_0_50px_#906EFF99] object-cover"
@@ -1877,7 +2012,7 @@ const isDirty =
               </div>
             ) : (
               <h3 className="text-[26px] font-semibold">
-                 {`${user.firstName} ${user.lastName}`.trim() || "—"}
+                 {`${user.firstname} ${user.lastname}`.trim() || "—"}
               </h3>
             )}
             {user.verified && (
@@ -1900,8 +2035,8 @@ const isDirty =
               <button
                 className="text-white hover:bg-[#1A0F3E] px-3 py-2 flex items-center gap-2 rounded-[10px] transition"
                 onClick={() => {
-                  setEditableFirstName(user?.firstName || "");
-                  setEditableLastName(user?.lastName || "");
+                  setEditableFirstName(user?.firstname || "");
+                  setEditableLastName(user?.lastname || "");
                   setEditableBio(user?.bio || "");
                   setBasicInfoEditing(true);
                 }}
@@ -2131,7 +2266,8 @@ const isDirty =
           )}
 
         <div className="flex flex-wrap gap-x-4 gap-y-[10px]">
-          {selectedSkillGroups.map((group, index) => (
+          {selectedSkillGroups && selectedSkillGroups.map((group, index) => (
+
             <div key={group.category} className="relative">
               <div
                 onClick={() => toggleCategory(index)}
@@ -2447,6 +2583,35 @@ const isDirty =
             </h5>
           </div>
 
+          {/* Loading state */}
+          {credentialsLoading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-white/60">Loading credentials...</div>
+            </div>
+          )}
+
+          {/* Error state */}
+          {credentialsError && !credentialsLoading && (
+            <div className="text-red-400 text-sm bg-red-900/20 border border-red-500/30 rounded-[10px] p-3">
+              {credentialsError}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!credentialsLoading && !credentialsError && userCredentials.length === 0 && (
+            <div className="text-white/60 text-center py-8">
+              No credentials added yet.
+              {isOwnProfile && (
+                <button 
+                  onClick={handleEditAllCredentials}
+                  className="block mx-auto mt-2 text-[#0038FF] hover:underline"
+                >
+                  Add your first credential
+                </button>
+              )}
+            </div>
+          )}
+
           {/* The scrollable container for the credentials */}
           <div
             className={clsx(
@@ -2454,7 +2619,7 @@ const isDirty =
               !showAllCreds && "max-h-[420px] overflow-y-auto"
             )}
           >
-            {credentials.map((cred, index) => (
+            {(userCredentials || []).length > 0 && (userCredentials || []).map((cred, index) => (
               <div
                 key={index}
                 className="border border-white/20 rounded-[15px] p-[25px] flex flex-col justify-between relative"
@@ -2497,21 +2662,23 @@ const isDirty =
                 </div>
 
                 {/* Group 4: Skills */}
+                {(cred.skills || []).length > 0 && (
                 <div className="mt-[20px]">
                   <div className="text-white/50 text-[16px] mb-[10px]">
                     Associated Skills
                   </div>
                   <div className="flex flex-wrap gap-[10px]">
-                    {cred.skills.map((skill, skillIndex) => (
+                    {(cred.skills || []).map((skill, skillIndex) => (
                       <TradePill key={skillIndex} content={skill} />
                     ))}
                   </div>
                 </div>
+              )}
               </div>
             ))}
           </div>
           {/* Show More / Show Less Button */}
-          {credentials.length > 4 && (
+          {(userCredentials || []).length > 4 && (
             <div className="flex justify-center mt-6">
               <Button
                 onClick={() => setShowAllCreds(!showAllCreds)}

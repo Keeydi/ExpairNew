@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSession, signIn } from "next-auth/react";
+import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -13,7 +13,7 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function LoginPage() {
-  const { data: session, status } = useSession();
+  //const { data: session, status } = useSession();
   const router = useRouter();
 
   const [captcha, setCaptcha] = useState(null);
@@ -22,52 +22,16 @@ export default function LoginPage() {
 
   const { username, password, setUsername, setPassword } = useLoginStore();
 
-useEffect(() => {
-  if (status !== "authenticated") return;
-
-  const u = session?.user || {};
-
-  // If the flag is missing for any reason, force a clean sign-out to avoid loops
-  if (typeof u.is_new === "undefined") {
-    try {
-      localStorage.removeItem("user_id");
-      localStorage.removeItem("prefill_email");
-      localStorage.removeItem("prefill_name");
-    } catch {}
-    import("next-auth/react").then(({ signOut }) =>
-      signOut({ callbackUrl: "/signin" })
-    );
-    return;
-  }
-
-  if (u.is_new) {
-    // New Google account -> prefill, then onboarding
-    if (u.email) localStorage.setItem("prefill_email", u.email);
-    if (u.name) localStorage.setItem("prefill_name", u.name);
-    router.push("/register");
-    return;
-  }
-
-  // Returning user must have id to proceed
-  if (!u.id) {
-    import("next-auth/react").then(({ signOut }) =>
-      signOut({ callbackUrl: "/signin" })
-    );
-    return;
-  }
-
-  localStorage.setItem("user_id", u.id);
-  router.push("/home");
-}, [status, session]);
-
-
-
-
 const handleLogin = async (e) => {
   e?.preventDefault?.();
   setErrorMessage("");
 
-  // Basic form checks (you already render a reCAPTCHA)
+  console.log("=== FRONTEND LOGIN DEBUG ===");
+  console.log("Username:", username);
+  console.log("Password length:", password?.length);
+  console.log("Captcha:", !!captcha);
+
+  // Basic form checks
   if (!username || !password) {
     setErrorMessage("Please enter both username and password");
     return;
@@ -78,44 +42,54 @@ const handleLogin = async (e) => {
   }
 
   try {
-    const res = await fetch("http://127.0.0.1:8000/api/accounts/login/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        identifier: username,   // username OR email
-        password: password,
-      }),
+    console.log("Calling NextAuth signIn...");
+    
+    const result = await signIn("credentials", {
+      identifier: username,   // This goes to your NextAuth credentials provider
+      password: password,
+      redirect: false,        // Don't auto-redirect, handle it manually
     });
 
-    // Try to parse JSON safely
-    const contentType = res.headers.get("content-type") || "";
-    const isJson = contentType.includes("application/json");
-    const data = isJson ? await res.json() : {};
+    console.log("NextAuth signIn result:", result);
 
-    if (!res.ok) {
-      // Backend sends {"error": "..."} on invalid creds
-      setErrorMessage(data.error || "Login failed");
-      return;
+    if (result?.ok) {
+      // Login successful
+      console.log("Login successful, redirecting to /home");
+      router.push("/home");
+    } else {
+      // Login failed - provide more specific error messages
+      console.log("Login failed:", result);
+      
+      let errorMsg = "Login failed. Please try again.";
+      
+      if (result?.error === "CredentialsSignin") {
+        errorMsg = "Invalid username/email or password";
+      } else if (result?.error) {
+        errorMsg = result.error;
+      }
+      
+      setErrorMessage(errorMsg);
     }
-
-    // Success payload includes user_id/username/email
-    // Save what you need
-    localStorage.setItem("user_id", data.user_id);
-    localStorage.setItem("username", data.username);
-    if (data.first_Name) localStorage.setItem("first_Name", data.first_Name);
-
-    // Navigate to home
-    router.push("/home");
   } catch (err) {
     console.error("Login error:", err);
     setErrorMessage("Network error. Please try again.");
   }
 };
 
+  const handleGoogleLogin = async () => {
+  try {
+    const res = await signIn("google", { prompt: "select_account", callbackUrl: "/home" });
 
-  const handleGoogleLogin = () => {
-     signIn("google", { prompt: "select_account" });
-  };
+    if (res && res.error) {
+      // Log the error message from NextAuth
+      console.log("Google login failed:", res.error);
+    }
+
+    console.log("Sign in result:", res); // This will log the result of the sign-in attempt
+  } catch (error) {
+    console.error("Google login error:", error);
+  }
+};
 
   return (
     <div

@@ -14,26 +14,28 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='User',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('firstName', models.CharField(max_length=100)),
-                ('lastName', models.CharField(max_length=100)),
-                ('username', models.CharField(max_length=50, unique=True)),
-                ('emailAdd', models.EmailField(max_length=254, unique=True)),
-                ('password', models.CharField(max_length=100)),
-                ('profilePic', models.ImageField(blank=True, null=True, upload_to='profile_pics/')),
-                ('bio', models.CharField(blank=True, max_length=150, null=True)),
-                ('location', models.CharField(blank=True, max_length=300, null=True)),
-                ('ratingCount', models.IntegerField(default=0)),
-                ('avgStars', models.DecimalField(decimal_places=2, default=0.0, max_digits=3)),
-                ('tot_xpPts', models.IntegerField(default=0)),
-                ('xpRank', models.CharField(default='Unranked', max_length=20)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('userID', models.ImageField(blank=True, null=True, upload_to='user_verifyids/')),
-                ('links', models.JSONField(blank=True, default=list)),
+                ('id', models.AutoField(db_column='user_id', primary_key=True, serialize=False)),  # Fixed: maps to user_id column
+                ('first_name', models.CharField(db_column='first_name', max_length=100)),  # Fixed: field name and db mapping
+                ('last_name', models.CharField(db_column='last_name', max_length=100)),   # Fixed: field name and db mapping
+                ('username', models.CharField(db_column='username', max_length=50, unique=True)),  # Added db mapping
+                ('email', models.EmailField(db_column='email', max_length=50, unique=True)),  # Fixed: field name and size
+                ('password', models.CharField(db_column='password', max_length=100)),  # Added db mapping
+                ('profilePic', models.TextField(blank=True, db_column='profilepic', null=True)),  # Fixed: TextField to match DB
+                ('bio', models.CharField(blank=True, db_column='bio', max_length=150, null=True)),  # Added db mapping
+                ('location', models.CharField(blank=True, db_column='location', max_length=300, null=True)),  # Added db mapping
+                ('ratingCount', models.IntegerField(db_column='ratingcount', default=0)),  # Added db mapping
+                ('avgStars', models.DecimalField(db_column='avgstars', decimal_places=2, default=0.0, max_digits=3)),  # Added db mapping
+                ('tot_XpPts', models.IntegerField(db_column='tot_xppts', default=0)),  # Fixed: field name and db mapping
+                ('level', models.IntegerField(db_column='level', default=1)),  # Added: missing field from your model
+                ('created_at', models.DateTimeField(auto_now_add=True, db_column='created_at')),  # Added db mapping
+                ('userVerifyId', models.CharField(blank=True, db_column='userverifyid', max_length=255, null=True)),  # Fixed: CharField to match DB
+                ('is_verified', models.BooleanField(db_column='is_verified', default=False)),  # Added: missing field
+                ('links', models.TextField(blank=True, db_column='links', null=True)),  # Fixed: TextField to match DB
+                ('verification_status', models.CharField(db_column='verification_status', max_length=20, default='UNVERIFIED')),  # Added: missing field
             ],
             options={
                 'db_table': 'users_tbl',
-                'managed': False,
+                'managed': True,  # Changed to True since you want Django to manage this model
             },
         ),
     ]

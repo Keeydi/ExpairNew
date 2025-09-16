@@ -36,53 +36,29 @@ export default function Navbar() {
   const bellRef = useRef(null);
 
   const DEFAULT_AVATAR = "/defaultavatar.png";
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
-  
-  // Build dynamic profile links (prefer NextAuth user → localStorage → "me")
-  const userId =
-    session?.user?.id ??
-    (typeof window !== "undefined" ? localStorage.getItem("user_id") : null);
-  const username =
-    session?.user?.username ??
-    (typeof window !== "undefined" ? localStorage.getItem("username") : null);
-  const profileSlug = userId ? String(userId) : username ? String(username) : "me";
-  const profileHref = `/home/profile/${profileSlug}`;
-  const settingsHref = `/home/profile/${profileSlug}/settings`;
+const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
 
-   useEffect(() => {
-    let cancelled = false;
+// Build dynamic profile links
+const profileSlug =
+  session?.user?.username ??
+  (session?.user?.id ? String(session.user.id) : "me");
+const profileHref = `/home/profile/${profileSlug}`;
+const settingsHref = `/home/profile/${profileSlug}/settings`;
 
-    // 1) prime with whatever we already have
-    const primed =
-      session?.user?.image ||
-      session?.user?.profilePic ||
-      (typeof window !== "undefined" ? localStorage.getItem("profilePic") : null) ||
-      DEFAULT_AVATAR;
-    setAvatarUrl(primed);
+useEffect(() => {
+  // Check if the profilePic is available in the session, else fallback to Google image
+  const sessionAvatar = session?.user?.profilePic || session?.user?.image;
+  setAvatarUrl(sessionAvatar || DEFAULT_AVATAR);
+}, [session?.user?.profilePic, session?.user?.image]);
 
-    // 2) fetch the latest from the public profile endpoint if we know the id
-    const uid =
-      session?.user?.id ??
-      (typeof window !== "undefined" ? localStorage.getItem("user_id") : null);
 
-    if (!uid) return;
 
-    const root = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-    const API_BASE = root.includes("/api/accounts") ? root : `${root}/api/accounts`;
-
-    fetch(`${API_BASE}/users/${uid}/`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        const url = data.profilePic || DEFAULT_AVATAR;
-        setAvatarUrl(url);
-        try { localStorage.setItem("profilePic", url); } catch {}
-      })
-      .catch(() => { /* ignore – we’ll keep the primed value */ });
-
-    return () => { cancelled = true; };
-  }, [session?.user?.id, session?.user?.image, session?.user?.profilePic]);
-
+/*useEffect(() => {
+  console.log('Full session object:', session);
+  console.log('Session user:', session?.user);
+  console.log('ProfilePic from session:', session?.user?.profilePic);
+  console.log('Image from session:', session?.user?.image);
+}, [session]);*/
 
   // Close notification dialog when clicking outside
   useEffect(() => {
@@ -117,6 +93,24 @@ export default function Navbar() {
   const handleAllNotificationsRead = () => {
     setHasUnreadNotifications(false);
   };
+
+  const handleLogout = async () => {
+  try {
+    // If you keep refresh in the NextAuth session (you do):
+    const refresh = session?.refresh;
+    if (refresh) {
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"}/api/accounts/logout/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json",
+          ...(session?.access ? { Authorization: `Bearer ${session.access}` } : {}) },
+        body: JSON.stringify({ refresh }),
+        credentials: "include",
+      });
+    }
+  } finally {
+    await signOut({ redirect: true, callbackUrl: "/signin" });
+  }
+};
 
   return (
     <header
@@ -229,18 +223,7 @@ export default function Navbar() {
 
                 <DropdownMenuItem
                   className="flex items-center gap-2 text-red-400 data-[highlighted]:bg-transparent data-[highlighted]:text-red-300 cursor-pointer"
-                  onClick={() => {
-                    try {
-                      // clear anything you stored manually
-                      localStorage.removeItem("user_id");
-                      localStorage.removeItem("prefill_email");
-                      localStorage.removeItem("prefill_name");
-                      localStorage.removeItem("first_Name");
-                    } catch {}
-
-                    // end the NextAuth session and redirect to signin (or register if that's your login page)
-                    signOut({ callbackUrl: "/signin" });
-                  }}
+                  onClick={() => {handleLogout();}}
                 >
                   <LogOut className="w-4 h-4" />
                   Log out

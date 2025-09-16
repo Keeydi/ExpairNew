@@ -5,6 +5,7 @@ import { Button } from "../../../../../components/ui/button";
 import { ChevronLeft, ChevronDown, X } from "lucide-react"; 
 import Image from "next/image";
 import { Inter } from "next/font/google";
+import { signIn } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -64,7 +65,7 @@ export default function Step6({ onNext, onPrev, step1Data, step2Data, step3Data,
         const entries = await Promise.all(
           selectedCategoryIds.map(async (gid) => {
             try {
-              const r = await fetch(`http://127.0.0.1:8000/api/accounts/skills/specific/?genskills_id=${gid}`);
+              const r = await fetch(`/api/dj/skills/specific/?genskills_id=${gid}`);
               const data = await r.json();
               const list = (Array.isArray(data) ? data : []).map((s) => ({
                 id: Number(s.specSkills_id ?? s.id),
@@ -134,80 +135,112 @@ export default function Step6({ onNext, onPrev, step1Data, step2Data, step3Data,
       return;
     }
 
-    const user_id = Number(localStorage.getItem("user_id") || 0);
-    if (!user_id) {
-      setErrorMessage("Missing user id. Please go back to Step 3 and complete registration.");
-      return;
-    }
-
     // Show the confirmation modal
     setShowConfirmModal(true);
   };
 
-const handleConfirm = async () => {
+const handleConfirm = async (e) => {
+  e.preventDefault();  // Prevent form submission reload
   setShowConfirmModal(false);
   setIsSubmitting(true);
 
   try {
     const formData = new FormData();
 
-    // Step 1
-    formData.append("first_Name", step1Data.firstName || "");
-    formData.append("last_Name", step1Data.lastName || "");
-    formData.append("username", step1Data.username || "");
-    formData.append("emailAdd", step1Data.email || "");
-    formData.append("password", step1Data.password || "");
+    // Ensure fields are not arrays
+    const firstName = Array.isArray(step1Data.firstName) ? step1Data.firstName[0] : step1Data.firstName;
+    const lastName = Array.isArray(step1Data.lastName) ? step1Data.lastName[0] : step1Data.lastName;
+    const username = Array.isArray(step1Data.username) ? step1Data.username[0] : step1Data.username;
+    const email = Array.isArray(step1Data.email) ? step1Data.email[0] : step1Data.email;
+    const password = Array.isArray(step1Data.password) ? step1Data.password[0] : step1Data.password;
 
-    // Step 2
-    formData.append("location", step2Data.searchQuery || "");
+    /*console.log("=== PROCESSED VALUES ===");
+    console.log("firstName:", firstName);
+    console.log("lastName:", lastName);
+    console.log("username:", username);
+    console.log("email:", email);
+    console.log("password:", password);*/
 
-    // Step 3
+    // Append to FormData (ensure everything is a string)
+    formData.append("first_name", String(firstName));
+    formData.append("last_name", String(lastName));
+    formData.append("username", String(username)); 
+    formData.append("email", String(email));    
+    formData.append("password", String(password));
+
+   
+    formData.append("location", step2Data?.searchQuery || "");
+    formData.append("bio", step3Data?.introduction || "");
+
+    const filteredLinks = (step3Data?.links || []).filter(link => link && link.trim() !== "");
+    formData.append("links", JSON.stringify(filteredLinks));
+
+    // Handle skills IDs
+    formData.append("genSkills_ids", JSON.stringify(selectedCategoryIds));  
+    formData.append("specSkills", JSON.stringify(checkedOptions));         
+
     if (step3Data.profilePicFile) {
       formData.append("profilePic", step3Data.profilePicFile);
+      console.log("Profile pic added:", step3Data.profilePicFile.name);
     }
+
     if (step3Data.userIDFile) {
       formData.append("userVerifyId", step3Data.userIDFile);
-    }
-    formData.append("bio", step3Data.introduction || "");
-
-    if (Array.isArray(step3Data.links)) {
-      formData.append("links", step3Data.links.join("\n"));
+      console.log("User ID file added:", step3Data.userIDFile.name);
     }
 
-    // Step 5 - selected general categories
-    formData.append("genSkills_ids", JSON.stringify(selectedCategoryIds));
+    // Debug: Log final FormData
+    console.log("=== FINAL FORMDATA CHECK ===");
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}:`, value, `(${typeof value})`);
+    } 
 
-    // Step 6 - selected specializations
-    formData.append("specSkills", JSON.stringify(checkedOptions));
-
-    // Send form data to backend
-    const res = await fetch("http://127.0.0.1:8000/api/accounts/complete-registration/", {
+    // Send registration data to the backend
+    const r = await fetch("/api/dj/complete-registration/", {
       method: "POST",
-      body: formData, // DO NOT add Content-Type header!
+      body: formData,
     });
 
-    const responseData = await res.json();
+    let responseData;
+    try {
+      responseData = await r.json();
+    } catch (parseError) {
+      console.error("Failed to parse response as JSON:", parseError);
+      responseData = { error: "Invalid server response" };
+    }
 
-    if (!res.ok) {
-      console.error("Complete registration failed:", res.status, responseData);
-      setErrorMessage(
-        `Registration failed (${res.status}): ${responseData.error || responseData.detail || "Unknown error"}`
-      );
+    if (!r.ok) {
+      console.error("Complete registration failed:", r.status, responseData);
+      setErrorMessage(`Registration failed: ${responseData.error || responseData.detail || "Unknown error"}`);
       return;
     }
 
-    console.log("Registration completed successfully:", responseData);
+    console.log("Registration successful!", responseData);
 
-    if (responseData.user_id) {
-      localStorage.setItem("user_id", responseData.user_id);
+    // Sign in after registration
+    const signInResult = await signIn("credentials", {
+      redirect: false,
+      identifier: step1Data.email, 
+      password: step1Data.password,
+    });
+
+    console.log("Sign-in result:", signInResult);
+
+    if (signInResult?.error) {
+      console.error("Auto sign-in failed:", signInResult.error);
+      setErrorMessage("Registration successful, but auto sign-in failed. Please sign in manually.");
+      return;
     }
 
-    if (onDataSubmit) {
-      onDataSubmit(checkedOptions);
+    if (signInResult?.ok) {
+      console.log("Sign-in successful! Proceeding to onboarding...");
+      setErrorMessage("");
+      sessionStorage.setItem('postRegistrationFlow', 'true');
+      onNext();
+    } else {
+      setErrorMessage("Registration completed but sign-in status unclear. Please refresh if needed.");
     }
 
-    setErrorMessage("");
-    onNext?.();
   } catch (e) {
     console.error("Network error:", e);
     setErrorMessage("Network error. Please check if the backend is running.");
@@ -215,6 +248,7 @@ const handleConfirm = async () => {
     setIsSubmitting(false);
   }
 };
+
 
 
   const handleCancel = () => {
@@ -448,7 +482,7 @@ const handleConfirm = async () => {
                   </button>
                   <button 
                     className="flex items-center justify-center w-[130px] h-[38px] bg-[#0038FF] rounded-[15px] text-white text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
-                    onClick={handleConfirm}
+                    onClick={(e) => handleConfirm(e)} 
                   >
                     Confirm
                   </button>

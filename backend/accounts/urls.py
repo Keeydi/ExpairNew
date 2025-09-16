@@ -13,8 +13,10 @@ urlpatterns = [
     path('skills/specific/', views.list_specific_skills),
     path('skills/user/', views.add_user_skills),
 
+
     path('login/', views.login_user, name='login_user'),
     path('google-login/', views.google_login, name='google_login'),
+    path("api/accounts/logout/", views.logout_user, name="logout_user"),
 
     path('me/', views.me, name='me'),
 
@@ -24,9 +26,10 @@ urlpatterns = [
 
     path('users/<int:user_id>/interests/', views.user_interests),
     path('users/<int:user_id>/skills/', views.user_skills),
+    path('users/<int:user_id>/credentials/', views.user_credentials),
+
     
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 

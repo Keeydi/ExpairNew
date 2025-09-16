@@ -4,6 +4,7 @@ from .models import GenSkill, UserInterest
 from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
 from .models import VerificationStatus
+from .models import User, UserCredential
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
@@ -12,8 +13,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "first_Name", "last_Name", "bio",
-            "username", "emailAdd", "profilePic",
+            "first_name", "last_name", "bio",
+            "username", "email", "profilePic",
             "userVerifyId",
             "is_verified",
             "verification_status",
@@ -24,11 +25,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "verification_status",
         ]
         extra_kwargs = {
-            "first_Name": {"required": False, "allow_blank": True},
-            "last_Name":  {"required": False, "allow_blank": True},
+            "first_name": {"required": False, "allow_blank": True},
+            "last_name":  {"required": False, "allow_blank": True},
             "bio":        {"required": False, "allow_blank": True},
             "username":   {"required": False, "allow_blank": False},
-            "emailAdd":   {"required": False, "allow_blank": False},
+            "email":   {"required": False, "allow_blank": False},
             "profilePic": {"required": False},
             "userVerifyId": {"required": False},
         }
@@ -77,6 +78,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             instance.verification_status = status_in
             instance.is_verified = (status_in == VerificationStatus.VERIFIED)
 
+        # ✅ persist editable profile fields
+        for f in ("first_name", "last_name", "bio", "username", "email", "profilePic"):
+            if f in validated_data:
+                setattr(instance, f, validated_data[f])
+
         # ✅ ALWAYS persist changes
         instance.save()
         return instance
@@ -122,7 +128,7 @@ class UserInterestBulkSerializer(serializers.Serializer):
     )
 
 class SpecSkillSerializer(serializers.ModelSerializer):
-    genSkills_id = serializers.IntegerField(source="genSkills_id_id", read_only=True)
+    genSkills_id = serializers.IntegerField(source="genSkills_id.genSkills_id", read_only=True)
 
     class Meta:
         model = SpecSkill
@@ -158,3 +164,80 @@ class UserSkillBulkSerializer(serializers.Serializer):
             })
         data["items"] = norm
         return data
+    
+class UserCredentialSerializer(serializers.ModelSerializer):
+    # Include related field names for easier frontend consumption
+    genskills_name = serializers.CharField(source='genskills_id.genCateg', read_only=True)
+    specskills_name = serializers.CharField(source='specskills_id.specName', read_only=True)
+    
+    # Add skills field that returns an array
+    skills = serializers.SerializerMethodField()
+    
+    # Map field names to match frontend expectations
+    title = serializers.CharField(source='credential_title', read_only=True)
+    org = serializers.CharField(source='issuer', read_only=True)
+    issueDate = serializers.DateField(source='issue_date', read_only=True)
+    expiryDate = serializers.DateField(source='expiry_date', read_only=True)
+    id = serializers.CharField(source='cred_id', read_only=True)
+    url = serializers.URLField(source='cred_url', read_only=True)
+
+    class Meta:
+        model = UserCredential
+        fields = [
+            'usercred_id',
+            'credential_title', 
+            'issuer', 
+            'issue_date', 
+            'expiry_date',
+            'cred_id', 
+            'cred_url',
+            'genskills_id',
+            'specskills_id',
+            'genskills_name',
+            'specskills_name',
+            'title',     
+            'org',      
+            'issueDate',  
+            'expiryDate', 
+            'id',        
+            'url',        
+            'skills',     
+            'created_at'
+        ]
+
+    def get_skills(self, obj):
+        """Return skills as an array for frontend compatibility"""
+        skills = []
+        if hasattr(obj, 'specskills_id') and obj.specskills_id:
+            skills.append(obj.specskills_id.specName)
+        return skills
+
+    def validate_issue_date(self, value):
+        """Ensure issue date is not in the future"""
+        from datetime import date
+        if value > date.today():
+            raise serializers.ValidationError("Issue date cannot be in the future.")
+        return value
+
+    def validate(self, data):
+        """Ensure expiry date is after issue date if provided"""
+        issue_date = data.get('issue_date')
+        expiry_date = data.get('expiry_date')
+        
+        if issue_date and expiry_date and expiry_date <= issue_date:
+            raise serializers.ValidationError(
+                "Expiry date must be after the issue date."
+            )
+        return data
+
+class UserCredentialBulkSerializer(serializers.Serializer):
+    """
+    For bulk operations on credentials
+    """
+    user_id = serializers.IntegerField()
+    credentials = UserCredentialSerializer(many=True)
+
+    def validate_credentials(self, value):
+        if len(value) > 20:  # Reasonable limit
+            raise serializers.ValidationError("Cannot add more than 20 credentials at once.")
+        return value
