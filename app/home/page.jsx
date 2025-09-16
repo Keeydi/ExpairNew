@@ -604,7 +604,7 @@ if (!first && !session?.user && typeof window !== "undefined") {
                           <Icon icon="mdi:eye-off-outline" className="text-white text-base" /> Not Interested
                         </button>
                         <button onClick={() => handleReport(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
-                          <Icon icon="mdi:alert-circle-outline" className="text-white text-base" /> Report
+                          <Icon icon="mdi:flag" className="text-white text-base" /> Report
                         </button>
                       </div>
                     )}

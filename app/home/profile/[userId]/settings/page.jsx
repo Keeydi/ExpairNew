@@ -2,7 +2,7 @@
 
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Loader2, Pencil, Search, MapPin, X } from "lucide-react";
+import { ChevronLeft, Loader2, Pencil, Search, MapPin, X, Pencil, Search, MapPin, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Inter } from "next/font/google";

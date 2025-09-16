@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
-import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { X, Info } from "lucide-react";
 import Link from "next/link";
+import TradeRequestInfo from "../../../../components/trade-cards/trade-request-info";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,7 +21,24 @@ export default function AddTradeDetailsPage() {
   const [charCount, setCharCount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [tradeData, setTradeData] = useState({ requested: "", exchange: "" });
+  const [showSkillTooltip, setShowSkillTooltip] = useState(false);
+  const [showRequestTooltip, setShowRequestTooltip] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Get trade data from URL parameters
+  useEffect(() => {
+    const requested = searchParams.get('requested');
+    const exchange = searchParams.get('exchange');
+    
+    if (requested && exchange) {
+      setTradeData({
+        requested: decodeURIComponent(requested),
+        exchange: decodeURIComponent(exchange)
+      });
+    }
+  }, [searchParams]);
   
   const handleDetailsChange = (e) => {
     const text = e.target.value;
@@ -44,9 +62,17 @@ export default function AddTradeDetailsPage() {
       <div className="fixed w-[673px] h-[673px] right-[-354px] bottom-[-454px] bg-[#0038FF] opacity-35 blur-[200px] z-0"></div>
       
       {/* Main content */}
-      <div className="relative z-10 max-w-[940px] w-full mx-auto pt-[100px] md:pt-[183px] pb-[100px] px-4 md:px-6 flex flex-col items-center">
+      <div className="relative z-10 max-w-[940px] w-full mx-auto pt-[23px] md:pt-[50px] pb-[100px] px-4 md:px-6 flex flex-col items-center">
         <h1 className="text-[25px] font-semibold mb-[34px] w-full">Adding trade details</h1>
-        
+
+        {/* Trade Request Info */}
+        {(tradeData.requested && tradeData.exchange) && (
+          <TradeRequestInfo 
+            requested={tradeData.requested}
+            exchange={tradeData.exchange}
+          />
+        )}
+
         <div className="w-full flex flex-col md:flex-row justify-between gap-8 md:gap-[30px]">
           {/* Left column */}
           <div className="w-full md:w-[400px] flex flex-col gap-[20px]">
@@ -75,7 +101,28 @@ export default function AddTradeDetailsPage() {
             
             {/* Skill proficiency */}
             <div className="flex flex-col gap-[15px]">
-              <label className="text-[16px]">Select the skill proficiency required *</label>
+              <div className="flex items-center gap-2">
+                <label className="text-[16px]">Select the skill proficiency required *</label>
+                <div className="relative">
+                  <button
+                    onMouseEnter={() => setShowSkillTooltip(true)}
+                    onMouseLeave={() => setShowSkillTooltip(false)}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                  {showSkillTooltip && (
+                    <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
+                      <div className="text-sm text-white space-y-2">
+                        <div><strong>Beginner</strong> – Just starting out and have basic knowledge of the skill.</div>
+                        <div><strong>Intermediate</strong> – Comfortable with the skill and can perform it with some independence.</div>
+                        <div><strong>Advanced</strong> – Highly skilled and able to perform complex tasks with expertise.</div>
+                        <div><strong>Certified</strong> – Verified by uploading at least one official credential related to the skill.</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="relative">
                 <select 
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
@@ -98,7 +145,27 @@ export default function AddTradeDetailsPage() {
             
             {/* Request type */}
             <div className="flex flex-col gap-[15px]">
-              <label className="text-[16px]">Select the type of request *</label>
+              <div className="flex items-center gap-2">
+                <label className="text-[16px]">Select the type of request *</label>
+                <div className="relative">
+                  <button
+                    onMouseEnter={() => setShowRequestTooltip(true)}
+                    onMouseLeave={() => setShowRequestTooltip(false)}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                  {showRequestTooltip && (
+                    <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
+                      <div className="text-sm text-white space-y-2">
+                        <div><strong>Service</strong> – An action done for someone else within a period of time (e.g., tutoring, house repairs, fitness training).</div>
+                        <div><strong>Output</strong> – A one-time deliverable you create or provide (e.g., logo design, video edit, custom playlist)</div>
+                        <div><strong>Project</strong> – A long-term recurring collaboration. (e.g., developing a website, co-writing a film, organizing an event)</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="relative">
                 <select 
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
@@ -169,7 +236,7 @@ export default function AddTradeDetailsPage() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="DD/MM/YYYY"
+                  placeholder="MM/DD/YYYY"
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[18px] py-[15px] text-[16px] text-white outline-none placeholder:text-[#413663]"
