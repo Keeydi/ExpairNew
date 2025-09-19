@@ -1,5 +1,5 @@
 import json
-from django.db.models import Q
+from datetime import date
 
 from rest_framework import status
 
@@ -11,12 +11,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
 from .models import GenSkill, UserInterest, User, VerificationStatus, UserCredential
-from .models import SpecSkill, UserSkill
+from .models import SpecSkill, UserSkill, TradeRequest
 from .models import User 
 
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.contrib.auth.hashers import check_password
+from django.utils.timezone import localdate
 
 from .serializers import ProfileUpdateSerializer, UserCredentialSerializer
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
@@ -413,7 +415,7 @@ def login_user(request):
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "first_Name": user.first_name,
+            "first_name": user.first_name,
             "name": user.first_name,
             "profilePic": user_payload.get("profilePic"),
             "image": user_payload.get("profilePic"),
@@ -730,3 +732,113 @@ def complete_registration(request):
             "error": f"Registration failed: {str(e)}"
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_trade_request(request):
+    """
+    Create a new trade request with initial data (reqname and reqdeadline)
+    """
+    print("=== CREATE TRADE REQUEST DEBUG ===")
+    print(f"Request data: {request.data}")
+    print(f"User: {request.user.id}")
+    
+    reqname = request.data.get('reqname', '').strip()
+    reqdeadline = request.data.get('reqdeadline', '')
+    
+    if not reqname:
+        return Response({"error": "Service request name is required"}, status=400)
+        
+    if not reqdeadline:
+        return Response({"error": "Request deadline is required"}, status=400)
+    
+    try:        
+        trade_request = TradeRequest.objects.create(
+            requester=request.user,
+            reqname=reqname,
+            reqdeadline=reqdeadline,
+            # Set default reqtype for now
+            reqtype='SERVICE' 
+        )
+        
+        return Response({
+            "message": "Trade request created successfully",
+            "tradereq_id": trade_request.tradereq_id,
+            "reqname": trade_request.reqname,
+            "reqdeadline": trade_request.reqdeadline
+        }, status=201)
+        
+    except Exception as e:
+        print(f"Trade request creation error: {str(e)}")
+        return Response({
+            "error": f"Failed to create trade request: {str(e)}"
+        }, status=500)
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def explore_feed(request):
+    """
+    Returns a simple feed for Explore cards with proper skill matching logic.
+    - "Needs" = exact reqname that User B posted
+    - "Can Offer" = GenSkill that User A is interested in AND exists in User B's skills
+    """
+    viewer = request.user if getattr(request.user, "id", None) else None
+
+    # Load recent requests, exclude viewer's own requests
+    qs = (TradeRequest.objects
+          .select_related("requester", "specSkills")
+          .order_by("-tradereq_id"))
+    
+    if viewer:
+        qs = qs.exclude(requester=viewer)
+    
+    qs = qs[:50]
+
+    # Preload viewer's interests if authenticated
+    viewer_gen_interests = []
+    if viewer:
+        viewer_gen_interests = list(
+            UserInterest.objects.filter(user_id=viewer.id)
+            .values_list("genSkills_id_id", flat=True)
+        )
+
+    items = []
+    for tr in qs:
+        u = tr.requester  # User B (the person who posted the request)
+        display_name = (f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}").strip() or u.username
+
+        # "Needs" = exact reqname that User B posted
+        needs = tr.reqname
+
+        # "Can Offer" = GenSkill that viewer is interested in AND exists in User B's skills
+        can_offer = ""
+        if viewer and viewer_gen_interests:
+            # Get all GenSkills that User B has skills in
+            user_b_gen_skills = set(
+                UserSkill.objects.filter(user_id=u.id)
+                .select_related("specSkills__genSkills_id")
+                .values_list("specSkills__genSkills_id_id", flat=True)
+            )
+            
+            # Find intersection: GenSkills that viewer is interested in AND User B has
+            matching_gen_skills = set(viewer_gen_interests) & user_b_gen_skills
+            
+            if matching_gen_skills:
+                # Get the first matching GenSkill name
+                matching_gen_skill_id = list(matching_gen_skills)[0]
+                try:
+                    gen_skill = GenSkill.objects.get(pk=matching_gen_skill_id)
+                    can_offer = gen_skill.genCateg
+                except GenSkill.DoesNotExist:
+                    can_offer = ""
+
+        items.append({
+            "name": display_name,
+            "rating": float(u.avgStars or 0),
+            "ratingCount": int(u.ratingCount or 0),
+            "level": int(u.level or 0),
+            "need": needs,  # User B's exact reqname
+            "offer": can_offer,  # GenSkill that viewer is interested in AND User B has
+            "deadline": tr.reqdeadline.isoformat() if tr.reqdeadline else "",
+        })
+
+    return Response({"items": items}, status=200)

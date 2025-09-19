@@ -13,13 +13,15 @@ urlpatterns = [
     path('skills/specific/', views.list_specific_skills),
     path('skills/user/', views.add_user_skills),
 
-
     path('login/', views.login_user, name='login_user'),
     path('google-login/', views.google_login, name='google_login'),
-    path("api/accounts/logout/", views.logout_user, name="logout_user"),
+    path('logout/', views.logout_user, name="logout_user"),
+
+    path('trade-requests/', views.create_trade_request, name='create_trade_request'),
+    path('explore/feed/', views.explore_feed, name='explore_feed'),
 
     path('me/', views.me, name='me'),
-
+    
     # 👇 expose BOTH variants
     path('users/<int:user_id>/', views.user_detail),
     path('users/by-username/<str:username>/', views.user_detail_by_username),
