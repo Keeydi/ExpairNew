@@ -99,7 +99,7 @@ useEffect(() => {
     // If you keep refresh in the NextAuth session (you do):
     const refresh = session?.refresh;
     if (refresh) {
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"}/api/accounts/logout/`, {
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"}/logout/`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json",
           ...(session?.access ? { Authorization: `Bearer ${session.access}` } : {}) },

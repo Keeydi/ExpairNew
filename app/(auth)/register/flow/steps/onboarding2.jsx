@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "../../../../../components/ui/button";
 import { Inter } from "next/font/google";
 import { Search, Filter, ArrowUpDown, MoreHorizontal, Star, X, EyeOff } from "lucide-react";
@@ -8,8 +9,10 @@ import { StarIcon } from "../../../../../components/icons/star-icon";
 import Image from "next/image";
 
 const inter = Inter({ subsets: ["latin"] });
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
 export default function Onboarding2({ onNext, onPrev }) {
+  const { data: session } = useSession();
   const [searchQuery, setSearchQuery] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -23,11 +26,47 @@ export default function Onboarding2({ onNext, onPrev }) {
     skillCategory: "all",
     minLevel: 0
   });
+
+  // Backend data states
+  const [exploreItems, setExploreItems] = useState([]);
+  const [exploreErr, setExploreErr] = useState("");
+  const [loading, setLoading] = useState(true);
   
   // Refs for click-outside handling
   const sortMenuRef = useRef(null);
   const filterMenuRef = useRef(null);
   const menuRefs = useRef([]);
+
+  // Load explore data from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const headers = { "Content-Type": "application/json" };
+        const token = session?.access || session?.accessToken;
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        
+        const resp = await fetch(`${BACKEND_URL}/explore/feed/`, { headers });
+        if (!resp.ok) {
+          setExploreErr(`Failed to load feed (HTTP ${resp.status})`);
+          return;
+        }
+        const data = await resp.json();
+        setExploreItems(Array.isArray(data.items) ? data.items : []);
+      } catch (e) {
+        setExploreErr(e?.message || "Network error");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [session]);
+
+  // Date formatting function
+  const fmtUntil = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+  };
   
   // Click outside handler to close dropdowns
   useEffect(() => {
@@ -101,102 +140,14 @@ export default function Onboarding2({ onNext, onPrev }) {
   };
   
   const handleNotInterested = (partnerId) => {
-    // In a real app, you would update the user's preferences
-    // For now, just close the menu and show a message
     setOpenMenuIndex(null);
     console.log(`Marked partner ${partnerId} as not interested`);
-    // You could also remove the partner from the list or add a visual indicator
   };
   
   const handleReport = (partnerId) => {
-    // In a real app, you would open a report form or send a report
-    // For now, just close the menu and show a message
     setOpenMenuIndex(null);
     console.log(`Reported partner ${partnerId}`);
-    // You could also show a confirmation message to the user
   };
-  
-  // Mock data for trade partners
-  const tradePartners = [
-    {
-      id: 1,
-      name: "Alex Johnson",
-      rating: 5.0,
-      reviews: 31,
-      level: 20,
-      rank: "Expert",
-      needs: "Personal Training Plan",
-      offers: "Plumbing",
-      skillCategory: "Home Services",
-      until: "July 3",
-      date: new Date("2025-07-03")
-    },
-    {
-      id: 2,
-      name: "Michael Lee",
-      rating: 4.9,
-      reviews: 30,
-      level: 17,
-      rank: "Advanced",
-      needs: "Design Kit for Site",
-      offers: "Web Design",
-      skillCategory: "Technology",
-      until: "July 1",
-      date: new Date("2025-07-01")
-    },
-    {
-      id: 3,
-      name: "Sarah Kim",
-      rating: 4.9,
-      reviews: 23,
-      level: 18,
-      rank: "Advanced",
-      needs: "5-min Video Edit",
-      offers: "Photography",
-      skillCategory: "Creative",
-      until: "July 4",
-      date: new Date("2025-07-04")
-    },
-    {
-      id: 4,
-      name: "Emily Rivera",
-      rating: 4.7,
-      reviews: 14,
-      level: 14,
-      rank: "Intermediate",
-      needs: "Acting Help",
-      offers: "Vocal Training",
-      skillCategory: "Performance Arts",
-      until: "July 7",
-      date: new Date("2025-07-07")
-    },
-    {
-      id: 5,
-      name: "David Chen",
-      rating: 4.8,
-      reviews: 15,
-      level: 12,
-      rank: "Intermediate",
-      needs: "Tutoring",
-      offers: "Math Lessons",
-      skillCategory: "Education",
-      until: "June 30",
-      date: new Date("2025-06-30")
-    },
-    {
-      id: 6,
-      name: "Priya Patel",
-      rating: 4.6,
-      reviews: 8,
-      level: 10,
-      rank: "Beginner",
-      needs: "Gardening",
-      offers: "Cooking Lessons",
-      skillCategory: "Home Services",
-      until: "July 10",
-      date: new Date("2025-07-10")
-    }
-  ];
   
   // Skill categories for filter
   const skillCategories = [
@@ -208,41 +159,46 @@ export default function Onboarding2({ onNext, onPrev }) {
     "Education",
     "Health & Fitness"
   ];
-  
-  // Apply sorting and filtering
-  const filteredAndSortedPartners = tradePartners
-    .filter(partner => {
-      // Apply rating filter
-      if (filters.minRating > 0 && partner.rating < filters.minRating) {
-        return false;
+
+  // Filter and sort explore items
+  const getFilteredAndSortedItems = () => {
+    let filtered = exploreItems.filter((item) => {
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          item.name?.toLowerCase().includes(query) ||
+          item.need?.toLowerCase().includes(query) ||
+          item.offer?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
       }
+
+      // Rating filter
+      if (filters.minRating > 0 && item.rating < filters.minRating) return false;
       
-      // Apply skill category filter
-      if (filters.skillCategory !== "all" && partner.skillCategory !== filters.skillCategory) {
-        return false;
-      }
-      
-      // Apply level filter
-      if (filters.minLevel > 0 && partner.level < filters.minLevel) {
-        return false;
-      }
+      // Level filter
+      if (filters.minLevel > 0 && item.level < filters.minLevel) return false;
       
       return true;
-    })
-    .sort((a, b) => {
-      // Apply sorting
+    });
+
+    // Sort the filtered items
+    return filtered.sort((a, b) => {
       switch (sortBy) {
         case "date":
-          return a.date - b.date;
+          return new Date(a.deadline) - new Date(b.deadline);
         case "level":
           return b.level - a.level;
         case "rating":
           return b.rating - a.rating;
+        case "recommended":
         default:
-          // Default "recommended" sorting - you can customize this
-          return b.rating - a.rating;
+          return b.rating - a.rating; // fallback to rating
       }
     });
+  };
+
+  const filteredAndSortedItems = getFilteredAndSortedItems();
 
   return (
     <div
@@ -416,7 +372,7 @@ export default function Onboarding2({ onNext, onPrev }) {
                                     className={`px-3 py-1 rounded-full cursor-pointer text-sm ${filters.minRating === rating ? "bg-[#0038FF] text-white" : "bg-[#1A0F3E] text-white/70 hover:bg-[#1A0F3E]/80"} transition`}
                                     onClick={() => handleFilterChange("minRating", rating)}
                                   >
-                                    {rating === 0 ? "Any" : `${rating}★+`}
+                                    {rating === 0 ? "Any" : `${rating}⭐+`}
                                   </div>
                                 ))}
                               </div>
@@ -510,10 +466,19 @@ export default function Onboarding2({ onNext, onPrev }) {
             
             {/* Trade Partner Cards */}
             <div className="flex flex-wrap gap-[25px] w-full">
-              {filteredAndSortedPartners.length > 0 ? (
-                filteredAndSortedPartners.map((partner, index) => (
+              {exploreErr ? (
+                <div className="w-full py-4 text-red-400">{exploreErr}</div>
+              ) : loading ? (
+                <div className="w-full py-10 flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-[#1A0F3E] flex items-center justify-center mb-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  </div>
+                  <p className="text-white/60">Loading trade partners...</p>
+                </div>
+              ) : filteredAndSortedItems.length > 0 ? (
+                filteredAndSortedItems.map((item, index) => (
                   <div
-                    key={partner.id}
+                    key={`explore-${item.id || item.name || index}`}
                     className="w-[311px] h-[240px] p-[25px] flex flex-col justify-between rounded-[20px] border-[3px] border-[#284CCC]/80"
                     style={{
                       background:
@@ -526,25 +491,25 @@ export default function Onboarding2({ onNext, onPrev }) {
                       {/* Partner Header */}
                       <div className="flex justify-between items-start w-full">
                         <div className="flex items-start gap-[10px]">
-                        <Image src="/defaultavatar.png" alt="Default Avatar" width={25} height={25} className="rounded-full object-cover" />
+                          <Image src="/defaultavatar.png" alt="Default Avatar" width={25} height={25} className="rounded-full object-cover" />
                           <div className="flex flex-col items-start gap-[5px]">
-                            <span className="text-[16px] text-white">{partner.name}</span>
+                            <span className="text-[16px] text-white">{item.name}</span>
                             <div className="flex items-center gap-[15px]">
                               <div className="flex items-center gap-[5px]">
                                 <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
                                 <span className="text-[13px]">
                                   <span className="font-bold">
-                                    {partner.rating.toFixed(1)}
+                                    {item.rating.toFixed(1)}
                                   </span>{" "}
                                   <span className="text-white">
-                                    ({partner.reviews})
+                                    ({item.ratingCount})
                                   </span>
                                 </span>
                               </div>
                               <div className="flex items-center gap-[5px]">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z" fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5"/><defs><radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)"><stop offset="0.4" stopColor="#933BFF"/><stop offset="1" stopColor="#34188D"/></radialGradient><linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse"><stop stopColor="white"/><stop offset="0.5" stopColor="#999999"/><stop offset="1" stopColor="white"/></linearGradient></defs></svg>
                                 <span className="text-[13px] text-white">
-                                  LVL {partner.level}
+                                  LVL {item.level}
                                 </span>
                               </div>
                             </div>
@@ -564,14 +529,14 @@ export default function Onboarding2({ onNext, onPrev }) {
                           {openMenuIndex === index && (
                             <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
                               <button
-                                onClick={() => handleNotInterested(partner.id)}
+                                onClick={() => handleNotInterested(item.id || item.name)}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
                               >
                                 <EyeOff className="w-4 h-4 text-white" />
                                 Not Interested
                               </button>
                               <button
-                                onClick={() => handleReport(partner.id)}
+                                onClick={() => handleReport(item.id || item.name)}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
                               >
                                 <X className="w-4 h-4 text-white" />
@@ -589,7 +554,7 @@ export default function Onboarding2({ onNext, onPrev }) {
                           <span className="text-[13px] text-white">Needs</span>
                           <div className="inline-flex px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px]">
                             <span className="text-[12px] text-white leading-tight">
-                              {partner.needs}
+                              {item.need}
                             </span>
                           </div>
                         </div>
@@ -599,7 +564,7 @@ export default function Onboarding2({ onNext, onPrev }) {
                           <span className="text-[13px] text-white">Can offer</span>
                           <div className="inline-flex px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px]">
                             <span className="text-[12px] text-white leading-tight">
-                              {partner.offers}
+                              {item.offer || "—"}
                             </span>
                           </div>
                         </div>
@@ -608,7 +573,7 @@ export default function Onboarding2({ onNext, onPrev }) {
                       {/* Date */}
                       <div className="flex justify-end items-center w-full">
                         <span className="text-[13px] text-white/60">
-                          until {partner.until}
+                          {item.deadline ? `until ${fmtUntil(item.deadline)}` : ""}
                         </span>
                       </div>
                     </div>
@@ -616,7 +581,7 @@ export default function Onboarding2({ onNext, onPrev }) {
                     {/* Bottom Button */}
                     <button
                       className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors self-center"
-                      onClick={() => handleInterested(partner)}
+                      onClick={() => handleInterested(item)}
                     >
                       <span className="text-[13px] text-white">I'm interested</span>
                     </button>
@@ -628,10 +593,13 @@ export default function Onboarding2({ onNext, onPrev }) {
                     <Search className="w-8 h-8 text-white/50" />
                   </div>
                   <h3 className="text-xl font-medium text-white mb-2">
-                    No matches found
+                    {exploreItems.length === 0 ? "No matches yet" : "No matches found"}
                   </h3>
                   <p className="text-white/60 text-center max-w-md">
-                    Try adjusting your filters or search criteria to see more results
+                    {exploreItems.length === 0 
+                      ? "New requests will appear here as users post them."
+                      : "Try adjusting your filters or search criteria to see more results"
+                    }
                   </p>
                 </div>
               )}

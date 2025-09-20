@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import Step1 from "./steps/step1";
 import Step2 from "./steps/step2";
 import Step3 from "./steps/step3";
@@ -17,15 +17,32 @@ export default function RegisterFlow() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  const completeRegistration = () => {
+  const completeRegistration = async () => {
+  try {
     // Clear registration flags
     setIsRegistering(false);
     sessionStorage.removeItem('registrationComplete');
     sessionStorage.removeItem('userEmail');
     
-    // Redirect to sign-in page with success message
+    // Sign in the user automatically using their credentials from step1Data
+    const result = await signIn('credentials', {
+      identifier: step1Data.username || step1Data.email,
+      password: step1Data.password,
+      redirect: false, // Don't redirect automatically
+    });
+    
+    if (result?.ok) {
+      // Successfully signed in, redirect to home
+      router.push("/home");
+    } else {
+      // Sign in failed, redirect to signin page
+      router.push("/signin?message=registration_complete_signin_required");
+    }
+  } catch (error) {
+    console.error("Auto sign-in failed:", error);
     router.push("/signin?message=registration_complete");
-  };
+  }
+};
 
   // Prevent step reset when session changes during registration
   const [isRegistering, setIsRegistering] = useState(false);

@@ -6,6 +6,17 @@ import { useState } from "react";
 import { Button } from "../ui/button";
 import Link from "next/link";
 
+interface ExploreCardProps {
+  name: string;
+  rating: number;
+  ratingCount: number;
+  level: number;
+  need: string;
+  offer: string;
+  deadline: string;
+  onInterestedClick?: () => void;
+}
+
 export default function ExploreCard({
   name,
   rating,
@@ -14,15 +25,8 @@ export default function ExploreCard({
   need,
   offer,
   deadline,
-}: {
-  name: string;
-  rating: number;
-  ratingCount: number;
-  level: number;
-  need: string;
-  offer: string;
-  deadline: string;
-}) {
+  onInterestedClick,
+}: ExploreCardProps) {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -127,15 +131,14 @@ export default function ExploreCard({
 
       {/* CTA Button */}
       <div className="mt-[0px] flex justify-center">
-        <Link href="/signin">
-          <Button
-            variant="default"
-            size="default"
-            className="px-[30px] py-[10px] text-white bg-[#0038FF] hover:bg-[#1a4dff] rounded-[15px] shadow-[0_0_15px_0_#284CCC] text-sm font-medium"
-          >
-            I'm interested
-          </Button>
-        </Link>
+        <Button
+          variant="default"
+          size="default"
+          className="px-[30px] py-[10px] text-white bg-[#0038FF] hover:bg-[#1a4dff] rounded-[15px] shadow-[0_0_15px_0_#284CCC] text-sm font-medium"
+          onClick={onInterestedClick}
+        >
+          I'm interested
+        </Button>
       </div>
     </div>
   );

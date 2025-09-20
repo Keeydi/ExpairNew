@@ -1,5 +1,5 @@
 import json
-from django.db.models import Q
+from datetime import date
 
 from rest_framework import status
 
@@ -11,12 +11,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
 from .models import GenSkill, UserInterest, User, VerificationStatus, UserCredential
-from .models import SpecSkill, UserSkill
+from .models import SpecSkill, UserSkill, TradeRequest, TradeInterest
 from .models import User 
 
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.contrib.auth.hashers import check_password
+from django.utils.timezone import localdate
 
 from .serializers import ProfileUpdateSerializer, UserCredentialSerializer
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
@@ -506,7 +508,7 @@ def login_user(request):
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "first_Name": user.first_name,
+            "first_name": user.first_name,
             "name": user.first_name,
             "profilePic": user_payload.get("profilePic"),
             "image": user_payload.get("profilePic"),
@@ -823,3 +825,255 @@ def complete_registration(request):
             "error": f"Registration failed: {str(e)}"
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_trade_request(request):
+    """
+    Create a new trade request with initial data (reqname and reqdeadline)
+    """
+    print("=== CREATE TRADE REQUEST DEBUG ===")
+    print(f"Request data: {request.data}")
+    print(f"User: {request.user.id}")
+    
+    reqname = request.data.get('reqname', '').strip()
+    reqdeadline = request.data.get('reqdeadline', '')
+    
+    if not reqname:
+        return Response({"error": "Service request name is required"}, status=400)
+        
+    if not reqdeadline:
+        return Response({"error": "Request deadline is required"}, status=400)
+    
+    try:        
+        trade_request = TradeRequest.objects.create(
+            requester=request.user,
+            reqname=reqname,
+            reqdeadline=reqdeadline,
+            # Set default reqtype for now
+            reqtype='SERVICE' 
+        )
+        
+        return Response({
+            "message": "Trade request created successfully",
+            "tradereq_id": trade_request.tradereq_id,
+            "reqname": trade_request.reqname,
+            "reqdeadline": trade_request.reqdeadline
+        }, status=201)
+        
+    except Exception as e:
+        print(f"Trade request creation error: {str(e)}")
+        return Response({
+            "error": f"Failed to create trade request: {str(e)}"
+        }, status=500)
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def explore_feed(request):
+    """
+    Returns a simple feed for Explore cards with proper skill matching logic.
+    - "Needs" = exact reqname that User B posted
+    - "Can Offer" = GenSkill that User A is interested in AND exists in User B's skills
+    """
+    viewer = request.user if getattr(request.user, "id", None) else None
+
+    # Load recent requests, exclude viewer's own requests
+    qs = (TradeRequest.objects
+          .select_related("requester", "specSkills")
+          .order_by("-tradereq_id"))
+    
+    if viewer:
+        qs = qs.exclude(requester=viewer)
+    
+    qs = qs[:50]
+
+    # Preload viewer's interests if authenticated
+    viewer_gen_interests = []
+    if viewer:
+        viewer_gen_interests = list(
+            UserInterest.objects.filter(user_id=viewer.id)
+            .values_list("genSkills_id_id", flat=True)
+        )
+
+    items_with_matches = []
+    items_without_matches = []
+    
+    for tr in qs:
+        u = tr.requester  # User B (the person who posted the request)
+        display_name = (f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}").strip() or u.username
+
+        # "Needs" = exact reqname that User B posted
+        needs = tr.reqname
+
+        # Get all GenSkills that User B has skills in
+        user_b_gen_skills_query = (
+            UserSkill.objects.filter(user_id=u.id)
+            .select_related("specSkills__genSkills_id")
+            .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
+        )
+        user_b_gen_skills = dict(user_b_gen_skills_query)  # {gen_skill_id: gen_skill_name}
+        
+        can_offer = ""
+        has_match = False
+        
+        # Try to find a matching skill first (viewer interested + User B has)
+        if viewer and viewer_gen_interests and user_b_gen_skills:
+            matching_gen_skills = set(viewer_gen_interests) & set(user_b_gen_skills.keys())
+            
+            if matching_gen_skills:
+                # Get the first matching GenSkill name
+                matching_gen_skill_id = list(matching_gen_skills)[0]
+                can_offer = user_b_gen_skills[matching_gen_skill_id]
+                has_match = True
+        
+        # If no match, show any random skill from User B
+        if not can_offer and user_b_gen_skills:
+            can_offer = list(user_b_gen_skills.values())[0]  # Just pick the first one
+        
+        item_data = {
+            "tradereq_id": tr.tradereq_id,  # Add trade request ID
+            "requester_id": u.id,  # Add requester user ID
+            "name": display_name,
+            "rating": float(u.avgStars or 0),
+            "ratingCount": int(u.ratingCount or 0),
+            "level": int(u.level or 0),
+            "need": needs,  # User B's exact reqname
+            "offer": can_offer,  # GenSkill that viewer is interested in AND User B has, or random User B skill
+            "deadline": tr.reqdeadline.isoformat() if tr.reqdeadline else "",
+        }
+        
+        # Separate into matched vs non-matched for sorting
+        if has_match:
+            items_with_matches.append(item_data)
+        else:
+            items_without_matches.append(item_data)
+    
+    # Combine: matches first, then non-matches
+    items = items_with_matches + items_without_matches
+
+    return Response({"items": items}, status=200)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def express_trade_interest(request):
+    """
+    Express interest in a trade request.
+    Creates a TradeInterest record - multiple users can express interest.
+    """
+    print("=== EXPRESS TRADE INTEREST DEBUG ===")
+    print(f"Request data: {request.data}")
+    print(f"User: {request.user.id}")
+    
+    # Get the trade request ID from the request
+    tradereq_id = request.data.get('tradereq_id')
+    
+    if not tradereq_id:
+        return Response({"error": "Trade request ID is required"}, status=400)
+    
+    try:
+        # Get the trade request
+        trade_request = TradeRequest.objects.select_related('requester').get(
+            tradereq_id=tradereq_id
+        )
+        
+        # Validate that the user isn't trying to respond to their own request
+        if trade_request.requester.id == request.user.id:
+            return Response({
+                "error": "You cannot express interest in your own trade request"
+            }, status=400)
+        
+        # Check if this user has already expressed interest
+        existing_interest = TradeInterest.objects.filter(
+            trade_request=trade_request,
+            interested_user=request.user
+        ).exists()
+        
+        if existing_interest:
+            return Response({
+                "error": "You have already expressed interest in this trade request"
+            }, status=400)
+        
+        # Create the interest record
+        trade_interest = TradeInterest.objects.create(
+            trade_request=trade_request,
+            interested_user=request.user,
+        )
+        
+        # Update trade request status to PENDING if it's the first interest (NULL -> PENDING)
+        if not trade_request.status:  # If status is NULL/empty
+            trade_request.status = TradeRequest.Status.PENDING
+            trade_request.save()
+        
+        # Get total interest count
+        interest_count = TradeInterest.objects.filter(trade_request=trade_request).count()
+        
+        print(f"Trade interest created successfully")
+        print(f"Requester: {trade_request.requester.username}")
+        print(f"Interested User: {request.user.username}")
+        print(f"Total interests: {interest_count}")
+        
+        return Response({
+            "message": "Interest expressed successfully",
+            "tradereq_id": trade_request.tradereq_id,
+            "requester": {
+                "id": trade_request.requester.id,
+                "name": f"{trade_request.requester.first_name} {trade_request.requester.last_name}".strip() or trade_request.requester.username,
+                "username": trade_request.requester.username
+            },
+            "interested_user": {
+                "id": request.user.id,
+                "name": f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
+                "username": request.user.username
+            },
+            "total_interests": interest_count,
+            "reqname": trade_request.reqname,
+            "created_at": trade_interest.created_at
+        }, status=201)
+        
+    except TradeRequest.DoesNotExist:
+        return Response({
+            "error": "Trade request not found"
+        }, status=404)
+        
+    except Exception as e:
+        print(f"Express interest error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "error": f"Failed to express interest: {str(e)}"
+        }, status=500)
+
+# Optional: Add a view to get all interests for a trade request
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_trade_interests(request, tradereq_id):
+    """
+    Get all users who expressed interest in a trade request
+    """
+    try:
+        trade_request = TradeRequest.objects.get(tradereq_id=tradereq_id)
+        interests = TradeInterest.objects.filter(trade_request=trade_request).select_related('interested_user')
+        
+        interests_data = []
+        for interest in interests:
+            user = interest.interested_user
+            interests_data.append({
+                "user_id": user.id,
+                "name": f"{user.first_name} {user.last_name}".strip() or user.username,
+                "username": user.username,
+                "level": user.level,
+                "rating": float(user.avgStars or 0),
+                "created_at": interest.created_at,
+            })
+        
+        return Response({
+            "trade_request": {
+                "tradereq_id": trade_request.tradereq_id,
+                "reqname": trade_request.reqname,
+                "requester": trade_request.requester.username
+            },
+            "interests": interests_data,
+            "total_count": len(interests_data)
+        }, status=200)
+        
+    except TradeRequest.DoesNotExist:
+        return Response({"error": "Trade request not found"}, status=404)

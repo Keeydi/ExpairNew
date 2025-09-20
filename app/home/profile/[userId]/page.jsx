@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+
 
 import Link from "next/link";
 import Image from "next/image";
@@ -76,7 +78,7 @@ const API_BASE = RAW.includes("/api/accounts")
 const inter = Inter({ subsets: ["latin"] });
 
 export default function ProfilePage() {
-
+  const router = useRouter();
   const { data: session, status} = useSession();
   console.log("Session data:", session);
   console.log("=== ADDED DEBUG ===");
@@ -161,11 +163,25 @@ export default function ProfilePage() {
     console.log("Session status:", status);
     console.log("Full session object:", JSON.stringify(session, null, 2));
 
+      const slugStr = String(slug).toLowerCase();
+      const myName =
+        String(
+          session?.username ||
+          session?.user?.username || // fallback if NextAuth keeps it under user
+          ""
+        ).toLowerCase();
+
     const isNumeric = /^\d+$/.test(String(slug));
     const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
 
-    if (!(slug === "me" || isNumeric || isUsername)) {
-      setError("Invalid profile URL.");       
+    if (!(slugStr === "me" || isNumeric || isUsername)) {
+      setError("Invalid profile URL.");
+      return;
+    }
+
+    // if I'm viewing my own username, rewrite to /me
+    if (status === "authenticated" && myName && slugStr !== "me" && slugStr === myName) {
+      router.replace("/home/profile/me");
       return;
     }
 
@@ -183,6 +199,8 @@ export default function ProfilePage() {
       } else {
         url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
       }
+
+      
 
       console.log("[profile] Making request to:", url);
 
