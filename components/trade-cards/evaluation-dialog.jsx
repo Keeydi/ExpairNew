@@ -38,6 +38,14 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
     timeCommitment: 50,
     skillLevel: 80,
   });
+
+  // Animated progress states
+  const [progress, setProgress] = useState({
+    tradeScore: 0,
+    taskComplexity: 0,
+    timeCommitment: 0,
+    skillLevel: 0,
+  });  
   
   // State for confirmation dialogs
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -56,6 +64,21 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
     }
   }, [tradeData]);
 
+
+  // Trigger animation after evaluation updates
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setProgress({
+        tradeScore: (evaluation.tradeScore / 10) * 100,
+        taskComplexity: evaluation.taskComplexity,
+        timeCommitment: evaluation.timeCommitment,
+        skillLevel: evaluation.skillLevel,
+      });
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [evaluation]);
+  
   // Handle close with proper event handling and state reset
   const handleClose = (e) => {
     if (e) {
@@ -250,10 +273,10 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
 
               <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
                 <div
-                  className="h-full rounded-[30px] transition-all duration-500 ease-out"
+                  className="h-full rounded-[30px] transition-all duration-700 ease-in-out"
                   style={{
-                    width: `calc(${evaluation.skillLevel}% - 4px)`,
-                    background: "linear-gradient(to right, #6DDFFF, #38D3FF)"
+                    width: `calc(${progress.skillLevel}% - 4px)`,
+                    background: "linear-gradient(to right, #6DDFFF, #38D3FF)",
                   }}
                 ></div>
               </div>

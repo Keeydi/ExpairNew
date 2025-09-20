@@ -114,6 +114,7 @@ export default function AddTradeDetailsPage() {
                   {showSkillTooltip && (
                     <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
                       <div className="text-sm text-white space-y-2">
+                        <div>Indicates the level of expertise required for a trade, helping users set clear expectations for skill and experience.</div>
                         <div><strong>Beginner</strong> – Just starting out and have basic knowledge of the skill.</div>
                         <div><strong>Intermediate</strong> – Comfortable with the skill and can perform it with some independence.</div>
                         <div><strong>Advanced</strong> – Highly skilled and able to perform complex tasks with expertise.</div>
@@ -158,6 +159,7 @@ export default function AddTradeDetailsPage() {
                   {showRequestTooltip && (
                     <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
                       <div className="text-sm text-white space-y-2">
+                        <div>Defines the format of the trade, whether it involves time-based services, one-time outputs, or ongoing projects.</div>
                         <div><strong>Service</strong> – An action done for someone else within a period of time (e.g., tutoring, house repairs, fitness training).</div>
                         <div><strong>Output</strong> – A one-time deliverable you create or provide (e.g., logo design, video edit, custom playlist)</div>
                         <div><strong>Project</strong> – A long-term recurring collaboration. (e.g., developing a website, co-writing a film, organizing an event)</div>
