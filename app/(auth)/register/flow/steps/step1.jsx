@@ -23,15 +23,15 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-  if (step1Data) {
-    setFirstName(step1Data.firstname || "");
-    setLastName(step1Data.lastname || "");
-    setEmail(step1Data.email || "");
-    setUsername(step1Data.username || "");
-    setPassword(step1Data.password || "");
-  }
-}, [step1Data]);
-  
+    if (step1Data) {
+      setFirstName(step1Data.firstname || "");
+      setLastName(step1Data.lastname || "");
+      setEmail(step1Data.email || "");
+      setUsername(step1Data.username || "");
+      setPassword(step1Data.password || "");
+    }
+  }, [step1Data]);
+
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },
     { label: "At least one uppercase letter", test: /[A-Z]/ },
@@ -39,11 +39,17 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
     { label: "Minimum 8 characters", test: /.{8,}/ },
   ];
 
-  const isEmailValid = (email) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const validateForm = () => {
-    if (!firstName || !lastName || !email || !username || !password || !repeatPassword) {
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !username ||
+      !password ||
+      !repeatPassword
+    ) {
       setErrorMessage("Please fill in all fields.");
       return false;
     }
@@ -58,7 +64,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
       return false;
     }
 
-    const allValid = passwordRules.every(rule => rule.test.test(password));
+    const allValid = passwordRules.every((rule) => rule.test.test(password));
     if (!allValid) {
       setErrorMessage("Password does not meet all requirements.");
       return false;
@@ -69,18 +75,18 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
   };
 
   const handleContinue = () => {
-  if (!validateForm()) return;
+    if (!validateForm()) return;
 
-  onDataSubmit?.({
-    firstName,
-    lastName,
-    email,
-    username,
-    password,
-  });
+    onDataSubmit?.({
+      firstName,
+      lastName,
+      email,
+      username,
+      password,
+    });
 
-  onNext?.();
-};
+    onNext?.();
+  };
 
   const isFormValid = () => {
     return (
@@ -92,7 +98,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
       repeatPassword &&
       isEmailValid(email) &&
       password === repeatPassword &&
-      passwordRules.every(rule => rule.test.test(password))
+      passwordRules.every((rule) => rule.test.test(password))
     );
   };
 
@@ -191,7 +197,9 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
                       ) : (
                         <X size={16} className="text-red-400" />
                       )}
-                      <span className={valid ? "text-green-400" : "text-red-400"}>
+                      <span
+                        className={valid ? "text-green-400" : "text-red-400"}
+                      >
                         {rule.label}
                       </span>
                     </div>
@@ -216,7 +224,11 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
                   onClick={() => setShowRepeatPassword(!showRepeatPassword)}
                   className="text-gray-400 hover:text-white"
                 >
-                  {showRepeatPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showRepeatPassword ? (
+                    <EyeOff size={20} />
+                  ) : (
+                    <Eye size={20} />
+                  )}
                 </button>
               </div>
             </div>
@@ -232,22 +244,22 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
 
         {/* Already have account */}
         <p className="underline text-center text-sm text-[16px] mt-[44px] mb-[100px]">
-        <a
-          href="/signin"
-          className="text-[#6DDFFF]"
-          onClick={async (e) => {
-            e.preventDefault(); // stop the immediate nav
-            try {
-              localStorage.removeItem("prefill_email");
-              localStorage.removeItem("prefill_name");
-              localStorage.removeItem("user_id");
-            } catch {}
-            await signOut({ callbackUrl: "/signin" });
-          }}
-        >
-          I have an account already.
-        </a>
-      </p>
+          <a
+            href="/signin"
+            className="text-[#6DDFFF]"
+            onClick={async (e) => {
+              e.preventDefault(); // stop the immediate nav
+              try {
+                localStorage.removeItem("prefill_email");
+                localStorage.removeItem("prefill_name");
+                localStorage.removeItem("user_id");
+              } catch {}
+              await signOut({ callbackUrl: "/signin" });
+            }}
+          >
+            I have an account already.
+          </a>
+        </p>
 
         {/* Continue Button */}
         <div className="flex justify-center mb-[47.5px]">
@@ -260,10 +272,14 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60">
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-[16px] text-white opacity-60 z-50">
           <span>1 of 6</span>
           <ChevronRight
-            className={`w-5 h-5 ${isFormValid() ? "cursor-pointer text-gray-300 hover:text-white" : "text-gray-500 cursor-not-allowed"}`}
+            className={`w-5 h-5 ${
+              isFormValid()
+                ? "cursor-pointer text-gray-300 hover:text-white"
+                : "text-gray-500 cursor-not-allowed"
+            }`}
             onClick={handleContinue}
           />
         </div>

@@ -5,9 +5,14 @@ from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
 from .models import VerificationStatus
 from .models import User, UserCredential
+import os
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.conf import settings
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
+    profilePic = serializers.ImageField(required=False, allow_null=True)
     userVerifyId = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
@@ -19,20 +24,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "is_verified",
             "verification_status",
         ]
-        read_only_fields = [
-            # users shouldn’t set these client-side
-            "is_verified",
-            "verification_status",
-        ]
-        extra_kwargs = {
-            "first_name": {"required": False, "allow_blank": True},
-            "last_name":  {"required": False, "allow_blank": True},
-            "bio":        {"required": False, "allow_blank": True},
-            "username":   {"required": False, "allow_blank": False},
-            "email":   {"required": False, "allow_blank": False},
-            "profilePic": {"required": False},
-            "userVerifyId": {"required": False},
-        }
+        read_only_fields = ["is_verified", "verification_status"]
 
     def validate_userVerifyId(self, f):
         if not f:
@@ -46,11 +38,17 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         return f
 
     def update(self, instance, validated_data):
-        new_file = validated_data.get("userVerifyId", None)
+        # --- handle profilePic manually ---
+        new_pic = validated_data.pop("profilePic", None)
+        if new_pic:
+            # build path: MEDIA_ROOT/profile_pics/<filename>
+            pic_path = os.path.join("profile_pics", new_pic.name)
+            saved_path = default_storage.save(pic_path, new_pic)
+            instance.profilePic = saved_path  # store string path in CharField
 
-        # Any new upload / re-upload → replace file & go PENDING
+        # --- handle userVerifyId like before ---
+        new_file = validated_data.get("userVerifyId", None)
         if new_file:
-            # optional: delete old file from storage to avoid orphans
             old = getattr(instance, "userVerifyId", None)
             if old:
                 try:
@@ -61,33 +59,14 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             instance.verification_status = VerificationStatus.PENDING
             instance.is_verified = False
 
-        # Optional dev/test reset
-        if validated_data.get("clear_userVerifyId", False):
-            if instance.userVerifyId:
-                try:
-                    instance.userVerifyId.delete(save=False)
-                except Exception:
-                    pass
-            instance.userVerifyId = None
-            instance.verification_status = VerificationStatus.UNVERIFIED
-            instance.is_verified = False
-
-        # If you expose an admin-only API, allow final state changes there.
-        status_in = validated_data.get("verification_status")
-        if status_in in {s.value for s in VerificationStatus}:
-            instance.verification_status = status_in
-            instance.is_verified = (status_in == VerificationStatus.VERIFIED)
-
-        # ✅ persist editable profile fields
-        for f in ("first_name", "last_name", "bio", "username", "email", "profilePic"):
+        # apply the rest of the fields
+        for f in ("first_name", "last_name", "bio", "username", "email"):
             if f in validated_data:
                 setattr(instance, f, validated_data[f])
 
-        # ✅ ALWAYS persist changes
         instance.save()
         return instance
 
-        
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

@@ -236,26 +236,16 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
             </div>
           </div>
 
-        {/* Continue Button */}
-        <div className="flex justify-center mb-[47.5px]">
-          <Button
-            className="cursor-pointer flex w-[180px] sm:w-[240px] h-[45px] sm:h-[50px] justify-center items-center px-[24px] sm:px-[38px] py-[10px] sm:py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-[14px] sm:text-[20px] font-normal transition rounded-[12px] sm:rounded-[15px]"
-            onClick={handleContinue}
-          >
-            Continue
-          </Button>
-        </div>
-
         {/* Skip */}
         <p
           onClick={onNext}
-          className="underline text-center font-[500] text-[16px] sm:text-[20px] mb-[25px] text-[#0038FF] cursor-pointer"
+          className="underline text-center font-[500] text-[16px] sm:text-[20px] mt-[75px] mb-[25px] text-[#0038FF] cursor-pointer"
         >
           Skip for now
         </p>
 
         {/* Pagination */}
-        <div className="flex justify-center items-center gap-2 text-[12px] sm:text-sm text-white opacity-60">
+        <div   className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={handlePrev}

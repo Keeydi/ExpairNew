@@ -21,7 +21,7 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
   const [suggestions, setSuggestions] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [isUserInteracted, setIsUserInteracted] = useState(false);  // Track user interaction
+  const [isUserInteracted, setIsUserInteracted] = useState(false); // Track user interaction
 
   // Auto locate user
   useEffect(() => {
@@ -37,8 +37,8 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
           // Keep default location if user denies permission
           if (!marker) {
             setMarker({
-                latitude: 14.5995,
-                longitude: 120.9842,
+              latitude: 14.5995,
+              longitude: 120.9842,
             });
           }
         }
@@ -48,16 +48,18 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
 
   // Form validation for Continue button
   const isFormValid = () => {
-    return searchQuery.trim() !== "";  // Ensure marker is selected and user interacted
+    return searchQuery.trim() !== ""; // Ensure marker is selected and user interacted
   };
 
   const handlePrev = () => {
-    onPrev(step2Data);  // Pass Step 2 data back to parent
+    onPrev(step2Data); // Pass Step 2 data back to parent
   };
 
   const handleContinue = () => {
     if (!marker) {
-      setErrorMessage("Please select or search for your location before continuing.");
+      setErrorMessage(
+        "Please select or search for your location before continuing."
+      );
       return;
     }
     setErrorMessage("");
@@ -65,13 +67,11 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
 
     // Save to parent
     onDataSubmit({
-      searchQuery,   // full address to store in DB
-      marker,        // optional
+      searchQuery, // full address to store in DB
+      marker, // optional
     });
     onNext();
   };
-
-
 
   // Fetch autocomplete suggestions
   const fetchSuggestions = async (query) => {
@@ -97,23 +97,22 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
 
   // Select suggestion
   const handleSelectSuggestion = (place) => {
-  console.log("Selected place:", place);  // Debugging
-  setSearchQuery(place.place_name);      // Set the location to the text field
-  const [longitude, latitude] = place.center;
-  setViewport({
-    latitude,
-    longitude,
-    zoom: 14,
-  });
-  setMarker({
-    latitude,
-    longitude,
-  });
-  setSuggestions([]);  // Clear suggestions
-  setIsUserInteracted(true);  // User interacted with the location
-  setErrorMessage("");  // Clear error if location is valid
-};
-
+    console.log("Selected place:", place); // Debugging
+    setSearchQuery(place.place_name); // Set the location to the text field
+    const [longitude, latitude] = place.center;
+    setViewport({
+      latitude,
+      longitude,
+      zoom: 14,
+    });
+    setMarker({
+      latitude,
+      longitude,
+    });
+    setSuggestions([]); // Clear suggestions
+    setIsUserInteracted(true); // User interacted with the location
+    setErrorMessage(""); // Clear error if location is valid
+  };
 
   // Manual search via Enter or icon
   const handleSearch = async () => {
@@ -140,7 +139,7 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
           zoom: 14,
         }));
         setMarker({ latitude, longitude });
-        setIsUserInteracted(true);  // Mark that the user interacted with the location
+        setIsUserInteracted(true); // Mark that the user interacted with the location
         setErrorMessage("");
       } else {
         setErrorMessage("Location not found. Please try again.");
@@ -150,29 +149,29 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
     }
   };
 
-const handleMarkerChange = async (newMarker) => {
-  console.log("New marker selected:", newMarker);  // Debugging
-  setMarker(newMarker);  // Update marker state
-  setViewport(prev => ({
-    ...prev,
-    latitude: newMarker.latitude,
-    longitude: newMarker.longitude
-  }));
+  const handleMarkerChange = async (newMarker) => {
+    console.log("New marker selected:", newMarker); // Debugging
+    setMarker(newMarker); // Update marker state
+    setViewport((prev) => ({
+      ...prev,
+      latitude: newMarker.latitude,
+      longitude: newMarker.longitude,
+    }));
 
-  try {
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newMarker.longitude},${newMarker.latitude}.json?access_token=${token}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newMarker.longitude},${newMarker.latitude}.json?access_token=${token}`;
+      const res = await fetch(url);
+      const data = await res.json();
 
-    if (data.features && data.features.length > 0) {
-      setSearchQuery(data.features[0].place_name);  // Update searchQuery with place name
-      setIsUserInteracted(true);  // User interacted with the map
+      if (data.features && data.features.length > 0) {
+        setSearchQuery(data.features[0].place_name); // Update searchQuery with place name
+        setIsUserInteracted(true); // User interacted with the map
+      }
+    } catch (error) {
+      console.error("Reverse geocoding failed:", error);
     }
-  } catch (error) {
-    console.error("Reverse geocoding failed:", error);
-  }
-};
+  };
 
   return (
     <div
@@ -235,7 +234,6 @@ const handleMarkerChange = async (newMarker) => {
               ))}
             </ul>
           )}
-
         </div>
 
         {/* Map */}
@@ -248,14 +246,23 @@ const handleMarkerChange = async (newMarker) => {
           />
         </div>
 
+        <p className="text-xs sm:text-sm text-white/60 mt-10 mb-2 max-w-[800px] mx-auto">
+          <span className="text-[18px] font-bold text-white/60">Why do we ask for your location?</span>
+          <br />
+          We use your location to calibrate our matching algorithm—users who are
+          closer to each other are matched more easily. Your exact location is{" "}
+          <span className="font-bold text-white/60">never displayed</span> on
+          your profile.
+        </p>
+
         {/* Error Message (fixed height) */}
         <div className="h-[10px] mt-4">
           {errorMessage && (
             <p className="text-red-500 text-sm">{errorMessage}</p>
           )}
-        </div>        
+        </div>
 
-        <p className="font-[500] text-[18px] sm:text-[20px] text-center mb-[20px] sm:mb-[25px] mt-[50px] sm:mt-[79px]">
+        <p className="font-[500] text-[18px] sm:text-[20px] text-center mb-[20px] sm:mb-[25px] mt-[50px] sm:mt-[15px]">
           Is this location correct?
         </p>
 
@@ -269,17 +276,22 @@ const handleMarkerChange = async (newMarker) => {
           </Button>
         </div>
 
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60">
+
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={handlePrev}
           />
           <span>2 of 6</span>
           <ChevronRight
-            className={`w-5 h-5 ${isFormValid() ? "cursor-pointer text-gray-300 hover:text-white" : "text-gray-500 cursor-not-allowed"}`}
+            className={`w-5 h-5 ${
+              isFormValid()
+                ? "cursor-pointer text-gray-300 hover:text-white"
+                : "text-gray-500 cursor-not-allowed"
+            }`}
             onClick={() => {
               if (isFormValid()) {
-                onNext();  // Proceed to the next step only if the form is valid
+                onNext(); // Proceed to the next step only if the form is valid
               }
             }}
           />

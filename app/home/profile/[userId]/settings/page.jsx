@@ -2,10 +2,12 @@
 
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Loader2, X, Pencil, Search, MapPin} from "lucide-react";
+import { ChevronLeft, Loader2, X, Pencil, Search, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Inter } from "next/font/google";
+import { useSession } from "next-auth/react";
+import { authFetch } from "./authFetch";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,7 +22,42 @@ const resolveAccountsBase = (raw) => {
   return root.includes("/api/accounts") ? root : `${root}/api/accounts`;
 };
 
+const backendUrl = "http://localhost:8000";
+
 export default function SettingsPage() {
+  const { data: session } = useSession();
+
+  useEffect(() => {
+    if (!session) return; // wait until session is ready
+
+    const run = async () => {
+      try {
+        console.log(
+          "[callsite] calling authFetch for",
+          url,
+          "session preview:",
+          !!session,
+          session
+            ? session.access
+              ? "has access"
+              : Object.keys(session)
+            : session
+        );
+        const res = await authFetch(
+          `${backendUrl}/api/accounts/me/`,
+          {},
+          session
+        );
+        const data = await res.json();
+        console.log("Me endpoint:", data);
+      } catch (err) {
+        console.error("[settings] load error", err);
+      }
+    };
+
+    run();
+  }, [session]);
+
   const [activeTab, setActiveTab] = useState("profile");
 
   // form state
@@ -64,30 +101,47 @@ export default function SettingsPage() {
   const [editLinks, setEditLinks] = useState(false);
 
   // derive initial user id
-const params = useParams();
-const pathname = usePathname();
-useEffect(() => {
-  let uid = null;
-  
-  // Get user identifier from URL params or pathname
-  if (params?.userId) {
-    uid = params.userId; // This could be username or numeric ID
-  } else if (pathname) {
-    // Extract username/ID from path like /profile/nehemmdizon/settings
-    const m = pathname.match(/\/profile\/([^\/]+)/i);
-    if (m) {
-      uid = m[1]; // This captures "nehemmdizon" or any user identifier
+  const params = useParams();
+  const pathname = usePathname();
+
+  if (status === "loading" || !session) {
+    return (
+      <div
+        className={`${inter.className} min-h-screen bg-[#050015] text-white py-10 px-4 flex items-center justify-center`}
+      >
+        {status === "loading" ? (
+          <p>Loading...</p>
+        ) : (
+          <p>You must log in first.</p>
+        )}
+      </div>
+    );
+  }
+
+  useEffect(() => {
+    console.log("🔍 Session object in Settings page:", session); // 👈 add here
+
+    let uid = null;
+
+    // Get user identifier from URL params or pathname
+    if (params?.userId) {
+      uid = params.userId; // This could be username or numeric ID
+    } else if (pathname) {
+      // Extract username/ID from path like /profile/nehemmdizon/settings
+      const m = pathname.match(/\/profile\/([^\/]+)/i);
+      if (m) {
+        uid = m[1]; // This captures "nehemmdizon" or any user identifier
+      }
     }
-  }
-  
-  // Fallback to URL search params if needed
-  if (!uid && typeof window !== "undefined") {
-    const sp = new URLSearchParams(window.location.search);
-    uid = sp.get("uid");
-  }
-  
-  setUserId(uid);
-}, [params, pathname]);
+
+    // Fallback to URL search params if needed
+    if (!uid && typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      uid = sp.get("uid");
+    }
+
+    setUserId(uid);
+  }, [params, pathname]);
 
   // load current profile
   useEffect(() => {
@@ -120,32 +174,46 @@ useEffect(() => {
       }
 
       try {
-      const API_BASE = resolveAccountsBase(backendUrl);
-      
-      let url;
-      if (userId != null) {
-        // Check if userId is numeric (user ID) or string (username)
-        if (/^\d+$/.test(String(userId))) {
-          // It's a numeric ID - use the existing endpoint
-          url = `${joinUrl(API_BASE, "users", String(userId))}/`;
+        const API_BASE = resolveAccountsBase(backendUrl);
+
+        let url;
+        if (userId != null) {
+          // Check if userId is numeric (user ID) or string (username)
+          if (/^\d+$/.test(String(userId))) {
+            // It's a numeric ID - use the existing endpoint
+            url = `${joinUrl(API_BASE, "users", String(userId))}/`;
+          } else {
+            // It's a username - use the username endpoint
+            url = `${joinUrl(API_BASE, "users", "username", String(userId))}/`;
+          }
         } else {
-          // It's a username - use the username endpoint
-          url = `${joinUrl(API_BASE, "users", "username", String(userId))}/`;
+          // Fallback to /me endpoint for authenticated user
+          url = `${joinUrl(API_BASE, "me")}/`;
         }
-      } else {
-        // Fallback to /me endpoint for authenticated user
-        url = `${joinUrl(API_BASE, "me")}/`;
-      }
-      
-      const res = await fetch(url, { credentials: "include" });
-      
+
+        console.log(
+          "[callsite] calling authFetch for",
+          url,
+          "session preview:",
+          !!session,
+          session
+            ? session.access
+              ? "has access"
+              : Object.keys(session)
+            : session
+        );
+
+        const res = await authFetch(`${backendUrl}/api/accounts/me/`, {
+          credentials: "include",
+        });
+
         if (!res.ok) {
           const t = await res.text();
           throw new Error(`Load failed (${res.status}): ${t.slice(0, 160)}`);
         }
         const data = await res.json();
         setUserId(Number(data.user_id || userId || 0) || null);
-        
+
         const usernameValue = String(data.username || "");
         const emailValue = String(data.emailAdd || data.email || "");
         const bioValue = String(data.bio || "");
@@ -285,7 +353,7 @@ useEffect(() => {
     try {
       const API_BASE = resolveAccountsBase(backendUrl);
       const fd = new FormData();
-      if (file) fd.append("profilePic", file);
+      if (file) fd.append("profilePic", file.name); // send only the filename, not the file blob
       if (norm(username)) fd.append("username", norm(username));
       if (norm(emailAdd)) fd.append("emailAdd", norm(emailAdd));
       if (norm(bio)) fd.append("bio", norm(bio));
@@ -316,7 +384,18 @@ useEffect(() => {
           ? `${joinUrl(API_BASE, "users", String(userId))}/`
           : `${joinUrl(API_BASE, "me")}/`;
 
-      const res = await fetch(targetUrl, {
+      console.log(
+        "[callsite] calling authFetch for",
+        url,
+        "session preview:",
+        !!session,
+        session
+          ? session.access
+            ? "has access"
+            : Object.keys(session)
+          : session
+      );
+      const res = await authFetch(targetUrl, {
         method: "PATCH",
         credentials: "include",
         body: fd,
@@ -429,7 +508,18 @@ useEffect(() => {
         query
       )}.json?autocomplete=true&limit=5&access_token=${token}`;
 
-      const res = await fetch(url);
+      console.log(
+        "[callsite] calling authFetch for",
+        url,
+        "session preview:",
+        !!session,
+        session
+          ? session.access
+            ? "has access"
+            : Object.keys(session)
+          : session
+      );
+      const res = await authFetch(url);
       const data = await res.json();
       if (data.features) {
         setSuggestions(data.features);
@@ -452,7 +542,18 @@ useEffect(() => {
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         location
       )}.json?limit=1&access_token=${token}`;
-      const res = await fetch(url);
+      console.log(
+        "[callsite] calling authFetch for",
+        url,
+        "session preview:",
+        !!session,
+        session
+          ? session.access
+            ? "has access"
+            : Object.keys(session)
+          : session
+      );
+      const res = await authFetch(`${backendUrl}/api/accounts/me/`);
       const data = await res.json();
       if (data.features && data.features.length > 0) {
         setLocation(data.features[0].place_name);

@@ -24,8 +24,10 @@ from .serializers import UserSerializer
 from .serializers import GenSkillSerializer, UserInterestBulkSerializer
 
 
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
 @api_view(["GET", "PATCH"])
-@permission_classes([IsAuthenticated]) 
+@permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def me(request):
     print("=== DJANGO ME VIEW DEBUG ===")
@@ -60,8 +62,20 @@ def me(request):
     if request.method == "GET":
         return Response(_public_user_payload(target, request), status=200)
 
+    # ---- PATCH logic starts here ----
     data = request.data.copy()
     data.pop("user_id", None)  # not a serializer field; only used to resolve target
+
+    # ✅ Ignore string "profilePic" unless it's an actual file in request.FILES
+    if "profilePic" in data and not request.FILES.get("profilePic"):
+        print("Ignoring profilePic field since no file was uploaded")
+        data.pop("profilePic")
+
+    # ✅ Ignore userVerifyId unless it's a real file
+    if "userVerifyId" in data and not request.FILES.get("userVerifyId"):
+        print("Ignoring userVerifyId field since no file was uploaded")
+        data.pop("userVerifyId")
+
     serializer = ProfileUpdateSerializer(instance=target, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
     
@@ -162,20 +176,99 @@ def _public_user_payload(user, request=None):
 
     return payload
 
-@api_view(["GET"])
-@permission_classes([AllowAny])
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])  # require login for PATCH
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def user_detail(request, user_id: int):
     user = get_object_or_404(User, pk=user_id)
-    return Response(_public_user_payload(user, request), status=200)
 
-@api_view(["GET"])
-@permission_classes([AllowAny])
+    if request.method == "GET":
+        return Response(_public_user_payload(user, request), status=200)
+
+    elif request.method == "PATCH":
+        # Only allow self-edit unless admin logic is added later
+        if request.user.id != user.id:
+            return Response({"detail": "You cannot edit another user's profile."}, status=403)
+
+        data = request.data.copy()
+        data.pop("user_id", None)  # prevent spoofing
+
+        # ✅ Ignore profilePic unless it's a real file
+        if "profilePic" in data and not request.FILES.get("profilePic"):
+            print("Ignoring profilePic field since no file was uploaded")
+            data.pop("profilePic")
+
+        # ✅ Ignore userVerifyId unless it's a real file
+        if "userVerifyId" in data and not request.FILES.get("userVerifyId"):
+            print("Ignoring userVerifyId field since no file was uploaded")
+            data.pop("userVerifyId")
+
+        # Handle password safely
+        if "password" in data:
+            user.set_password(data["password"])
+            data.pop("password")
+
+        # Handle links (store as JSON string)
+        if "links" in data:
+            try:
+                links_array = json.loads(data["links"])
+                data["links"] = json.dumps(links_array)
+            except Exception:
+                return Response({"error": "Invalid format for links"}, status=400)
+
+        serializer = ProfileUpdateSerializer(instance=user, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save()
+
+        return Response(_public_user_payload(updated, request), status=200)
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])  # require login for PATCH
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def user_detail_by_username(request, username: str):
     try:
-        user = User.objects.get(username__iexact=username)  
+        user = User.objects.get(username__iexact=username)
     except User.DoesNotExist:
         return Response({"detail": "Not found."}, status=404)
-    return Response(_public_user_payload(user, request), status=200)
+
+    if request.method == "GET":
+        return Response(_public_user_payload(user, request), status=200)
+
+    elif request.method == "PATCH":
+        # Only allow self-edit unless you want admins to override this
+        if request.user.id != user.id:
+            return Response({"detail": "You cannot edit another user's profile."}, status=403)
+
+        data = request.data.copy()
+        data.pop("user_id", None)  # prevent spoofing
+
+        # ✅ Ignore profilePic unless it's a real file
+        if "profilePic" in data and not request.FILES.get("profilePic"):
+            print("Ignoring profilePic field since no file was uploaded")
+            data.pop("profilePic")
+
+        # ✅ Ignore userVerifyId unless it's a real file
+        if "userVerifyId" in data and not request.FILES.get("userVerifyId"):
+            print("Ignoring userVerifyId field since no file was uploaded")
+            data.pop("userVerifyId")
+
+        # Handle password safely
+        if "password" in data:
+            user.set_password(data["password"])
+            data.pop("password")
+
+        # Handle links (store as JSON string)
+        if "links" in data:
+            try:
+                links_array = json.loads(data["links"])
+                data["links"] = json.dumps(links_array)
+            except Exception:
+                return Response({"error": "Invalid format for links"}, status=400)
+
+        serializer = ProfileUpdateSerializer(instance=user, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save()
+
+        return Response(_public_user_payload(updated, request), status=200)
 
 
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])

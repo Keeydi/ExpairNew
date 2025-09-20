@@ -220,9 +220,9 @@ export default function PendingTradesPage() {
         </div>
       </div>
 
-      {/* Trades You Initiated Section */}
+      {/* Trades You're Interested In Section */}
       <div className="mb-10">
-        <h2 className="text-[20px] font-medium mb-5 text-[#FB9696]">Trades you initiated</h2>
+        <h2 className="text-[20px] font-medium mb-5 text-[#FB9696]">Trades you're interested in</h2>
         <div className="flex flex-wrap gap-[25px]">
           {initiatedTrades.map((trade, index) => (
             <div
@@ -292,9 +292,9 @@ export default function PendingTradesPage() {
         </div>
       </div>
 
-      {/* Trades for Finalization Section */}
+      {/* Trades for Confirmation Section */}
       <div className="mb-10">
-        <h2 className="text-[20px] font-medium mb-5 text-[#6DDFFF]">Trades for finalization</h2>
+        <h2 className="text-[20px] font-medium mb-5 text-[#6DDFFF]">Trades for confirmation</h2>
         <div className="flex flex-wrap gap-[25px]">
           {finalizationTrades.map((trade, index) => (
             <div

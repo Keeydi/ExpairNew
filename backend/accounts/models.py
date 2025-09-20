@@ -56,7 +56,7 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
     userVerifyId = models.CharField(max_length=255, null=True, blank=True, db_column='userverifyid') 
     is_verified = models.BooleanField(default=False, db_column='is_verified')
-    links = models.TextField(null=True, blank=True, db_column='links')
+    links = models.JSONField(default=list, blank=True, null=True)
     verification_status = models.CharField(
         max_length=20,  # Increased to handle enum values
         choices=VerificationStatus.choices,
