@@ -119,7 +119,7 @@ export default function ActiveTradesPage() {
         {activeTrades.map((trade) => (
           <div
             key={trade.id}
-            className={`${expandedCardId === trade.id ? 'w-[900px]' : 'w-[621px]'} rounded-[20px] border-[3px] border-[#284CCC]/80 transition-all duration-300 hover:scale-[1.01] overflow-hidden`}
+            className={`${expandedCardId === trade.id ? 'w-[945px]' : 'w-[945px]'} rounded-[20px] border-[3px] border-[#284CCC]/80 transition-all duration-300 hover:scale-[1.01] overflow-hidden`}
             style={{
               background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
               boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)"
@@ -227,7 +227,7 @@ export default function ActiveTradesPage() {
                     <Icon icon="lucide:chevron-up" className="w-[30px] h-[30px] text-white"/>
                   </button>
                   <button
-                    className="min-w-[130px] h-[40px] flex justify-center items-center rounded-[15px] border-2 border-[#7E59F8] bg-[#120A2A] shadow-[0_0_15px_#D78DE5] cursor-pointer"
+                    className="min-w-[170px] h-[40px] flex justify-center items-center rounded-[15px] border-2 border-[#7E59F8] bg-[#120A2A] shadow-[0_0_15px_#D78DE5] cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedTrade(trade);
@@ -236,7 +236,7 @@ export default function ActiveTradesPage() {
                   >
                     <div className="flex items-center gap-[10px]">
                       <StarIconSmall />
-                      <span className="text-[16px] font-normal text-white">Evaluation</span>
+                      <span className="text-[16px] font-normal text-white">Review Details</span>
                     </div>
                   </button>
                 </div>
@@ -315,7 +315,7 @@ export default function ActiveTradesPage() {
                   {/* Action Buttons */}
                   <div className="flex flex-wrap items-center gap-[20px] justify-end">
                     <button 
-                      className="w-[136px] h-[40px] flex justify-center items-center rounded-[15px] cursor-pointer transition-all"
+                      className="w-[150px] h-[40px] flex justify-center items-center rounded-[15px] cursor-pointer transition-all"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedTrade(trade);
@@ -328,11 +328,11 @@ export default function ActiveTradesPage() {
                     >
                       <div className="flex items-center gap-[10px]">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8.07483 0.5C8.58409 4.35956 11.6404 7.41579 15.5 7.92506V8.07483C11.6404 8.58409 8.58409 11.6404 8.07483 15.5H7.92517C7.41591 11.6404 4.35956 8.58409 0.5 8.07483V7.92506C4.35956 7.41579 7.41591 4.35956 7.92517 0.5H8.07483Z" fill="#D9D9D9"/></svg>
-                        <span className="text-[16px] text-white">Submit</span>
+                        <span className="text-[16px] text-white">Submit Proof</span>
                       </div>
                     </button>
                     <button 
-                      className="min-w-[220px] max-w-[280px] h-[40px] flex justify-center items-center rounded-[15px] cursor-pointer transition-all"
+                      className="min-w-[160px] max-w-[280px] h-[40px] flex justify-center items-center rounded-[15px] cursor-pointer transition-all"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedTrade(trade);
@@ -345,7 +345,7 @@ export default function ActiveTradesPage() {
                     >
                       <div className="flex items-center gap-[10px] px-3">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 21C4.45 21 3.97933 20.8043 3.588 20.413C3.19667 20.0217 3.00067 19.5507 3 19V5C3 4.45 3.196 3.97933 3.588 3.588C3.98 3.19667 4.45067 3.00067 5 3H19C19.55 3 20.021 3.196 20.413 3.588C20.805 3.98 21.0007 4.45067 21 5V19C21 19.55 20.8043 20.021 20.413 20.413C20.0217 20.805 19.5507 21.0007 19 21H5ZM6 17H18L14.25 12L11.25 16L9 13L6 17Z" fill="white"/></svg>
-                        <span className="text-[16px] text-white truncate">View {trade.firstname}'s proof</span>
+                        <span className="text-[16px] text-white truncate">{trade.firstname}'s proof</span>
                       </div>
                     </button>
                     <div className="h-[70px] flex items-center">

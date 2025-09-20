@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { X } from "lucide-react";
+import { X, Info } from "lucide-react";
 import Link from "next/link";
 import TradeRequestInfo from "../../../../components/trade-cards/trade-request-info";
 
@@ -22,6 +22,8 @@ export default function AddTradeDetailsPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [tradeData, setTradeData] = useState({ requested: "", exchange: "" });
+  const [showSkillTooltip, setShowSkillTooltip] = useState(false);
+  const [showRequestTooltip, setShowRequestTooltip] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -99,7 +101,28 @@ export default function AddTradeDetailsPage() {
             
             {/* Skill proficiency */}
             <div className="flex flex-col gap-[15px]">
-              <label className="text-[16px]">Select the skill proficiency required *</label>
+              <div className="flex items-center gap-2">
+                <label className="text-[16px]">Select the skill proficiency required *</label>
+                <div className="relative">
+                  <button
+                    onMouseEnter={() => setShowSkillTooltip(true)}
+                    onMouseLeave={() => setShowSkillTooltip(false)}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                  {showSkillTooltip && (
+                    <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
+                      <div className="text-sm text-white space-y-2">
+                        <div><strong>Beginner</strong> – Just starting out and have basic knowledge of the skill.</div>
+                        <div><strong>Intermediate</strong> – Comfortable with the skill and can perform it with some independence.</div>
+                        <div><strong>Advanced</strong> – Highly skilled and able to perform complex tasks with expertise.</div>
+                        <div><strong>Certified</strong> – Verified by uploading at least one official credential related to the skill.</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="relative">
                 <select 
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
@@ -122,7 +145,27 @@ export default function AddTradeDetailsPage() {
             
             {/* Request type */}
             <div className="flex flex-col gap-[15px]">
-              <label className="text-[16px]">Select the type of request *</label>
+              <div className="flex items-center gap-2">
+                <label className="text-[16px]">Select the type of request *</label>
+                <div className="relative">
+                  <button
+                    onMouseEnter={() => setShowRequestTooltip(true)}
+                    onMouseLeave={() => setShowRequestTooltip(false)}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                  {showRequestTooltip && (
+                    <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
+                      <div className="text-sm text-white space-y-2">
+                        <div><strong>Service</strong> – An action done for someone else within a period of time (e.g., tutoring, house repairs, fitness training).</div>
+                        <div><strong>Output</strong> – A one-time deliverable you create or provide (e.g., logo design, video edit, custom playlist)</div>
+                        <div><strong>Project</strong> – A long-term recurring collaboration. (e.g., developing a website, co-writing a film, organizing an event)</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="relative">
                 <select 
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
@@ -167,26 +210,6 @@ export default function AddTradeDetailsPage() {
               </div>
             </div>
             
-            {/* Request Frequency */}
-            <div className="flex flex-col gap-[15px]">
-              <label className="text-[16px]">Request Frequency</label>
-              <div className="relative">
-                <select 
-                  className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
-                  value={frequency}
-                  onChange={(e) => setFrequency(e.target.value)}
-                >
-                  <option value="" disabled hidden className="text-[#413663]">One-time</option>
-                  <option value="one-time">One-time</option>
-                  <option value="recurring">Recurring (Repeats every...)</option>
-                </select>
-                <Icon 
-                  icon="mingcute:down-fill" 
-                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]" 
-                />
-              </div>
-            </div>
-            
             {/* Deadline */}
             <div className="flex flex-col gap-[15px]">
               <label className="text-[16px]">Set a deadline</label>
@@ -223,11 +246,12 @@ export default function AddTradeDetailsPage() {
                   placeholder="Example: I'm seeking a beginner-to-novice graphic designer to create visually compelling and unique designs that capture my brand's identity. It would be preferred to have experience with logo design, branding, and digital graphics. This is for my personal project and I need help with visual direction."
                   value={details}
                   onChange={handleDetailsChange}
+                  maxLength={250}
                   className="w-full h-[250px] min-h-[250px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[25px] text-[16px] text-white outline-none placeholder:text-[#413663] resize-none"
                   required
                 />
                 <div className="flex justify-end">
-                  <span className="text-[16px] text-[#413663]">{charCount} characters left</span>
+                  <span className="text-[16px] text-[#413663]">{charCount}/250</span>
                 </div>
               </div>
             </div>

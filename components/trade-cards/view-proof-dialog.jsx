@@ -50,7 +50,7 @@ export default function ViewProofDialog({ isOpen, onClose, trade }) {
           <div className="flex flex-col items-center gap-[40px] w-[470px]">
             {/* Title */}
             <h2 className="text-[25px] font-bold text-white text-center">
-              View {trade?.firstname}&apos;s proof
+              {trade?.firstname}&apos;s proof
             </h2>
 
             {/* Proof Image */}

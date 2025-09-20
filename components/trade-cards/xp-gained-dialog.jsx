@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Icon } from "@iconify/react";
 
-export default function XpGainedDialog({ isOpen, onClose, xpGained = 250, level = 15, currentXp = 650, maxXp = 700, rank = "Rising Star" }) {
+export default function XpGainedDialog({ isOpen, onClose, xpGained = 250, level = 15, currentXp = 650, maxXp = 700 }) {
   if (!isOpen) return null;
 
   // Calculate progress percentage for the progress bar
@@ -52,25 +52,6 @@ export default function XpGainedDialog({ isOpen, onClose, xpGained = 250, level 
               </div>
               
               <span className="text-[16px] text-white">{currentXp}/{maxXp}</span>
-            </div>
-            
-            {/* Rank */}
-            <div className="flex items-center justify-center gap-[15px]">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="19" viewBox="0 0 20 19" fill="none">
-                <path d="M10 1C10.2782 1 10.5735 1.03693 10.8525 1.12305C11.0869 1.19538 11.365 1.31969 11.6035 1.53613L11.7031 1.63477L18.1309 8.58594C18.3315 8.80294 18.5 9.11602 18.5 9.5C18.5 9.88398 18.3315 10.1971 18.1309 10.4141L11.7031 17.3652C11.4455 17.6437 11.1204 17.7943 10.8525 17.877C10.5735 17.9631 10.2782 18 10 18C9.7218 18 9.42652 17.9631 9.14746 17.877C8.87963 17.7943 8.55453 17.6437 8.29688 17.3652L1.86914 10.4141C1.66848 10.1971 1.5 9.88398 1.5 9.5C1.5 9.11602 1.66848 8.80294 1.86914 8.58594L8.29688 1.63477L8.39648 1.53613C8.63496 1.31969 8.91313 1.19538 9.14746 1.12305C9.42652 1.03693 9.7218 1 10 1Z" fill="url(#paint0_radial_1277_6289)" stroke="url(#paint1_linear_1277_6289)" strokeWidth="2"/>
-                <defs>
-                  <radialGradient id="paint0_radial_1277_6289" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(10 9.49999) scale(7.61407 8.23415)">
-                    <stop offset="0.4" stopColor="#933BFF"/>
-                    <stop offset="1" stopColor="#34188D"/>
-                  </radialGradient>
-                  <linearGradient id="paint1_linear_1277_6289" x1="10" y1="1.26584" x2="10" y2="17.7341" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="white"/>
-                    <stop offset="0.5" stopColor="#999999"/>
-                    <stop offset="1" stopColor="white"/>
-                  </linearGradient>
-                </defs>
-              </svg>
-              <span className="text-[16px] text-white">{rank}</span>
             </div>
           </div>
         </div>
