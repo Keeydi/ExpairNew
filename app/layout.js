@@ -3,6 +3,7 @@ import Head from 'next/head';
 import ClientLayout from '../components/client-layout';
 import { SessionProvider } from 'next-auth/react';
 import { Providers } from "./providers";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 export const metadata = {
   title: 'Expair',

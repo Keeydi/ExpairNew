@@ -108,13 +108,7 @@ def _public_user_payload(user, request=None):
         verify_url = request.build_absolute_uri(media_path) if request else media_path
 
     # Handle links field
-    links_array = []
-    if getattr(user, "links", None):
-        try:
-            links_array = json.loads(user.links)
-        except (json.JSONDecodeError, TypeError):
-            # If it's a string, convert to array
-            links_array = [user.links] if user.links else []
+    links_array = user.links or []
 
     # Enum status (safe even if column not present yet)
     status = getattr(user, "verification_status", None)
@@ -141,6 +135,7 @@ def _public_user_payload(user, request=None):
         "last_name": user.last_name,
         "email": user.email, 
         "bio": user.bio,
+        "location": getattr(user, "location", ""),
         "links": links_array,
         
         # Stats
@@ -167,11 +162,11 @@ def _public_user_payload(user, request=None):
         "is_verified": bool(getattr(user, "is_verified", False)),
         "userVerifyId": verify_url,
     }
-
     print(f"[DEBUG] _public_user_payload returning for user {user.id}:") 
     print(f"  - first_name: '{payload['first_name']}'") 
     print(f"  - last_name: '{payload['last_name']}'")   
-
+    print(f"  - location: '{payload['location']}'")
+    print(f"  - links: {links_array}")
     print(f"  - profilePic: {payload['profilePic'] is not None}")
     print(f"  - tot_XpPts: {payload['tot_XpPts']}")
     print(f"  - verification_status: {payload['verification_status']}")
@@ -209,14 +204,6 @@ def user_detail(request, user_id: int):
         if "password" in data:
             user.set_password(data["password"])
             data.pop("password")
-
-        # Handle links (store as JSON string)
-        if "links" in data:
-            try:
-                links_array = json.loads(data["links"])
-                data["links"] = json.dumps(links_array)
-            except Exception:
-                return Response({"error": "Invalid format for links"}, status=400)
 
         serializer = ProfileUpdateSerializer(instance=user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -261,10 +248,12 @@ def user_detail_by_username(request, username: str):
         # Handle links (store as JSON string)
         if "links" in data:
             try:
-                links_array = json.loads(data["links"])
-                data["links"] = json.dumps(links_array)
+                if isinstance(data["links"], str):
+                    data["links"] = json.loads(data["links"])
+                # now guaranteed to be a Python list
             except Exception:
                 return Response({"error": "Invalid format for links"}, status=400)
+
 
         serializer = ProfileUpdateSerializer(instance=user, data=data, partial=True)
         serializer.is_valid(raise_exception=True)

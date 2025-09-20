@@ -9,18 +9,21 @@ import os
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.conf import settings
-
+import json
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     profilePic = serializers.ImageField(required=False, allow_null=True)
     userVerifyId = serializers.FileField(required=False, allow_null=True)
+    links = serializers.JSONField(required=False)
 
     class Meta:
         model = User
         fields = [
             "first_name", "last_name", "bio",
             "username", "email", "profilePic",
-            "userVerifyId",
+            "userVerifyId", 
+            "location",
+            "links",              
             "is_verified",
             "verification_status",
         ]
@@ -30,24 +33,61 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         if not f:
             return f
         ct = (getattr(f, "content_type", "") or "").lower()
-        # accept any image/* or a pdf
         if not (ct.startswith("image/") or ct == "application/pdf"):
             raise serializers.ValidationError("Only image files or PDF are allowed.")
         if getattr(f, "size", 0) > 15 * 1024 * 1024:
             raise serializers.ValidationError("File too large (max 15MB).")
         return f
+    
+    def validate_links(self, value):
+        import re
+        from urllib.parse import urlparse
+        import json
+
+        if not value:
+            return []
+
+        # If frontend sent JSON string, parse it
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except Exception:
+                value = [value]
+
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Links must be a list")
+
+        cleaned = []
+        for link in value:
+            if not link:
+                continue
+            s = str(link).strip()
+
+            # Add https:// if missing
+            if not re.match(r"^https?://", s, re.I):
+                s = "https://" + s
+
+            parsed = urlparse(s)
+            if not parsed.netloc:
+                raise serializers.ValidationError(f"Invalid link: {link}")
+            cleaned.append(s)
+
+        return cleaned
 
     def update(self, instance, validated_data):
+        if "links" in validated_data:
+            print("[DEBUG] validated_data['links'] =", validated_data["links"])
+        
+        print("[DEBUG update] validated_data keys:", validated_data.keys())
         # --- handle profilePic manually ---
         new_pic = validated_data.pop("profilePic", None)
         if new_pic:
-            # build path: MEDIA_ROOT/profile_pics/<filename>
             pic_path = os.path.join("profile_pics", new_pic.name)
             saved_path = default_storage.save(pic_path, new_pic)
-            instance.profilePic = saved_path  # store string path in CharField
+            instance.profilePic = saved_path
 
         # --- handle userVerifyId like before ---
-        new_file = validated_data.get("userVerifyId", None)
+        new_file = validated_data.pop("userVerifyId", None)
         if new_file:
             old = getattr(instance, "userVerifyId", None)
             if old:
@@ -59,8 +99,13 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             instance.verification_status = VerificationStatus.PENDING
             instance.is_verified = False
 
+        # --- handle links ---
+        if "links" in validated_data:
+            links = validated_data["links"] or []
+            instance.links = links  # ✅ store as JSON string in DB
+
         # apply the rest of the fields
-        for f in ("first_name", "last_name", "bio", "username", "email"):
+        for f in ("first_name", "last_name", "bio", "username", "email", "location"):
             if f in validated_data:
                 setattr(instance, f, validated_data[f])
 

@@ -20,13 +20,12 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { NotificationPortal } from "./notifications/notification-portal";
-
-
 import { Inter } from "next/font/google";
+import ProfileAvatar from "@/components/avatar";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Navbar() {
-
   const { data: session } = useSession();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,24 +35,22 @@ export default function Navbar() {
   const bellRef = useRef(null);
 
   const DEFAULT_AVATAR = "/defaultavatar.png";
-const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
+  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
 
-// Build dynamic profile links
-const profileSlug =
-  session?.user?.username ??
-  (session?.user?.id ? String(session.user.id) : "me");
-const profileHref = `/home/profile/${profileSlug}`;
-const settingsHref = `/home/profile/${profileSlug}/settings`;
+  // Build dynamic profile links
+  const profileSlug =
+    session?.user?.username ??
+    (session?.user?.id ? String(session.user.id) : "me");
+  const profileHref = `/home/profile/${profileSlug}`;
+  const settingsHref = `/home/profile/${profileSlug}/settings`;
 
-useEffect(() => {
-  // Check if the profilePic is available in the session, else fallback to Google image
-  const sessionAvatar = session?.user?.profilePic || session?.user?.image;
-  setAvatarUrl(sessionAvatar || DEFAULT_AVATAR);
-}, [session?.user?.profilePic, session?.user?.image]);
+  useEffect(() => {
+    // Check if the profilePic is available in the session, else fallback to Google image
+    const sessionAvatar = session?.user?.profilePic || session?.user?.image;
+    setAvatarUrl(sessionAvatar || DEFAULT_AVATAR);
+  }, [session?.user?.profilePic, session?.user?.image]);
 
-
-
-/*useEffect(() => {
+  /*useEffect(() => {
   console.log('Full session object:', session);
   console.log('Session user:', session?.user);
   console.log('ProfilePic from session:', session?.user?.profilePic);
@@ -95,22 +92,32 @@ useEffect(() => {
   };
 
   const handleLogout = async () => {
-  try {
-    // If you keep refresh in the NextAuth session (you do):
-    const refresh = session?.refresh;
-    if (refresh) {
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"}/logout/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json",
-          ...(session?.access ? { Authorization: `Bearer ${session.access}` } : {}) },
-        body: JSON.stringify({ refresh }),
-        credentials: "include",
-      });
+    try {
+      // If you keep refresh in the NextAuth session (you do):
+      const refresh = session?.refresh;
+      if (refresh) {
+        await fetch(
+          `${
+            process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000"
+          }/logout/`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              ...(session?.access
+                ? { Authorization: `Bearer ${session.access}` }
+                : {}),
+            },
+            body: JSON.stringify({ refresh }),
+            credentials: "include",
+          }
+        );
+      }
+    } finally {
+      await signOut({ redirect: true, callbackUrl: "/signin" });
     }
-  } finally {
-    await signOut({ redirect: true, callbackUrl: "/signin" });
-  }
-};
+  };
 
   return (
     <header
@@ -193,14 +200,7 @@ useEffect(() => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-full border border-white focus:outline-none focus:ring-2 focus:ring-[#6DDFFF]">
-                <Image
-                  src={avatarUrl || DEFAULT_AVATAR}
-                  alt="User Avatar"
-                  width={25}
-                  height={25}
-                  className="rounded-full"
-                  onError={() => setAvatarUrl(DEFAULT_AVATAR)}
-                />
+                <ProfileAvatar src={avatarUrl} size={25} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -221,14 +221,15 @@ useEffect(() => {
                 </DropdownMenuItem>
               </Link>
 
-                <DropdownMenuItem
-                  className="flex items-center gap-2 text-red-400 data-[highlighted]:bg-transparent data-[highlighted]:text-red-300 cursor-pointer"
-                  onClick={() => {handleLogout();}}
-                >
-                  <LogOut className="w-4 h-4" />
-                  Log out
-                </DropdownMenuItem>
-              
+              <DropdownMenuItem
+                className="flex items-center gap-2 text-red-400 data-[highlighted]:bg-transparent data-[highlighted]:text-red-300 cursor-pointer"
+                onClick={() => {
+                  handleLogout();
+                }}
+              >
+                <LogOut className="w-4 h-4" />
+                Log out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
