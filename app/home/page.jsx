@@ -581,12 +581,12 @@ export default function HomePage() {
                     </button>
                     {openMenuIndex === index && (
                       <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                        <button onClick={() => handleNotInterested(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
-                          <Icon icon="mdi:eye-off-outline" className="text-white text-base" /> Not Interested
-                        </button>
                         <button onClick={() => handleReport(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
                           <Icon icon="mdi:alert-circle-outline" className="text-white text-base" /> Report
                         </button>
+                        <button onClick={() => handleNotInterested(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
+                          <Icon icon="mdi:eye-off-outline" className="text-white text-base" /> Not Interested
+                        </button>                        
                       </div>
                     )}
                   </div>

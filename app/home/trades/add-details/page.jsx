@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { X, Info } from "lucide-react";
 import Link from "next/link";
 import TradeRequestInfo from "../../../../components/trade-cards/trade-request-info";
+import WarningDialog from "../../../../components/trade-cards/warning-dialog";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,6 +21,7 @@ export default function AddTradeDetailsPage() {
   const [deadline, setDeadline] = useState("");
   const [charCount, setCharCount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [tradeData, setTradeData] = useState({ requested: "", exchange: "" });
   const [showSkillTooltip, setShowSkillTooltip] = useState(false);
@@ -52,6 +54,11 @@ export default function AddTradeDetailsPage() {
   
   const handleConfirm = () => {
     setShowConfirmModal(false);
+    setShowWarningModal(true);
+  };
+
+  const handleWarningConfirm = () => {
+    setShowWarningModal(false);
     setShowSuccessModal(true);
   };
 
@@ -311,6 +318,13 @@ export default function AddTradeDetailsPage() {
           </div>
         </div>
       )}
+      
+      {/* Warning Modal */}
+      <WarningDialog 
+        isOpen={showWarningModal}
+        onClose={() => setShowWarningModal(false)}
+        onConfirm={handleWarningConfirm}
+      />
       
       {/* Success Modal */}
       {showSuccessModal && (

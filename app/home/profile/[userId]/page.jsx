@@ -15,6 +15,7 @@ import {
   Heart,
   Flag,
 } from "lucide-react";
+import AnimatedLevelBar from "../../../components/ui/animated-level-bar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -1258,11 +1259,16 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Image
-                src="/assets/lvlbar.png"
-                alt="Level bar"
+              <AnimatedLevelBar
+                level={user.level}
+                currentXp={580} // Example: 80% progress to next level
+                maxXp={700}
                 width={220}
                 height={20}
+                showLevel={false} // We'll show level separately to match existing design
+                showXpNumbers={false}
+                animationDelay={500} // Delay so it animates after page load
+                gradient="default"
               />
               <span className="text-[16px]">LVL {user.level}</span>
             </div>

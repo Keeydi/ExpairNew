@@ -9,6 +9,7 @@ import { Toaster } from "../ui/toaster";
 import Link from "next/link";
 import EvaluationDialog from "../trade-cards/evaluation-dialog";
 import { Star } from "lucide-react";
+import Tooltip from "../ui/tooltip";
 
 export default function MessageConversation({ conversation, onSendMessage, onConversationViewed }) {
   const [newMessage, setNewMessage] = useState("");
@@ -210,42 +211,44 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
                 </button>
               </Link>
               
-              <button
-                onClick={() => {
-                  setSelectedTrade({
-                    requestTitle: conversation.requests.requested,
-                    offerTitle: conversation.requests.exchange,
-                    taskComplexity: 60,
-                    timeCommitment: 50,
-                    skillLevel: 80,
-                    feedback: `${conversation.name}'s trade for ${conversation.requests.requested} in exchange for ${conversation.requests.exchange} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.`
-                  });
-                  setShowEvaluationDialog(true);
-                }}
-                className="relative w-[120px] h-[30px] rounded-[15px] p-[2px] cursor-pointer group"
-                style={{
-                  background: "linear-gradient(90deg, #7E59F8 0%, #FFF 50%, #7E59F8 100%)"
-                }}
-              >
-                {/* Inner dark-blue background */}
-                <div className="w-full h-full rounded-[13px] flex justify-center items-center bg-[#120A2A] group-hover:bg-[#1A0F3E] transition-colors">
-                  <svg
-                    width="17"
-                    height="17"
-                    viewBox="0 0 17 17"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4"
-                  >
-                    <path d="M8.49991 16.5L9.95148 8.5L8.49991 0.5L7.04834 8.5L8.49991 16.5Z" fill="#FFFFFF"/>
-                    <path d="M2.03425 3.56167L8.31776 9.75624L10.1393 7.21373L2.03425 3.56167Z" fill="#FFFFFF"/>
-                    <path d="M14.9618 13.4129L8.67834 7.21837L6.85676 9.76088L14.9618 13.4129Z" fill="#FFFFFF"/>
-                    <path d="M14.9657 3.56167L8.68224 9.75624L6.86067 7.21373L14.9657 3.56167Z" fill="#FFFFFF"/>
-                    <path d="M2.03816 13.4129L8.32166 7.21837L10.1432 9.76088L2.03816 13.4129Z" fill="#FFFFFF"/>
-                  </svg>
-                  <span className="text-[13px] text-white ml-1">Evaluate</span>
-                </div>
-              </button>
+              <Tooltip content="Expair's tailored AI will evaluate your trade using task difficulty, time, and skills. Make sure to add all details before you can run the evaluation." position="left">
+                <button
+                  onClick={() => {
+                    setSelectedTrade({
+                      requestTitle: conversation.requests.requested,
+                      offerTitle: conversation.requests.exchange,
+                      taskComplexity: 60,
+                      timeCommitment: 50,
+                      skillLevel: 80,
+                      feedback: `${conversation.name}'s trade for ${conversation.requests.requested} in exchange for ${conversation.requests.exchange} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.`
+                    });
+                    setShowEvaluationDialog(true);
+                  }}
+                  className="relative w-[120px] h-[30px] rounded-[15px] p-[2px] cursor-pointer group"
+                  style={{
+                    background: "linear-gradient(90deg, #7E59F8 0%, #FFF 50%, #7E59F8 100%)"
+                  }}
+                >
+                  {/* Inner dark-blue background */}
+                  <div className="w-full h-full rounded-[13px] flex justify-center items-center bg-[#120A2A] group-hover:bg-[#1A0F3E] transition-colors">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 17 17"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-4 h-4"
+                    >
+                      <path d="M8.49991 16.5L9.95148 8.5L8.49991 0.5L7.04834 8.5L8.49991 16.5Z" fill="#FFFFFF"/>
+                      <path d="M2.03425 3.56167L8.31776 9.75624L10.1393 7.21373L2.03425 3.56167Z" fill="#FFFFFF"/>
+                      <path d="M14.9618 13.4129L8.67834 7.21837L6.85676 9.76088L14.9618 13.4129Z" fill="#FFFFFF"/>
+                      <path d="M14.9657 3.56167L8.68224 9.75624L6.86067 7.21373L14.9657 3.56167Z" fill="#FFFFFF"/>
+                      <path d="M2.03816 13.4129L8.32166 7.21837L10.1432 9.76088L2.03816 13.4129Z" fill="#FFFFFF"/>
+                    </svg>
+                    <span className="text-[13px] text-white ml-1">Evaluate</span>
+                  </div>
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>

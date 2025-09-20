@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { useState } from "react";
 import { Button } from "../ui/button";
 import Link from "next/link";
+import AnimatedLevelBar from "../ui/animated-level-bar";
 
 export default function ExploreCard({
   name,
@@ -61,15 +62,30 @@ export default function ExploreCard({
                 <span className="text-white/70">({ratingCount})</span>
               </div>
 
-              {/* Level */}
-              <div className="flex gap-1 items-center">
-                <Image
-                  src="/assets/lvlrank_icon.png"
-                  alt="Level"
-                  width={12}
-                  height={12}
+              {/* Level with Progress Bar */}
+              <div className="flex flex-col gap-1">
+                <div className="flex gap-1 items-center">
+                  <Image
+                    src="/assets/lvlrank_icon.png"
+                    alt="Level"
+                    width={12}
+                    height={12}
+                  />
+                  <span className="text-white/80">LVL {level}</span>
+                </div>
+                <AnimatedLevelBar
+                  level={level}
+                  currentXp={Math.floor(Math.random() * 80) + 20} // Random progress between 20-100%
+                  maxXp={100}
+                  width={80}
+                  height={8}
+                  showLevel={false}
+                  showXpNumbers={false}
+                  animationDelay={200}
+                  animationDuration={800}
+                  gradient="purple"
+                  className="ml-[13px]" // Align with the level text
                 />
-                <span className="text-white/80">LVL {level}</span>
               </div>
             </div>
           </div>
