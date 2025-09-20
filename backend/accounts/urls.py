@@ -22,7 +22,6 @@ urlpatterns = [
     path('express-interest/', views.express_trade_interest, name='express_trade_interest'),
     path('posted-trades/', views.get_posted_trades, name='get_posted_trades'),
 
-
     path('me/', views.me, name='me'),
     
     # 👇 expose BOTH variants
@@ -34,7 +33,6 @@ urlpatterns = [
     path('users/<int:user_id>/skills/', views.user_skills),
     path('users/<int:user_id>/credentials/', views.user_credentials),
 
-    
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
