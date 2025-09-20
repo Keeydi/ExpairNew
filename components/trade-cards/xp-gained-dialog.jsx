@@ -1,13 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
 
 export default function XpGainedDialog({ isOpen, onClose, xpGained = 250, level = 15, currentXp = 650, maxXp = 700 }) {
-  if (!isOpen) return null;
+  const [animatedWidth, setAnimatedWidth] = useState(0);
 
   // Calculate progress percentage for the progress bar
   const progressPercentage = (currentXp / maxXp) * 100;
+
+  useEffect(() => {
+    if (isOpen) {
+      // Delay needed to trigger transition
+      setTimeout(() => setAnimatedWidth(progressPercentage), 50);
+    } else {
+      setAnimatedWidth(0);
+    }
+  }, [isOpen, progressPercentage]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -43,9 +54,9 @@ export default function XpGainedDialog({ isOpen, onClose, xpGained = 250, level 
               {/* Progress Bar */}
               <div className="relative w-[300px] h-[20px] bg-white rounded-[32px] shadow-[0px_5px_19px_rgba(0,0,0,0.15)]">
                 <div 
-                  className="absolute h-[16px] top-[2px] left-[2px] rounded-[100px]"
+                  className="absolute h-[16px] top-[2px] left-[2px] rounded-[100px] transition-all duration-700 ease-out"
                   style={{
-                    width: `${progressPercentage}%`,
+                    width: `${animatedWidth}%`,
                     background: "linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)"
                   }}
                 ></div>

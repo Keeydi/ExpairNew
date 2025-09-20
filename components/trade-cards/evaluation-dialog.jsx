@@ -187,7 +187,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
           <div className="flex flex-col items-center gap-[15px] w-[300px] h-[83px]">
             <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
               <div
-                className="h-full rounded-[30px] z-[2]"
+                className="h-full rounded-[30px] z-[2] transition-all duration-500 ease-out"
                 style={{
                   width: `calc(${(evaluation.tradeScore / 10) * 100}% - 4px)`,
                   background: "linear-gradient(to right, #FB9696, #D78DE5, #7E59F8, #284CCC, #6DDFFF)"
@@ -216,7 +216,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
 
               <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
                 <div
-                  className="h-full rounded-[30px]"
+                  className="h-full rounded-[30px] transition-all duration-500 ease-out"
                   style={{
                     width: `calc(${evaluation.taskComplexity}% - 4px)`, // bawas para sa padding
                     background: "linear-gradient(to right, #FB9696, #FA6666)"
@@ -233,7 +233,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
 
               <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
                 <div
-                  className="h-full rounded-[30px]"
+                  className="h-full rounded-[30px] transition-all duration-500 ease-out"
                   style={{
                     width: `calc(${evaluation.timeCommitment}% - 4px)`,
                     background: "linear-gradient(to right, #D78DE5, #C865DC)"
@@ -250,7 +250,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
 
               <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
                 <div
-                  className="h-full rounded-[30px]"
+                  className="h-full rounded-[30px] transition-all duration-500 ease-out"
                   style={{
                     width: `calc(${evaluation.skillLevel}% - 4px)`,
                     background: "linear-gradient(to right, #6DDFFF, #38D3FF)"
