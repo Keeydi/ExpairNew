@@ -46,35 +46,41 @@ export default function RequestPage() {
   const handleSubmit = async () => {
     if (!validate()) return;
     
-    if (!session) {
+    if (!session || !session.access) {
+      console.log('No session or access token found');
       router.push('/auth/signin');
       return;
     }
 
+    console.log('Making request with token:', session.access ? 'Token exists' : 'No token');
     setIsLoading(true);
     
     try {
       const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/trade-requests/`,
-    {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access || session?.accessToken}`,
-        },
-        body: JSON.stringify({
-          reqname: serviceRequest,
-          reqdeadline: date
-        })
-      });
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access}`, // Fixed auth header
+          },
+          body: JSON.stringify({
+            reqname: serviceRequest,
+            reqdeadline: date
+          })
+        }
+      );
+      
+      console.log('Response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
         console.log('Trade request created:', data);
-        // Redirect to next step or home
-        router.push("/home");
+        // Redirect to pending trades page to see the created request
+        router.push("/home/trades/pending");
       } else {
         const errorData = await response.json();
+        console.error('Error response:', errorData);
         setErrors(prev => ({ 
           ...prev, 
           serviceRequest: errorData.error || "Failed to create request" 
@@ -120,6 +126,7 @@ export default function RequestPage() {
               Create a new request
             </p>
           </div>
+          
           
           {/* Service input field */}
           <div className="flex flex-col items-center gap-[15px] w-full mb-[40px]">

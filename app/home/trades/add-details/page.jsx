@@ -14,7 +14,6 @@ export default function AddTradeDetailsPage() {
   const [deliveryMode, setDeliveryMode] = useState("");
   const [skillLevel, setSkillLevel] = useState("");
   const [requestType, setRequestType] = useState("");
-  const [frequency, setFrequency] = useState("");
   const [details, setDetails] = useState("");
   const [photo, setPhoto] = useState(null);
   const [deadline, setDeadline] = useState("");
@@ -207,26 +206,6 @@ export default function AddTradeDetailsPage() {
                     className="text-white w-[24px] h-[24px]" 
                   />
                 </label>
-              </div>
-            </div>
-            
-            {/* Request Frequency */}
-            <div className="flex flex-col gap-[15px]">
-              <label className="text-[16px]">Request Frequency</label>
-              <div className="relative">
-                <select 
-                  className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
-                  value={frequency}
-                  onChange={(e) => setFrequency(e.target.value)}
-                >
-                  <option value="" disabled hidden className="text-[#413663]">One-time</option>
-                  <option value="one-time">One-time</option>
-                  <option value="recurring">Recurring (Repeats every...)</option>
-                </select>
-                <Icon 
-                  icon="mingcute:down-fill" 
-                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]" 
-                />
               </div>
             </div>
             

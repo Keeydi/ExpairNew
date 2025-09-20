@@ -226,24 +226,51 @@ export default function HomePage() {
   }, [session]);
 
   // Load Explore feed from backend
-  useEffect(() => {
-    (async () => {
-      try {
-        const headers = { "Content-Type": "application/json" };
-        const token = session?.access || session?.accessToken;
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const resp = await fetch(`${BACKEND_URL}/explore/feed/`, { headers });
-        if (!resp.ok) {
-          setExploreErr(`Failed to load feed (HTTP ${resp.status})`);
-          return;
-        }
-        const data = await resp.json();
-        setExploreItems(Array.isArray(data.items) ? data.items : []);
-      } catch (e) {
-        setExploreErr(e?.message || "Network error");
+useEffect(() => {
+  (async () => {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      const token = session?.access || session?.accessToken;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const resp = await fetch(`${BACKEND_URL}/explore/feed/`, { headers });
+      if (!resp.ok) {
+        setExploreErr(`Failed to load feed (HTTP ${resp.status})`);
+        return;
       }
-    })();
-  }, [session]);
+      const data = await resp.json();
+      
+      // 🔍 DEBUG: Check for duplicates in raw data
+      console.log("Raw API response:", data.items);
+      console.log("Total items:", data.items?.length);
+      
+      const tradereqIds = data.items?.map(item => item.tradereq_id) || [];
+      const uniqueIds = [...new Set(tradereqIds)];
+      console.log("Unique tradereq_ids:", uniqueIds.length);
+      console.log("Total tradereq_ids:", tradereqIds.length);
+      
+      if (uniqueIds.length !== tradereqIds.length) {
+        console.error("🚨 DUPLICATE tradereq_ids found in API response!");
+        const duplicates = tradereqIds.filter((id, index) => tradereqIds.indexOf(id) !== index);
+        console.error("Duplicate IDs:", duplicates);
+      }
+      
+      // Check for duplicate names
+      const names = data.items?.map(item => item.name) || [];
+      const duplicateNames = names.filter((name, index) => names.indexOf(name) !== index);
+      if (duplicateNames.length > 0) {
+        console.log("Users with multiple requests:", [...new Set(duplicateNames)]);
+      }
+      
+      const uniqueItems = Array.from(
+        new Map(data.items.map(item => [item.tradereq_id, item])).values()
+      );
+
+      setExploreItems(uniqueItems);
+    } catch (e) {
+      setExploreErr(e?.message || "Network error");
+    }
+  })();
+}, [session]);
 
   const fmtUntil = (iso) => {
     if (!iso) return "";
@@ -563,16 +590,16 @@ export default function HomePage() {
           ) : (
             filteredAndSortedItems.map((item, i) => (
               <ExploreCard
-                key={`explore-${item.id || item.name || i}`}
-                name={item.name}
-                rating={item.rating}
-                ratingCount={item.ratingCount}
-                level={item.level}
-                need={item.need}
-                offer={item.offer}
-                deadline={item.deadline ? `until ${fmtUntil(item.deadline)}` : ""}
-                onInterestedClick={() => handleInterestedClick(item)}
-              />
+              key={`explore-${item.tradereq_id || i}`}  
+              name={item.name}
+              rating={item.rating}
+              ratingCount={item.ratingCount}
+              level={item.level}
+              need={item.need}
+              offer={item.offer}
+              deadline={item.deadline ? `until ${fmtUntil(item.deadline)}` : ""}
+              onInterestedClick={() => handleInterestedClick(item)}
+            />
             ))
           )}
         </div>

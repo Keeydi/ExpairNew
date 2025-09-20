@@ -886,6 +886,16 @@ def explore_feed(request):
     
     qs = qs[:50]
 
+    # 🔍 DEBUG: Check for duplicates in database query
+    tradereq_ids = list(qs.values_list('tradereq_id', flat=True))
+    print(f"DEBUG: Total trade requests from DB: {len(tradereq_ids)}")
+    print(f"DEBUG: Unique trade request IDs: {len(set(tradereq_ids))}")
+    
+    if len(tradereq_ids) != len(set(tradereq_ids)):
+        print("🚨 CRITICAL: Duplicate tradereq_ids in database query!")
+        duplicates = [id for id in tradereq_ids if tradereq_ids.count(id) > 1]
+        print(f"Duplicate IDs: {set(duplicates)}")
+
     # Preload viewer's interests if authenticated
     viewer_gen_interests = []
     if viewer:
@@ -949,8 +959,28 @@ def explore_feed(request):
     
     # Combine: matches first, then non-matches
     items = items_with_matches + items_without_matches
+    
+    final_tradereq_ids = [item.get('tradereq_id') for item in items]
+    print(f"DEBUG: Final items count: {len(final_tradereq_ids)}")
+    print(f"DEBUG: Unique final items: {len(set(final_tradereq_ids))}")
+    
+    if len(final_tradereq_ids) != len(set(final_tradereq_ids)):
+        print("🚨 CRITICAL: Duplicate items in final response!")
+    
+    def unique_by_tradereq(items):
+        seen = set()
+        unique = []
+        for item in items:
+            if item["tradereq_id"] not in seen:
+                seen.add(item["tradereq_id"])
+                unique.append(item)
+        return unique
+
+    items = unique_by_tradereq(items_with_matches) + unique_by_tradereq(items_without_matches)
 
     return Response({"items": items}, status=200)
+
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1077,3 +1107,53 @@ def get_trade_interests(request, tradereq_id):
         
     except TradeRequest.DoesNotExist:
         return Response({"error": "Trade request not found"}, status=404)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_posted_trades(request):
+    """
+    Get all trades posted by the authenticated user with interested users.
+    These are trades where the user is the requester.
+    """
+    user = request.user
+    
+    # Get trades where user is the requester
+    posted_trades = TradeRequest.objects.filter(
+        requester=user
+    ).prefetch_related(
+        'interests__interested_user'  # Prefetch interested users
+    ).order_by('-tradereq_id')
+    
+    trades_data = []
+    
+    for trade in posted_trades:
+        # Get all interested users for this trade
+        interested_users = []
+        for interest in trade.interests.all():
+            interested_user = interest.interested_user
+            interested_users.append({
+                "id": interested_user.id,
+                "name": f"{interested_user.first_name} {interested_user.last_name}".strip() or interested_user.username,
+                "username": interested_user.username,
+                "level": interested_user.level,
+                "rating": float(interested_user.avgStars or 0),
+                "rating_count": interested_user.ratingCount,
+                "profilePic": f"/media/{interested_user.profilePic}" if interested_user.profilePic else None,
+                "created_at": interest.created_at.isoformat()
+            })
+        
+        trades_data.append({
+            "tradereq_id": trade.tradereq_id,
+            "reqname": trade.reqname,
+            "reqbio": trade.reqbio,
+            "deadline": trade.reqdeadline.isoformat() if trade.reqdeadline else "",
+            "status": trade.status,
+            "interested_users": interested_users,
+            "interest_count": len(interested_users),
+            "created_at": trade.created_at if hasattr(trade, 'created_at') else None
+        })
+    
+    return Response({
+        "posted_trades": trades_data,
+        "count": len(trades_data)
+    }, status=200)
