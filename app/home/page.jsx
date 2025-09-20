@@ -72,11 +72,37 @@ export default function HomePage() {
   };
 
   // Handle confirmation dialog actions
-  const handleConfirmInterest = () => {
-    setShowConfirmDialog(false);
-    setShowSuccessDialog(true);
-    console.log(`Sent trade invitation to ${selectedPartner?.name}`);
-  };
+  const handleConfirmInterest = async () => {
+  setShowConfirmDialog(false);
+  
+  try {
+    const headers = { "Content-Type": "application/json" };
+    const token = session?.access || session?.accessToken;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    
+    const response = await fetch(`${BACKEND_URL}/express-interest/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        tradereq_id: selectedPartner?.tradereq_id,
+        requester_name: selectedPartner?.name
+      }),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Interest expressed successfully:", data);
+      setShowSuccessDialog(true);
+    } else {
+      const errorData = await response.json();
+      console.error("Failed to express interest:", errorData.error);
+      // Show error message to user
+    }
+  } catch (error) {
+    console.error("Network error:", error);
+    // Show error message to user
+  }
+};
 
   const handleCancelInterest = () => {
     setShowConfirmDialog(false);

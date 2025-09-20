@@ -154,37 +154,52 @@ class UserCredential(models.Model):
 class TradeRequest(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"           # just created, waiting for a responder
-        ACCEPTED = "ACCEPTED", "Accepted"       # responder matched, trade active
+        ACTIVE = "ACTIVE", "Active"       # responder matched, trade active
         COMPLETED = "COMPLETED", "Completed"    # finished successfully
         REJECTED = "REJECTED", "Rejected"    # requester/responder backed out
 
-    SKILL_PROFICIENCY_CHOICES = [
-        ('BEGINNER', 'Beginner'),
-        ('INTERMEDIATE', 'Intermediate'),
-        ('ADVANCED', 'Advanced'),
-        ('CERTIFIED', 'Certified'),
-    ]
-    
-    MODE_DELIVERY_CHOICES = [
-        ('ONLINE', 'Online'),
-        ('ONSITE', 'Onsite'),
-        ('HYBRID', 'Hybrid'),
-    ]
-    
-    REQUEST_TYPE_CHOICES = [
-        ('SERVICE', 'Service'),
-        ('OUTPUT', 'Output'),
-        ('PROJECT', 'Project'),
-    ]
+    class SkillProficiency(models.TextChoices):
+        BEGINNER = "BEGINNER", "Beginner"
+        INTERMEDIATE = "INTERMEDIATE", "Intermediate"
+        ADVANCED = "ADVANCED", "Advanced"
+        CERTIFIED = "CERTIFIED", "Certified"
+
+    class ModeDelivery(models.TextChoices):
+        ONLINE = "ONLINE", "Online"
+        ONSITE = "ONSITE", "Onsite"
+        HYBRID = "HYBRID", "Hybrid"
+
+    class RequestType(models.TextChoices):
+        SERVICE = "SERVICE", "Service"
+        OUTPUT = "OUTPUT", "Output"
+        PROJECT = "PROJECT", "Project"
 
     tradereq_id = models.AutoField(primary_key=True, db_column='tradereq_id')
     requester = models.ForeignKey('User', db_column='requester_id', on_delete=models.CASCADE, related_name='trade_requests_made')
     responder = models.ForeignKey('User', db_column='responder_id', on_delete=models.CASCADE, null=True, blank=True, related_name='trade_requests_received')
     specSkills = models.ForeignKey('SpecSkill', db_column='specskills_id', on_delete=models.RESTRICT, null=True, blank=True)
     reqname = models.CharField(max_length=100, db_column='reqname')
-    skillprof = models.CharField(max_length=13, choices=SKILL_PROFICIENCY_CHOICES, db_column='skillprof', null=True, blank=True)
-    modedel = models.CharField(max_length=25, choices=MODE_DELIVERY_CHOICES, db_column='modedel', null=True, blank=True)
-    reqtype = models.CharField(max_length=10, choices=REQUEST_TYPE_CHOICES, db_column='reqtype', null=True, blank=True)
+    skillprof = models.CharField(
+        max_length=13,
+        choices=SkillProficiency.choices,
+        db_column='skillprof',
+        null=True,
+        blank=True
+    )
+    modedel = models.CharField(
+        max_length=25,
+        choices=ModeDelivery.choices,
+        db_column='modedel',
+        null=True,
+        blank=True
+    )
+    reqtype = models.CharField(
+        max_length=10,
+        choices=RequestType.choices,
+        db_column='reqtype',
+        null=True,
+        blank=True
+    )
     contextpic = models.ImageField(
         upload_to='requestcontext_pics/',
         null=True,
@@ -195,8 +210,9 @@ class TradeRequest(models.Model):
     status = models.CharField(
         max_length=15,
         choices=Status.choices,
-        default=Status.PENDING,
         db_column="status",
+        null=True,
+        blank=True
     )
 
     class Meta:
@@ -205,3 +221,18 @@ class TradeRequest(models.Model):
 
     def __str__(self):
         return f"{self.reqname} - {self.requester.username}"
+    
+class TradeInterest(models.Model):
+    trade_interests_id = models.AutoField(primary_key=True, db_column='trade_interests_id')
+    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, related_name='interests', db_column='tradereq_id')
+    interested_user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='trade_interests', db_column='interested_user_id')
+    created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
+    
+    class Meta:
+        db_table = 'trade_interests_tbl'
+        unique_together = ['trade_request', 'interested_user']  # Maps to your unique_trade_user_interest constraint
+        ordering = ['-created_at']
+        managed = True
+    
+    def __str__(self):
+        return f"{self.interested_user.username} interested in {self.trade_request.reqname}"
