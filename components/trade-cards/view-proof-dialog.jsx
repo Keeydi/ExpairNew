@@ -50,6 +50,7 @@ export default function ViewProofDialog({ isOpen, onClose, trade }) {
           <div className="flex flex-col items-center gap-[40px] w-[470px]">
             {/* Title */}
             <h2 className="text-[25px] font-bold text-white text-center">
+
               {trade?.firstname}&apos;s proof
             </h2>
 
@@ -67,7 +68,7 @@ export default function ViewProofDialog({ isOpen, onClose, trade }) {
             {/* Question and Disclaimer */}
             <div className="flex flex-col items-center gap-[20px] w-full">
               <p className="text-[16px] text-white text-center">
-                Is {trade?.firstname}&apos;s output or service satisfactory?
+                Is {trade?.name}&apos;s output or service satisfactory?
               </p>
               
               <p className="text-[13px] text-white/40 text-center max-w-[445px]">
@@ -121,7 +122,7 @@ export default function ViewProofDialog({ isOpen, onClose, trade }) {
             </button>
 
             <div className="flex flex-col items-center gap-[30px] w-[470px]">
-              <h2 className="text-[25px] font-semibold text-white text-center">
+              <h2 className="text-[25px] font-bold text-white text-center">
                 Are you sure you want to approve their output?
               </h2>
 

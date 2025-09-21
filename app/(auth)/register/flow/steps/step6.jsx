@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "../../../../../components/ui/button";
-import { ChevronLeft, ChevronDown, X } from "lucide-react";
+import { ChevronLeft, ChevronDown, X } from "lucide-react"; 
 import Image from "next/image";
 import { Inter } from "next/font/google";
+import { signIn } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// All possible skill categories with their subcategories
 const allCategories = [
-  { id: 1, name: "Technical & IT", subcategories: ["Web Development", "Software Development", "IT Support", "Network Administration", "Cybersecurity"] },
-  { id: 2, name: "Creative & Design", subcategories: ["Graphic Design", "Photography", "Video Editing", "Illustration", "Animation"] },
+  { id: 1, name: "Creative & Design", subcategories: ["Graphic Design", "Photography", "Video Editing", "Illustration", "Animation"] },
+  { id: 2, name: "Technical & IT", subcategories: ["Web Development", "Software Development", "IT Support", "Network Administration", "Cybersecurity"] },
   { id: 3, name: "Business & Management", subcategories: ["Project Management", "Business Consulting", "Human Resources", "Operations Management", "Marketing Strategy"] },
-  { id: 4, name: "Communication & Interpersonal", subcategories: ["Customer Service", "Public Relations", "Copywriting", "Translation", "Social Media Management"] },
-  { id: 5, name: "Health & Wellness", subcategories: ["Nutrition Coaching", "Personal Training", "Mental Health Counseling", "Yoga Instruction", "Physical Therapy"] },
+  { id: 4, name: "Communication & Interpersonal", subcategories: ["Customer Service", "Public Relations", "Copywriting", "Multilingual Communication", "Online Community Engagement"] },
+  { id: 5, name: "Health & Wellness", subcategories: ["Nutrition Coaching", "Personal Training", "Mental Health Counseling", "Yoga Instruction", "Fitness Coaching"] },
   { id: 6, name: "Education & Training", subcategories: ["Tutoring", "Language Instruction", "Corporate Training", "Curriculum Development", "Test Preparation"] },
   { id: 7, name: "Home & Lifestyle", subcategories: ["Interior Decorating", "Cleaning Services", "Gardening", "Event Planning", "Personal Assistance"] },
   { id: 8, name: "Handiwork & Maintenance", subcategories: ["Furniture Assembly", "Sewing & Alterations", "Handyman Services", "Painting & Decorating", "Crafting"] },
@@ -27,76 +27,64 @@ const allCategories = [
   { id: 15, name: "Research & Critical Thinking", subcategories: ["Market Research", "Data Analysis", "Academic Research", "Competitive Analysis", "Strategic Planning"] },
 ];
 
-export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
-
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-
-  const handleConfirm = () => {
-    setShowConfirmModal(false);
-    onNext(checkedOptions); // proceed after confirm
-  };
-
-  const handleCancel = () => {
-    setShowConfirmModal(false);
-  };
+export default function Step6({ onNext, onPrev, step1Data, step2Data, step3Data, step4Data, step5Data, step6Data = [], onDataSubmit }) {
   
-  // Debug log to check what skills are coming in
+  const [openDropdowns, setOpenDropdowns] = useState({});  // { [genId]: boolean }
+  const [errorMessage, setErrorMessage] = useState("");    // UI error text
+  const [checkedOptions, setCheckedOptions] = useState({}); // { [genId]: number[] } -> specskills_ids
+  const [specByGen, setSpecByGen] = useState({});          // { [genId]: [{id, name}] } from backend
+  const [loadingSpecs, setLoadingSpecs] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false); // <-- Added modal state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+
+  // Fix: Use step6Data directly and handle the data format from step5
+  const safeSelected = Array.isArray(step6Data) ? step6Data : []; 
+  const selectedCategoryIds = useMemo(() => {
+    return safeSelected
+      .map((s) => {
+        // Handle the data format from step5 (which has category_id)
+        if (typeof s === "number") return s;
+        if (typeof s === "string" && !isNaN(Number(s))) return Number(s);
+        return s?.category_id ?? s?.genskills_id ?? null;
+      })
+      .filter(Boolean);
+  }, [safeSelected]);
+
+  const categories = useMemo(
+    () => allCategories.filter((c) => selectedCategoryIds.includes(c.id)),
+    [selectedCategoryIds]
+  );
+
   useEffect(() => {
-    console.log("Selected skills in Step6:", selectedSkills);
-  }, [selectedSkills]);
-
-  // Ensure selectedSkills is always an array
-  const safeSelectedSkills = Array.isArray(selectedSkills) ? selectedSkills : [];
-
-  // Filter categories based on skills selected in step5
-  const categories = allCategories.filter(cat => safeSelectedSkills.includes(cat.id));
-  
-  // Track open/closed state for each dropdown
-  const [openDropdowns, setOpenDropdowns] = useState({});
-  
-  // Track which checkboxes are checked for each category
-  const [checkedOptions, setCheckedOptions] = useState({});
-  
-  // Track error message
-  const [errorMessage, setErrorMessage] = useState("");
-
-  // If no skills are selected, show a placeholder message
-  if (!safeSelectedSkills || safeSelectedSkills.length === 0) {
-    return (
-      <div
-        className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
-        style={{ backgroundImage: "url('/assets/bg_register.png')" }}
-      >
-        <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center">
-          <div className="flex flex-col items-center">
-            <Image
-              src="/assets/logos/Logotype=Logotype M.png"
-              alt="Logo"
-              width={249.3}
-              height={76}
-              className="mb-[30px]"
-            />
-            <h1 className="font-[600] text-[25px] text-center mb-[30px]">
-              Set up your skills.
-            </h1>
-          </div>
-          
-          <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
-            <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
-              Please go back and select skills first.
-            </h2>
-            
-            <Button
-              className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px] mt-[50px]"
-              onClick={onPrev}
-            >
-              Go Back
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    let isCancelled = false;
+    async function run() {
+      if (!selectedCategoryIds.length) return;
+      setLoadingSpecs(true);
+      try {
+        const entries = await Promise.all(
+          selectedCategoryIds.map(async (gid) => {
+            try {
+              const r = await fetch(`/api/dj/skills/specific/?genskills_id=${gid}`);
+              const data = await r.json();
+              const list = (Array.isArray(data) ? data : []).map((s) => ({
+                id: Number(s.specSkills_id ?? s.id),
+                name: s.specName ?? s.name,
+              }));
+              return [gid, list];
+            } catch {
+              return [gid, []];
+            }
+          })
+        );
+        if (!isCancelled) setSpecByGen(Object.fromEntries(entries));
+      } finally {
+        if (!isCancelled) setLoadingSpecs(false);
+      }
+    }
+    run();
+    return () => { isCancelled = true; };
+  }, [selectedCategoryIds]);
 
   const toggleDropdown = (categoryId) => {
     setOpenDropdowns(prev => ({
@@ -131,22 +119,140 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
       }
     });
   };
-
-  const isOptionChecked = (categoryId, option) => {
-    return (checkedOptions[categoryId] || []).includes(option);
-  };
+  
+  const isOptionChecked = (genId, specId) => (checkedOptions[genId] || []).includes(specId);
 
   const handleContinue = () => {
-    // Check if at least one specialization is selected
-    const hasSelections = Object.values(checkedOptions).some(arr => arr && arr.length > 0);
-    
-    if (!hasSelections) {
-      setErrorMessage("Please select at least one specialization.");
+    const missing = categories
+      .filter((cat) => !(checkedOptions[cat.id] && checkedOptions[cat.id].length > 0))
+      .map((cat) => `• ${cat.name}`);
+
+    if (missing.length) {
+      setErrorMessage(
+        "Please select at least one specialization for each chosen category:\n" +
+        missing.join("\n")
+      );
       return;
     }
-    
-    setErrorMessage("");
-    onNext(checkedOptions);
+
+    // Show the confirmation modal
+    setShowConfirmModal(true);
+  };
+
+const handleConfirm = async (e) => {
+  e.preventDefault();  // Prevent form submission reload
+  setShowConfirmModal(false);
+  setIsSubmitting(true);
+
+  try {
+    const formData = new FormData();
+
+    // Ensure fields are not arrays
+    const firstName = Array.isArray(step1Data.firstName) ? step1Data.firstName[0] : step1Data.firstName;
+    const lastName = Array.isArray(step1Data.lastName) ? step1Data.lastName[0] : step1Data.lastName;
+    const username = Array.isArray(step1Data.username) ? step1Data.username[0] : step1Data.username;
+    const email = Array.isArray(step1Data.email) ? step1Data.email[0] : step1Data.email;
+    const password = Array.isArray(step1Data.password) ? step1Data.password[0] : step1Data.password;
+
+    /*console.log("=== PROCESSED VALUES ===");
+    console.log("firstName:", firstName);
+    console.log("lastName:", lastName);
+    console.log("username:", username);
+    console.log("email:", email);
+    console.log("password:", password);*/
+
+    // Append to FormData (ensure everything is a string)
+    formData.append("first_name", String(firstName));
+    formData.append("last_name", String(lastName));
+    formData.append("username", String(username)); 
+    formData.append("email", String(email));    
+    formData.append("password", String(password));
+
+   
+    formData.append("location", step2Data?.searchQuery || "");
+    formData.append("bio", step3Data?.introduction || "");
+
+    const filteredLinks = (step3Data?.links || []).filter(link => link && link.trim() !== "");
+    formData.append("links", JSON.stringify(filteredLinks));
+
+    // Handle skills IDs
+    formData.append("genSkills_ids", JSON.stringify(selectedCategoryIds));  
+    formData.append("specSkills", JSON.stringify(checkedOptions));         
+
+    if (step3Data.profilePicFile) {
+      formData.append("profilePic", step3Data.profilePicFile);
+      console.log("Profile pic added:", step3Data.profilePicFile.name);
+    }
+
+    if (step3Data.userIDFile) {
+      formData.append("userVerifyId", step3Data.userIDFile);
+      console.log("User ID file added:", step3Data.userIDFile.name);
+    }
+
+    // Debug: Log final FormData
+    console.log("=== FINAL FORMDATA CHECK ===");
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}:`, value, `(${typeof value})`);
+    } 
+
+    // Send registration data to the backend
+    const r = await fetch("/api/dj/complete-registration/", {
+      method: "POST",
+      body: formData,
+    });
+
+    let responseData;
+    try {
+      responseData = await r.json();
+    } catch (parseError) {
+      console.error("Failed to parse response as JSON:", parseError);
+      responseData = { error: "Invalid server response" };
+    }
+
+    if (!r.ok) {
+      console.error("Complete registration failed:", r.status, responseData);
+      setErrorMessage(`Registration failed: ${responseData.error || responseData.detail || "Unknown error"}`);
+      return;
+    }
+
+    console.log("Registration successful!", responseData);
+
+    // Sign in after registration
+    const signInResult = await signIn("credentials", {
+      redirect: false,
+      identifier: step1Data.email, 
+      password: step1Data.password,
+    });
+
+    console.log("Sign-in result:", signInResult);
+
+    if (signInResult?.error) {
+      console.error("Auto sign-in failed:", signInResult.error);
+      setErrorMessage("Registration successful, but auto sign-in failed. Please sign in manually.");
+      return;
+    }
+
+    if (signInResult?.ok) {
+      console.log("Sign-in successful! Proceeding to onboarding...");
+      setErrorMessage("");
+      sessionStorage.setItem('postRegistrationFlow', 'true');
+      onNext();
+    } else {
+      setErrorMessage("Registration completed but sign-in status unclear. Please refresh if needed.");
+    }
+
+  } catch (e) {
+    console.error("Network error:", e);
+    setErrorMessage("Network error. Please check if the backend is running.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+
+
+  const handleCancel = () => {
+    setShowConfirmModal(false);
   };
 
   const handleNextClick = () => {
@@ -172,162 +278,166 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
             Set up your skills.
           </h1>
         </div>
-        
+
+        {/* Show loading or no categories message */}
+        {loadingSpecs && (
+          <div className="text-white mb-4">Loading specializations...</div>
+        )}
+
+        {!loadingSpecs && categories.length === 0 && (
+          <div className="text-white mb-4">
+            No categories selected. Please go back to Step 5.
+          </div>
+        )}
+
         {/* Main content */}
-        <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
-          <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
-            Select your specializations in each skill category.
-          </h2>
-          
-          {/* Two column layout for form fields */}
-          <div className="flex flex-row gap-[120px] w-full">
-            {/* Left column */}
-            <div className="flex flex-col gap-[20px] w-[401px]">
-              {categories.slice(0, Math.ceil(categories.length / 2)).map((category) => (
-                <div key={category.id} className="w-full">
-                  <div className="flex flex-col gap-[15px]">
-                    <label className="text-white text-[16px] text-left">
-                      {category.name}
-                    </label>
-                    <div className="relative">
-                      {/* Collapsed state */}
-                      {!openDropdowns[category.id] && (
-                        <div 
-                          className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                          onClick={() => toggleDropdown(category.id)}
-                        >
-                          <span className="text-[#413663] text-[16px]">
-                            Select subcategory
-                          </span>
-                          <ChevronDown className="w-6 h-6 text-white" />
-                        </div>
-                      )}
-                      
-                      {/* Expanded state with checkboxes */}
-                      {openDropdowns[category.id] && (
-                        <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
-                          <div className="flex flex-col gap-[10px] w-full">
-                            {category.subcategories.map((subcategory) => (
-                              <div 
-                                key={subcategory} 
+        {categories.length > 0 && (
+          <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
+            <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
+              Select your specializations in each skill category.
+            </h2>
+
+            <div className="flex flex-row gap-[120px] w-full">
+              <div className="flex flex-col gap-[20px] w-[401px]">
+                {categories.slice(0, Math.ceil(categories.length / 2)).map((category) => (
+                  <div key={category.id} className="w-full">
+                    <div className="flex flex-col gap-[15px]">
+                      <label className="text-white text-[16px] text-left">
+                        {category.name}
+                      </label>
+                      <div className="relative">
+                        {!openDropdowns[category.id] && (
+                          <div
+                            className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
+                            onClick={() => toggleDropdown(category.id)}
+                          >
+                            <span className="text-[#413663] text-[16px]">
+                              Select subcategory
+                            </span>
+                            <ChevronDown className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+
+                        {openDropdowns[category.id] && (
+                          <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                            {specByGen[category.id]?.map((spec) => (
+                              <div
+                                key={spec.id}
                                 className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
-                                onClick={() => toggleCheckbox(category.id, subcategory)}
+                                onClick={() => toggleCheckbox(category.id, spec.id)}
                               >
                                 <div className="w-[18px] h-[18px] flex items-center justify-center">
-                                  {isOptionChecked(category.id, subcategory) ? (
+                                  {isOptionChecked(category.id, spec.id) ? (
                                     <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
                                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
+                                          <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
                                       </svg>
                                     </div>
                                   ) : (
                                     <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
                                   )}
                                 </div>
-                                <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{subcategory}</span>
+                                  <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
                               </div>
                             ))}
+                            <ChevronDown
+                              className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                              onClick={() => toggleDropdown(category.id)}
+                            />
                           </div>
-                          <ChevronDown 
-                            className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]" 
-                            onClick={() => toggleDropdown(category.id)}
-                          />
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Right column */}
-            <div className="flex flex-col gap-[20px] w-[401px]">
-              {categories.slice(Math.ceil(categories.length / 2)).map((category) => (
-                <div key={category.id} className="w-full">
-                  <div className="flex flex-col gap-[15px]">
-                    <label className="text-white text-[16px] text-left">
-                      {category.name}
-                    </label>
-                    <div className="relative">
-                      {/* Collapsed state */}
-                      {!openDropdowns[category.id] && (
-                        <div 
-                          className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                          onClick={() => toggleDropdown(category.id)}
-                        >
-                          <span className="text-[#413663] text-[16px]">
-                            Select subcategory
-                          </span>
-                          <ChevronDown className="w-6 h-6 text-white" />
-                        </div>
-                      )}
-                      
-                      {/* Expanded state with checkboxes */}
-                      {openDropdowns[category.id] && (
-                        <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
-                          <div className="flex flex-col gap-[10px] w-full">
-                            {category.subcategories.map((subcategory) => (
-                              <div 
-                                key={subcategory} 
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-[20px] w-[401px]">
+                {categories.slice(Math.ceil(categories.length / 2)).map((category) => (
+                  <div key={category.id} className="w-full">
+                    <div className="flex flex-col gap-[15px]">
+                      <label className="text-white text-[16px] text-left">
+                        {category.name}
+                      </label>
+                       <div className="relative">
+                        {!openDropdowns[category.id] && (
+                          <div
+                            className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
+                            onClick={() => toggleDropdown(category.id)}
+                          >
+                            <span className="text-[#413663] text-[16px]">
+                              Select subcategory
+                            </span>
+                            <ChevronDown className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+
+                        {openDropdowns[category.id] && (
+                          <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                            {specByGen[category.id]?.map((spec) => (
+                              <div
+                                key={spec.id}
                                 className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
-                                onClick={() => toggleCheckbox(category.id, subcategory)}
+                                onClick={() => toggleCheckbox(category.id, spec.id)}
                               >
                                 <div className="w-[18px] h-[18px] flex items-center justify-center">
-                                  {isOptionChecked(category.id, subcategory) ? (
+                                  {isOptionChecked(category.id, spec.id) ? (
                                     <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
                                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
+                                          <path d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z" fill="white" strokeWidth="1.5"/>
                                       </svg>
                                     </div>
                                   ) : (
                                     <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
                                   )}
                                 </div>
-                                <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{subcategory}</span>
+                                  <span className="text-white text-[16px] font-[400] leading-[19px] select-none">{spec.name}</span>
                               </div>
                             ))}
+                            <ChevronDown
+                              className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                              onClick={() => toggleDropdown(category.id)}
+                            />
                           </div>
-                          <ChevronDown 
-                            className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]" 
-                            onClick={() => toggleDropdown(category.id)}
-                          />
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Error Message (fixed height) */}
         <div className="h-[10px] mt-4">
           {errorMessage && (
-            <p className="text-red-500 text-sm">{errorMessage}</p>
+            <p className="text-red-500 text-sm whitespace-pre-line">{errorMessage}</p>
           )}
         </div> 
 
         {/* Continue Button */}
-        <div className="flex justify-center mt-[50px] mb-[47.5px]">
-          <Button
-            className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
-            onClick={() => {
-              const hasSelections = Object.values(checkedOptions).some(arr => arr && arr.length > 0);
-              if (!hasSelections) {
-                setErrorMessage("Please select at least one specialization.");
-                return;
-              }
-              setErrorMessage("");
-              setShowConfirmModal(true); // open confirmation modal
-            }}
-          >
-            Continue
-          </Button>
-        </div>
+        {categories.length > 0 && (
+          <div className="flex justify-center mt-[50px] mb-[47.5px]">
+            <Button
+              className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
+              onClick={() => {
+                const hasSelections = Object.values(checkedOptions).some(arr => arr && arr.length > 0);
+                if (!hasSelections) {
+                  setErrorMessage("Please select at least one specialization.");
+                  return;
+                }
+                setErrorMessage("");
+                setShowConfirmModal(true); // open confirmation modal
+              }}
+            >
+              Continue
+            </Button>
+          </div>
+        )}
         
         {/* Pagination - Centered at bottom */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px]">
+        <div   className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={onPrev}
@@ -338,7 +448,7 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
             onClick={handleNextClick}
           />
         </div>
-
+        
         {/* Confirmation Modal */}
         {showConfirmModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50">
@@ -372,7 +482,7 @@ export default function Step6({ onNext, onPrev, selectedSkills = [] }) {
                   </button>
                   <button 
                     className="flex items-center justify-center w-[130px] h-[38px] bg-[#0038FF] rounded-[15px] text-white text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
-                    onClick={handleConfirm}
+                    onClick={(e) => handleConfirm(e)} 
                   >
                     Confirm
                   </button>

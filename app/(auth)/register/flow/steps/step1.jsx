@@ -1,24 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import Image from "next/image";
 import { Eye, EyeOff, ChevronRight, Check, X } from "lucide-react";
 import { Inter } from "next/font/google";
+import { signOut } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export default function Step1({ onNext }) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+export default function Step1({ step1Data, onDataSubmit, onNext }) {
+  const [firstName, setFirstName] = useState(step1Data?.firstname || "");
+  const [lastName, setLastName] = useState(step1Data?.lastname || "");
+  const [email, setEmail] = useState(step1Data?.email || "");
+  const [username, setUsername] = useState(step1Data?.username || "");
+  const [password, setPassword] = useState(step1Data?.password || "");
   const [repeatPassword, setRepeatPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (step1Data) {
+      setFirstName(step1Data.firstname || "");
+      setLastName(step1Data.lastname || "");
+      setEmail(step1Data.email || "");
+      setUsername(step1Data.username || "");
+      setPassword(step1Data.password || "");
+    }
+  }, [step1Data]);
 
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },
@@ -27,11 +39,17 @@ export default function Step1({ onNext }) {
     { label: "Minimum 8 characters", test: /.{8,}/ },
   ];
 
-  const isEmailValid = (email) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const validateForm = () => {
-    if (!firstName || !lastName || !email || !username || !password || !repeatPassword) {
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !username ||
+      !password ||
+      !repeatPassword
+    ) {
       setErrorMessage("Please fill in all fields.");
       return false;
     }
@@ -46,7 +64,7 @@ export default function Step1({ onNext }) {
       return false;
     }
 
-    const allValid = passwordRules.every(rule => rule.test.test(password));
+    const allValid = passwordRules.every((rule) => rule.test.test(password));
     if (!allValid) {
       setErrorMessage("Password does not meet all requirements.");
       return false;
@@ -57,9 +75,17 @@ export default function Step1({ onNext }) {
   };
 
   const handleContinue = () => {
-    if (validateForm()) {
-      onNext();
-    }
+    if (!validateForm()) return;
+
+    onDataSubmit?.({
+      firstName,
+      lastName,
+      email,
+      username,
+      password,
+    });
+
+    onNext?.();
   };
 
   const isFormValid = () => {
@@ -72,7 +98,7 @@ export default function Step1({ onNext }) {
       repeatPassword &&
       isEmailValid(email) &&
       password === repeatPassword &&
-      passwordRules.every(rule => rule.test.test(password))
+      passwordRules.every((rule) => rule.test.test(password))
     );
   };
 
@@ -171,7 +197,9 @@ export default function Step1({ onNext }) {
                       ) : (
                         <X size={16} className="text-red-400" />
                       )}
-                      <span className={valid ? "text-green-400" : "text-red-400"}>
+                      <span
+                        className={valid ? "text-green-400" : "text-red-400"}
+                      >
                         {rule.label}
                       </span>
                     </div>
@@ -196,7 +224,11 @@ export default function Step1({ onNext }) {
                   onClick={() => setShowRepeatPassword(!showRepeatPassword)}
                   className="text-gray-400 hover:text-white"
                 >
-                  {showRepeatPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showRepeatPassword ? (
+                    <EyeOff size={20} />
+                  ) : (
+                    <Eye size={20} />
+                  )}
                 </button>
               </div>
             </div>
@@ -212,7 +244,19 @@ export default function Step1({ onNext }) {
 
         {/* Already have account */}
         <p className="underline text-center text-sm text-[16px] mt-[44px] mb-[100px]">
-          <a href="/signin" className="text-[#6DDFFF]">
+          <a
+            href="/signin"
+            className="text-[#6DDFFF]"
+            onClick={async (e) => {
+              e.preventDefault(); // stop the immediate nav
+              try {
+                localStorage.removeItem("prefill_email");
+                localStorage.removeItem("prefill_name");
+                localStorage.removeItem("user_id");
+              } catch {}
+              await signOut({ callbackUrl: "/signin" });
+            }}
+          >
             I have an account already.
           </a>
         </p>
@@ -228,7 +272,7 @@ export default function Step1({ onNext }) {
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60">
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-[16px] text-white opacity-60 z-50">
           <span>1 of 6</span>
           <ChevronRight
             className={`w-5 h-5 ${
@@ -236,11 +280,7 @@ export default function Step1({ onNext }) {
                 ? "cursor-pointer text-gray-300 hover:text-white"
                 : "text-gray-500 cursor-not-allowed"
             }`}
-            onClick={() => {
-              if (isFormValid()) {
-                onNext();
-              }
-            }}
+            onClick={handleContinue}
           />
         </div>
       </div>

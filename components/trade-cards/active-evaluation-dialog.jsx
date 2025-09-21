@@ -4,14 +4,7 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 
 const StarLogo = () => (
-  <svg
-    width="200"
-    height="200"
-    viewBox="0 0 162 181"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className="filter drop-shadow-[0px_4px_40px_#D78DE5]"
-  >
+  <svg width="100" height="100" viewBox="0 0 162 181" fill="none" xmlns="http://www.w3.org/2000/svg" className="filter drop-shadow-[0px_4px_40px_#D78DE5]">
     <g filter="url(#filter0_d_2180_7319)">
       <path d="M81 136.5L90.0723 86.5L81 36.5L71.9277 86.5L81 136.5Z" fill="white"/>
       <path d="M40.5917 55.6433L79.8637 94.3593L91.2485 78.4686L40.5917 55.6433Z" fill="#0038FF"/>
@@ -35,6 +28,7 @@ const StarLogo = () => (
 );
 
 export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
+  // Default values that can be easily adjusted
   const [evaluation, setEvaluation] = useState({
     tradeScore: 8,
     taskComplexity: 60,
@@ -125,6 +119,7 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
 
   if (!isOpen) return null;
 
+  // Default data if not provided
   const data = tradeData || {
     requestTitle: "Nutrition Coaching for Weight Loss",
     offerTitle: "Yoga Instruction",
@@ -148,16 +143,19 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
           onClick={handleClose}
           onMouseDown={(e) => e.stopPropagation()}
           aria-label="Close dialog"
-          type="button"
         >
-          <X className="w-[20px] h-[20px]" />
+          <X className="w-[15px] h-[15px]" />
         </button>
 
         {/* Background glow */}
         <div className="absolute w-[942px] h-[218px] left-[-1px] top-0 z-[1]">
+          {/* Indigo glow left */}
           <div className="absolute w-[421px] h-[218px] left-[calc(50%-421px/2-260.5px)] top-0 bg-[#906EFF] blur-[175px]"></div>
+          {/* Blue glow right */}
           <div className="absolute w-[421px] h-[218px] left-[calc(50%-421px/2+260.5px)] top-0 bg-[#0038FF] blur-[175px]"></div>
+          {/* Indigo glow bottom right */}
           <div className="absolute w-[225px] h-[105.09px] left-[calc(50%-225px/2+283.5px)] top-[83.85px] bg-[#906EFF] blur-[60px]"></div>
+          {/* Blue glow bottom left */}
           <div className="absolute w-[225px] h-[105.09px] left-[calc(50%-225px/2-283.5px)] top-[83.85px] bg-[#0038FF] blur-[60px]"></div>
         </div>
 
@@ -171,7 +169,7 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
                 <h3 className="w-[300px] font-[700] text-[25px] leading-[120%] text-white">
                   {data.requestTitle}
                 </h3>
-                <p className="w-[300px] text-[16px] font-[400] leading-[120%] text-white">
+                <p className="w-[300px] h-[19px] text-[16px] leading-[120%] text-white mt-6">
                   What you'll provide
                 </p>
               </div>
@@ -186,7 +184,7 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
                 <h3 className="w-[300px] font-[700] text-[25px] leading-[120%] text-right text-white">
                   {data.offerTitle}
                 </h3>
-                <p className="w-[300px] text-[16px] font-[400] leading-[120%] text-right text-white">
+                <p className="w-[300px] h-[19px] text-[16px] leading-[120%] text-right text-white mt-6">
                   What you'll get in return
                 </p>
               </div>
@@ -227,12 +225,13 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
               </div>
               <div className="absolute top-[2px] left-[2px] right-[2px] bottom-[2px] bg-white opacity-35 z-[1] rounded-[30px]"></div>
             </div>
-
+            
+            {/* Trade assessment text */}
             <div className="flex flex-col items-center gap-[5px] w-[110px] h-[48px]">
-              <h4 className="font-[700] text-[20px] text-center text-white">
+              <h4 className="w-[110px] h-[24px] font-bold text-[20px] leading-[120%] text-center text-white">
                 Good trade
               </h4>
-              <p className="text-[16px] font-[400] text-center text-white">
+              <p className="w-[81px] h-[19px] text-[16px] leading-[120%] text-center text-white">
                 {evaluation.tradeScore} out of 10
               </p>
             </div>
@@ -241,8 +240,8 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
           {/* Metrics */}
           <div className="flex flex-col items-end gap-[15px] w-[457px]">
             {/* Task complexity */}
-            <div className="flex items-center gap-[20px] w-full">
-              <span className="w-[140px] text-[16px] text-right text-white">
+            <div className="flex flex-row items-end gap-[20px] w-[452px] h-[20px]">
+              <span className="w-[132px] h-[19px] text-[16px] leading-[120%] text-right text-white whitespace-nowrap">
                 Task complexity
               </span>
 
@@ -291,10 +290,10 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
                 </div>
               </div>
             </div>
-
+            
             {/* Time commitment */}
-            <div className="flex items-center gap-[20px] w-full">
-              <span className="w-[140px] text-[16px] text-right text-white">
+            <div className="flex flex-row items-end gap-[20px] w-[457px] h-[20px]">
+              <span className="w-[137px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Time commitment
               </span>
 
@@ -344,10 +343,10 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
                 </div>
               </div>
             </div>
-
+            
             {/* Skill level */}
-            <div className="flex items-center gap-[20px] w-full">
-              <span className="w-[140px] text-[16px] text-right text-white">
+            <div className="flex flex-row items-end gap-[20px] w-[390px] h-[20px]">
+              <span className="w-[70px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Skill level
               </span>
 
@@ -398,8 +397,8 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
               </div>
             </div>
           </div>
-
-          {/* Feedback */}
+          
+          {/* Feedback section */}
           <div className="flex flex-col items-start gap-[15px] w-[792px] h-[110px]">
             <div className="flex flex-row items-center gap-[15px] w-[792px] h-[19px]">
               <svg
@@ -423,9 +422,9 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
             </p>
           </div>
         </div>
-
+        
         {/* Disclaimer */}
-        <p className="absolute w-[847px] h-[19px] left-[calc(50%-847px/2+4.5px)] bottom-[34px] text-[15px] leading-[120%] text-center text-white/80 opacity-60 z-[3]">
+        <p className="absolute w-[847px] h-[19px] left-[calc(50%-847px/2+4.5px)] bottom-[25px] text-[12px] leading-[120%] text-center text-white/80 opacity-60 z-[3]">
           This response is generated by AI and may be inaccurate sometimes. This should only serve as a guide for users.
         </p>
 

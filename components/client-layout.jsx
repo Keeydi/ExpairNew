@@ -6,6 +6,8 @@ import LandingNav from './landingnav';
 import Footer from './footer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+import { SessionProvider } from 'next-auth/react';
+
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
@@ -37,23 +39,19 @@ export default function ClientLayout({ children }) {
 
   const isHome = pathname.startsWith('/home');
 
-  // Bagong condition para hindi magpakita ang footer sa request at messages page
-  const hideFooterPages =
-    pathname.startsWith('/home/request') ||
-    pathname.startsWith('/home/messages') ||
-    pathname.startsWith('/home/trades/add-details');
-
   return (
-    <QueryClientProvider client={queryClient}>
-      {!isAuthPage && !isHome && (isLanding ? <LandingNav /> : <Navbar />)}
+    <SessionProvider>
+      <QueryClientProvider client={queryClient}>
+        {!isAuthPage && !isHome && (isLanding ? <LandingNav /> : <Navbar />)}
 
-      <main className="flex-grow">{children}</main>
+        <main className="flex-grow">{children}</main>
 
-      {!isAuthPage && !hideFooterPages && (
-        <div className="bg-[#050015]">
-          <Footer />
-        </div>
-      )}
-    </QueryClientProvider>
+        {!isAuthPage && (
+          <div className="bg-[#050015]">
+            <Footer />
+          </div>
+        )}
+      </QueryClientProvider>
+    </SessionProvider>
   );
 }

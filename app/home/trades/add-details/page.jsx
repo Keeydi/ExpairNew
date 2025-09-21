@@ -15,7 +15,6 @@ export default function AddTradeDetailsPage() {
   const [deliveryMode, setDeliveryMode] = useState("");
   const [skillLevel, setSkillLevel] = useState("");
   const [requestType, setRequestType] = useState("");
-  const [frequency, setFrequency] = useState("");
   const [details, setDetails] = useState("");
   const [photo, setPhoto] = useState(null);
   const [deadline, setDeadline] = useState("");

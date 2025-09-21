@@ -22,15 +22,6 @@ export default function ForgotPasswordPage() {
         throw new Error('Please enter your email.');
       }
 
-      // TEMP: skip actual fetch until backend is ready
-      // const res = await fetch('/api/forgot-password', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email }),
-      // });
-
-      // if (!res.ok) throw new Error('Failed to send reset instructions');
-
       // Simulate success
       return true;
     },

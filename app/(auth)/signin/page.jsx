@@ -1,47 +1,95 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import ReCAPTCHA from "react-google-recaptcha";
-import { signIn } from "next-auth/react";
 import { useLoginStore } from "../../../stores/loginStore";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
-
 import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function LoginPage() {
+  //const { data: session, status } = useSession();
+  const router = useRouter();
+
   const [captcha, setCaptcha] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(""); 
+  const [errorMessage, setErrorMessage] = useState("");
+
   const { username, password, setUsername, setPassword } = useLoginStore();
 
-  const handleLogin = () => {
-    setErrorMessage("");
+const handleLogin = async (e) => {
+  e?.preventDefault?.();
+  setErrorMessage("");
 
-    if (!username || !password) {
-      setErrorMessage("Please enter both username and password");
-      return;
+  console.log("=== FRONTEND LOGIN DEBUG ===");
+  console.log("Username:", username);
+  console.log("Password length:", password?.length);
+  console.log("Captcha:", !!captcha);
+
+  // Basic form checks
+  if (!username || !password) {
+    setErrorMessage("Please enter both username and password");
+    return;
+  }
+  if (!captcha) {
+    setErrorMessage("Please verify CAPTCHA");
+    return;
+  }
+
+  try {
+    console.log("Calling NextAuth signIn...");
+    
+    const result = await signIn("credentials", {
+      identifier: username,   // This goes to your NextAuth credentials provider
+      password: password,
+      redirect: false,        // Don't auto-redirect, handle it manually
+    });
+
+    console.log("NextAuth signIn result:", result);
+
+    if (result?.ok) {
+      // Login successful
+      console.log("Login successful, redirecting to /home");
+      router.push("/home");
+    } else {
+      // Login failed - provide more specific error messages
+      console.log("Login failed:", result);
+      
+      let errorMsg = "Login failed. Please try again.";
+      
+      if (result?.error === "CredentialsSignin") {
+        errorMsg = "Invalid username/email or password";
+      } else if (result?.error) {
+        errorMsg = result.error;
+      }
+      
+      setErrorMessage(errorMsg);
+    }
+  } catch (err) {
+    console.error("Login error:", err);
+    setErrorMessage("Network error. Please try again.");
+  }
+};
+
+  const handleGoogleLogin = async () => {
+  try {
+    const res = await signIn("google", { prompt: "select_account", callbackUrl: "/home" });
+
+    if (res && res.error) {
+      // Log the error message from NextAuth
+      console.log("Google login failed:", res.error);
     }
 
-    if (!captcha) {
-      setErrorMessage("Please verify CAPTCHA");
-      return;
-    }
-
-    if (username !== "demo" || password !== "1234") {
-      setErrorMessage("Invalid username or password");
-      return;
-    }
-
-    window.location.href = "/home";
-  };
-
-  const handleGoogleLogin = () => {
-    signIn("google");
-  };
+    console.log("Sign in result:", res); // This will log the result of the sign-in attempt
+  } catch (error) {
+    console.error("Google login error:", error);
+  }
+};
 
   return (
     <div

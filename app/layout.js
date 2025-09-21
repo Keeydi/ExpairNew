@@ -1,6 +1,9 @@
 import './globals.css';
 import Head from 'next/head';
 import ClientLayout from '../components/client-layout';
+import { SessionProvider } from 'next-auth/react';
+import { Providers } from "./providers";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 export const metadata = {
   title: 'Expair',
@@ -17,9 +20,8 @@ export default function RootLayout({ children }) {
         />
       </Head>
       <body className="bg-[#050015] text-white font-sans flex flex-col min-h-screen">
-        <ClientLayout>{children}</ClientLayout>
+        <Providers><ClientLayout>{children}</ClientLayout></Providers>
       </body>
     </html>
   );
 }
-

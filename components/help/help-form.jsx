@@ -6,12 +6,9 @@ import { Textarea } from "../ui/textarea";
 import { Upload, ChevronDown } from "lucide-react";
 import { useState, Fragment } from "react";
 import { Listbox } from "@headlessui/react";
-import { Icon } from "@iconify/react";
 
 export function HelpForm() {
   const [category, setCategory] = useState("");
-  const [photo, setPhoto] = useState(null);
-
 
   const options = [
     {
@@ -134,28 +131,14 @@ export function HelpForm() {
           </div>
         </div>
 
-            {/* Photo upload */}
-              <label className="text-white font-normal mb-[15px]">Upload a photo for context</label>
-              <div className="relative">
-                <input 
-                  type="file" 
-                  id="photo-upload" 
-                  className="hidden" 
-                  onChange={(e) => setPhoto(e.target.files[0])}
-                />
-                <label 
-                  htmlFor="photo-upload" 
-                  className="w-full max-w-[450px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] flex justify-between items-center cursor-pointer"
-                >
-                  <span className="text-[16px] text-[#413663]">
-                    {photo ? photo.name : "Upload photo"}
-                  </span>
-                  <Icon 
-                    icon="material-symbols:upload" 
-                    className="text-white w-[24px] h-[24px]" 
-                  />
-                </label>
-              </div>
+        {/* Upload Photo Box */}
+        <div>
+          <p className="text-white font-normal mb-[15px]">Upload a photo for context</p>
+          <div className="w-full max-w-[450px] h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] px-4 flex items-center justify-between cursor-pointer hover:bg-[#1c1238]">
+            <span className="text-[#413663] text-[16px]">Upload photo</span>
+            <Upload className="text-white" />
+          </div>
+        </div>
 
         {/* Textarea with Counter */}
         <div>

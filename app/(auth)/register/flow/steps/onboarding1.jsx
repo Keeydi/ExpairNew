@@ -1,20 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "../../../../../components/ui/button";
 import { Inter } from "next/font/google";
 import { Calendar } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
 export default function Onboarding1({ onNext, onPrev }) {
+  const { data: session } = useSession();
   const [serviceRequest, setServiceRequest] = useState("");
   const [date, setDate] = useState("");
   const [errors, setErrors] = useState({ serviceRequest: "", date: "" });
+  const [isLoading, setIsLoading] = useState(false);
+  const dateInputRef = useRef(null);
 
   const validate = () => {
     let valid = true;
-    let newErrors = { serviceRequest: "", date: "" };
+    const newErrors = { serviceRequest: "", date: "" };
 
     if (!serviceRequest.trim()) {
       newErrors.serviceRequest = "Please enter a service.";
@@ -38,9 +44,53 @@ export default function Onboarding1({ onNext, onPrev }) {
     return valid;
   };
 
-  const handleConfirm = () => {
-    if (validate()) {
-      onNext();
+  const handleConfirm = async () => {
+    if (!validate()) return;
+
+    const token = session?.access || session?.accessToken;
+    if (!token) {
+      setErrors((prev) => ({
+        ...prev,
+        serviceRequest:
+          "You must be signed in. Please log in again and try confirming.",
+      }));
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const resp = await fetch(`${BACKEND_URL}/trade-requests/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          reqname: serviceRequest.trim(),
+          reqdeadline: `${date}`,
+        }),
+      });
+
+      if (resp.ok) {
+        // Optionally parse response: const data = await resp.json();
+        onNext?.();
+      } else {
+        let msg = `Failed to create request (HTTP ${resp.status})`;
+        try {
+          const err = await resp.json();
+          if (err?.error || err?.detail) {
+            msg += `: ${err.error || err.detail}`;
+          }
+        } catch {}
+        setErrors((prev) => ({ ...prev, serviceRequest: msg }));
+      }
+    } catch (e) {
+      setErrors((prev) => ({
+        ...prev,
+        serviceRequest: `Network error: ${e?.message || e}`,
+      }));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -50,7 +100,7 @@ export default function Onboarding1({ onNext, onPrev }) {
       style={{ backgroundImage: "url('/assets/bg_register1.png')" }}
     >
       <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center">
-        <div className="mb-[530px]"></div>
+        <div className="mb-[530px]" />
 
         <div className="flex flex-col items-center justify-center w-full max-w-[941px] mx-auto">
           {/* Title */}
@@ -101,6 +151,7 @@ export default function Onboarding1({ onNext, onPrev }) {
             </p>
             <div className="relative w-[400px]">
               <input
+                ref={dateInputRef}
                 type="date"
                 value={date}
                 onChange={(e) => {
@@ -114,9 +165,7 @@ export default function Onboarding1({ onNext, onPrev }) {
               <Calendar
                 size={20}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-white cursor-pointer"
-                onClick={() =>
-                  document.querySelector('input[type="date"]')?.showPicker?.()
-                }
+                onClick={() => dateInputRef.current?.showPicker?.()}
               />
             </div>
             <div className="h-[10px]">
@@ -131,8 +180,9 @@ export default function Onboarding1({ onNext, onPrev }) {
             <Button
               className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-[20px] font-[500] transition rounded-[15px]"
               onClick={handleConfirm}
+              disabled={isLoading || !(session?.access || session?.accessToken)}
             >
-              Confirm
+              {isLoading ? "Saving..." : "Confirm"}
             </Button>
           </div>
         </div>
