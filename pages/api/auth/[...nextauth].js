@@ -16,7 +16,10 @@ function decodeJwtExp(token) {
 
 export default NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
-  session: { strategy: "jwt" },
+  session: {
+  strategy: "jwt",
+  maxAge: 60 * 60 * 24,  // 24 hours, adjust as needed
+  },
   
   debug: process.env.NODE_ENV === "development",
 

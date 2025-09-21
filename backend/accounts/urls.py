@@ -21,6 +21,15 @@ urlpatterns = [
     path('explore/feed/', views.explore_feed, name='explore_feed'),
     path('express-interest/', views.express_trade_interest, name='express_trade_interest'),
     path('posted-trades/', views.get_posted_trades, name='get_posted_trades'),
+    path('interested-trades/', views.get_user_interested_trades, name='get_user_interested_trades'),  
+     path('active-trades/', views.get_active_trades, name='get_active_trades'),
+
+    # Trade interest management endpoints
+    path('trade-requests/<int:tradereq_id>/interests/', views.get_trade_interests, name='get_trade_interests'),
+    path('trade-interests/<int:interest_id>/accept/', views.accept_trade_interest, name='accept_trade_interest'),
+    path('trade-interests/<int:interest_id>/decline/', views.decline_trade_interest, name='decline_trade_interest'),
+    path('trade-requests/<int:tradereq_id>/details/', views.add_trade_details, name='add_trade_details'),
+    path('trade-requests/<int:tradereq_id>/details/status/', views.check_trade_details_status, name='check_trade_details_status'),
 
     path('me/', views.me, name='me'),
     

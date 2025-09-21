@@ -72,7 +72,6 @@ class User(AbstractUser):
     )
     is_active = models.BooleanField(default=True, db_column='is_active') 
 
-
     # Django AbstractUser fields that don't exist in your database
     date_joined = None 
     is_staff = None     
@@ -156,8 +155,30 @@ class TradeRequest(models.Model):
         PENDING = "PENDING", "Pending"           # just created, waiting for a responder
         ACTIVE = "ACTIVE", "Active"       # responder matched, trade active
         COMPLETED = "COMPLETED", "Completed"    # finished successfully
-        REJECTED = "REJECTED", "Rejected"    # requester/responder backed out
+        CANCELLED = "CANCELLED", "Cancelled"    # requester/responder backed out
 
+    tradereq_id = models.AutoField(primary_key=True, db_column='tradereq_id')
+    requester = models.ForeignKey('User', db_column='requester_id', on_delete=models.CASCADE, related_name='trade_requests_made')
+    responder = models.ForeignKey('User', db_column='responder_id', on_delete=models.CASCADE, null=True, blank=True, related_name='trade_requests_received')
+    reqname = models.CharField(max_length=100, db_column='reqname')
+    reqdeadline = models.DateField(db_column='reqdeadline', null=True, blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        db_column="status",
+        null=True,
+        blank=True
+    )
+    exchange = models.CharField(max_length=255, db_column="exchangename", null=True, blank=True)
+
+    class Meta:
+        db_table = 'tradereq_tbl'
+        managed = True
+
+    def __str__(self):
+        return f"{self.reqname} - {self.requester.username}"
+
+class TradeDetail(models.Model):
     class SkillProficiency(models.TextChoices):
         BEGINNER = "BEGINNER", "Beginner"
         INTERMEDIATE = "INTERMEDIATE", "Intermediate"
@@ -174,65 +195,47 @@ class TradeRequest(models.Model):
         OUTPUT = "OUTPUT", "Output"
         PROJECT = "PROJECT", "Project"
 
-    tradereq_id = models.AutoField(primary_key=True, db_column='tradereq_id')
-    requester = models.ForeignKey('User', db_column='requester_id', on_delete=models.CASCADE, related_name='trade_requests_made')
-    responder = models.ForeignKey('User', db_column='responder_id', on_delete=models.CASCADE, null=True, blank=True, related_name='trade_requests_received')
-    specSkills = models.ForeignKey('SpecSkill', db_column='specskills_id', on_delete=models.RESTRICT, null=True, blank=True)
-    reqname = models.CharField(max_length=100, db_column='reqname')
-    skillprof = models.CharField(
-        max_length=13,
-        choices=SkillProficiency.choices,
-        db_column='skillprof',
-        null=True,
-        blank=True
-    )
-    modedel = models.CharField(
-        max_length=25,
-        choices=ModeDelivery.choices,
-        db_column='modedel',
-        null=True,
-        blank=True
-    )
-    reqtype = models.CharField(
-        max_length=10,
-        choices=RequestType.choices,
-        db_column='reqtype',
-        null=True,
-        blank=True
-    )
-    contextpic = models.ImageField(
-        upload_to='requestcontext_pics/',
-        null=True,
-        blank=True,
-        db_column='contextpic')
-    reqbio = models.CharField(max_length=150, db_column='reqbio', null=True, blank=True)
-    reqdeadline = models.DateField(db_column='reqdeadline', null=True, blank=True)
-    status = models.CharField(
-        max_length=15,
-        choices=Status.choices,
-        db_column="status",
-        null=True,
-        blank=True
-    )
+    tradedetails_id = models.AutoField(primary_key=True, db_column='tradedetails_id')
+    trade_request = models.ForeignKey(TradeRequest, on_delete=models.CASCADE, db_column='tradereq_id')
+    user = models.ForeignKey('User', db_column='user_id', on_delete=models.CASCADE)
+    skillprof = models.CharField(max_length=13, choices=SkillProficiency.choices, null=True, blank=True, db_column='skillprof')
+    modedel = models.CharField(max_length=25, choices=ModeDelivery.choices, null=True, blank=True, db_column='modedel')
+    reqtype = models.CharField(max_length=35, choices=RequestType.choices, null=True, blank=True, db_column='reqtype')
+    contextpic = models.ImageField(upload_to='requestcontext_pics/', null=True, blank=True, db_column='contextpic') 
+    reqbio = models.CharField(max_length=150, null=True, blank=True, db_column='reqbio')
+    created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
+    total_xp = models.IntegerField(default=0, db_column='total_xp', null=True, blank=True)
 
     class Meta:
-        db_table = 'tradereq_tbl'
+        db_table = 'trade_details_tbl'
         managed = True
+        unique_together = ('trade_request', 'user')
 
     def __str__(self):
-        return f"{self.reqname} - {self.requester.username}"
+        return f"Trade Detail for {self.trade_request.reqname} - {self.user.username}"
     
 class TradeInterest(models.Model):
+    class InterestStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        DECLINED = "DECLINED", "Declined"
+
     trade_interests_id = models.AutoField(primary_key=True, db_column='trade_interests_id')
     trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, related_name='interests', db_column='tradereq_id')
     interested_user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='trade_interests', db_column='interested_user_id')
     created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
+    status = models.CharField(
+        max_length=10,
+        choices=InterestStatus.choices,
+        default=InterestStatus.PENDING,
+        db_column="status"
+    )
     
     class Meta:
         db_table = 'trade_interests_tbl'
-        unique_together = ['trade_request', 'interested_user']  # Maps to your unique_trade_user_interest constraint
+        unique_together = ['trade_request', 'interested_user']  
         ordering = ['-created_at']
         managed = True
     
     def __str__(self):
-        return f"{self.interested_user.username} interested in {self.trade_request.reqname}"
+        return f"{self.interested_user.username} interested in {self.trade_request.reqname} [{self.status}]"
