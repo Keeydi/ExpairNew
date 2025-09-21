@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Inter, Archivo } from "next/font/google";
 import { Icon } from "@iconify/react";
 import MessageList from "../../../components/messages/message-list";
@@ -11,6 +11,14 @@ const archivo = Archivo({ subsets: ["latin"] });
 
 export default function MessagesPage() {
   const [selectedConversation, setSelectedConversation] = useState(0);
+
+  // Prevent body scrolling on this page
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
   const [conversations, setConversations] = useState([
     {
       id: 0,
@@ -372,8 +380,8 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className={`w-full max-w-[1200px] mx-auto py-10 text-white ${inter.className} h-screen flex flex-col overflow-hidden`}>
-      <div className="flex gap-6 h-[calc(100vh-80px)] overflow-hidden">
+    <div className={`w-full px-[67px] mx-auto text-white ${inter.className} overflow-hidden`} style={{ height: 'calc(100vh - 140px)', paddingBottom: '20px' }}>
+      <div className="flex gap-6 h-full overflow-hidden">
         {/* Left side - Message list */}
         <MessageList 
           conversations={conversations}

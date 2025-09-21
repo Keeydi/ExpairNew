@@ -38,6 +38,14 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
     timeCommitment: 50,
     skillLevel: 80,
   });
+
+  // Animated progress states
+  const [progress, setProgress] = useState({
+    tradeScore: 0,
+    taskComplexity: 0,
+    timeCommitment: 0,
+    skillLevel: 0,
+  });  
   
   // State for confirmation dialogs
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -55,6 +63,90 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
       }));
     }
   }, [tradeData]);
+
+
+  // Trigger staggered animations after evaluation updates
+  useEffect(() => {
+    if (isOpen) {
+      // Reset progress first
+      setProgress({
+        tradeScore: 0,
+        taskComplexity: 0,
+        timeCommitment: 0,
+        skillLevel: 0,
+      });
+
+      // Staggered animations
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, tradeScore: (evaluation.tradeScore / 10) * 100 }));
+      }, 200);
+
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, taskComplexity: evaluation.taskComplexity }));
+      }, 600);
+
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, timeCommitment: evaluation.timeCommitment }));
+      }, 900);
+
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, skillLevel: evaluation.skillLevel }));
+      }, 1200);
+    }
+  }, [evaluation, isOpen]);
+  
+  // Handle close with proper event handling and state reset
+  const handleClose = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Reset all dialog states when closing
+    setShowConfirmDialog(false);
+    setShowRejectDialog(false);
+    onClose();
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleClose(e);
+    }
+  };
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen]);
+
+  // Reset dialog states when main dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setShowConfirmDialog(false);
+      setShowRejectDialog(false);
+    }
+  }, [isOpen]);
+
+  // Handle confirm dialog completion
+  const handleConfirmComplete = () => {
+    setShowConfirmDialog(false);
+    handleClose(); // Close the main evaluation dialog
+  };
+
+  // Handle reject dialog completion  
+  const handleRejectComplete = () => {
+    setShowRejectDialog(false);
+    handleClose(); // Close the main evaluation dialog
+  };
   
   if (!isOpen) return null;
 
@@ -127,16 +219,37 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
           
           {/* Trade assessment section */}
           <div className="flex flex-col items-center gap-[15px] w-[300px] h-[83px]">
-            {/* Progress bar */}
-            <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] relative isolate">
-              <div 
-                className="w-[16px] h-[16px] rounded-[100px]"
-                style={{ 
-                  marginLeft: `${(evaluation.tradeScore/10) * 100 - 8}%`,
-                  background: "linear-gradient(to right, #FB9696, #D78DE5, #7E59F8, #284CCC, #6DDFFF)" 
+            <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+              <div
+                className="h-full rounded-[30px] z-[2] transition-all duration-700 ease-out relative"
+                style={{
+                  width: `calc(${progress.tradeScore}% - 4px)`,
+                  background: "linear-gradient(to right, #FB9696, #D78DE5, #7E59F8, #284CCC, #6DDFFF)",
+                  boxShadow: progress.tradeScore > 0 ? "0px 0px 20px rgba(126, 89, 248, 0.4)" : "none"
                 }}
-              ></div>
-              <div className="absolute w-[295px] h-[20px] left-[calc(50%-295px/2+0.5px)] top-[calc(50%-20px/2)] bg-white opacity-35 z-[1]"></div>
+              >
+                {/* Inner glow effect */}
+                <div 
+                  className="absolute inset-0 rounded-[30px] opacity-60"
+                  style={{
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                  }}
+                />
+
+                {/* Shimmer effect */}
+                {progress.tradeScore > 10 && (
+                  <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                    <div 
+                      className="absolute top-0 left-[-100%] w-full h-full opacity-40"
+                      style={{
+                        background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                        animation: "shimmer 3s infinite ease-in-out"
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="absolute top-[2px] left-[2px] right-[2px] bottom-[2px] bg-white opacity-35 z-[1] rounded-[30px]"></div>
             </div>
             
             {/* Trade assessment text */}
@@ -157,11 +270,50 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
               <span className="w-[122px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Task complexity
               </span>
-              <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
-                <div 
-                  className="w-[16px] h-[16px] bg-gradient-to-r from-[#FB9696] to-[#FA6666] rounded-[100px]"
-                  style={{ marginLeft: `${evaluation.taskComplexity - 8}%` }}
-                ></div>
+
+              <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+                <div
+                  className="h-full rounded-[30px] transition-all duration-800 ease-out relative"
+                  style={{
+                    width: `calc(${progress.taskComplexity}% - 4px)`,
+                    background: "linear-gradient(to right, #FB9696, #FA6666)",
+                    boxShadow: progress.taskComplexity > 0 ? "0px 0px 15px rgba(251, 150, 150, 0.5)" : "none"
+                  }}
+                >
+                  {/* Inner glow effect */}
+                  <div 
+                    className="absolute inset-0 rounded-[30px] opacity-60"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                    }}
+                  />
+
+                  {/* Shimmer effect */}
+                  {progress.taskComplexity > 10 && (
+                    <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-[-100%] w-full h-full opacity-50"
+                        style={{
+                          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                          animation: "shimmer 2s infinite ease-in-out"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Pulse effect at the end */}
+                  {progress.taskComplexity > 5 && (
+                    <div 
+                      className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
+                      style={{
+                        background: "#FFFFFF",
+                        boxShadow: "0px 0px 8px rgba(255,255,255,0.9)",
+                        transform: "translateY(-50%)",
+                        animation: "pulse 1.5s infinite ease-in-out"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
             
@@ -170,11 +322,51 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
               <span className="w-[137px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Time commitment
               </span>
-              <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
-                <div 
-                  className="w-[16px] h-[16px] bg-gradient-to-r from-[#D78DE5] to-[#C865DC] rounded-[100px]"
-                  style={{ marginLeft: `${evaluation.timeCommitment - 8}%` }}
-                ></div>
+
+              <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+                <div
+                  className="h-full rounded-[30px] transition-all duration-900 ease-out relative"
+                  style={{
+                    width: `calc(${progress.timeCommitment}% - 4px)`,
+                    background: "linear-gradient(to right, #D78DE5, #C865DC)",
+                    boxShadow: progress.timeCommitment > 0 ? "0px 0px 15px rgba(215, 141, 229, 0.5)" : "none"
+                  }}
+                >
+                  {/* Inner glow effect */}
+                  <div 
+                    className="absolute inset-0 rounded-[30px] opacity-60"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                    }}
+                  />
+
+                  {/* Shimmer effect */}
+                  {progress.timeCommitment > 10 && (
+                    <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-[-100%] w-full h-full opacity-50"
+                        style={{
+                          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                          animation: "shimmer 2.2s infinite ease-in-out",
+                          animationDelay: "0.3s"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Pulse effect at the end */}
+                  {progress.timeCommitment > 5 && (
+                    <div 
+                      className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
+                      style={{
+                        background: "#FFFFFF",
+                        boxShadow: "0px 0px 8px rgba(255,255,255,0.9)",
+                        transform: "translateY(-50%)",
+                        animation: "pulse 1.8s infinite ease-in-out"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
             
@@ -183,11 +375,51 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
               <span className="w-[70px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Skill level
               </span>
-              <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
-                <div 
-                  className="w-[16px] h-[16px] bg-gradient-to-r from-[#6DDFFF] to-[#38D3FF] rounded-[100px]"
-                  style={{ marginLeft: `${evaluation.skillLevel - 8}%` }}
-                ></div>
+
+              <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+                <div
+                  className="h-full rounded-[30px] transition-all duration-1000 ease-out relative"
+                  style={{
+                    width: `calc(${progress.skillLevel}% - 4px)`,
+                    background: "linear-gradient(to right, #6DDFFF, #38D3FF)",
+                    boxShadow: progress.skillLevel > 0 ? "0px 0px 15px rgba(109, 223, 255, 0.5)" : "none"
+                  }}
+                >
+                  {/* Inner glow effect */}
+                  <div 
+                    className="absolute inset-0 rounded-[30px] opacity-60"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                    }}
+                  />
+
+                  {/* Shimmer effect */}
+                  {progress.skillLevel > 10 && (
+                    <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-[-100%] w-full h-full opacity-50"
+                        style={{
+                          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                          animation: "shimmer 2.5s infinite ease-in-out",
+                          animationDelay: "0.6s"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Pulse effect at the end */}
+                  {progress.skillLevel > 5 && (
+                    <div 
+                      className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
+                      style={{
+                        background: "#FFFFFF",
+                        boxShadow: "0px 0px 8px rgba(255,255,255,0.9)",
+                        transform: "translateY(-50%)",
+                        animation: "pulse 2s infinite ease-in-out"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -264,6 +496,25 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
           // Here you would handle the trade rejection
         }}
       />
+
+      {/* Add keyframes for animations */}
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { left: -100%; }
+          100% { left: 100%; }
+        }
+        
+        @keyframes pulse {
+          0%, 100% { 
+            opacity: 0.6; 
+            transform: translateY(-50%) scale(0.8);
+          }
+          50% { 
+            opacity: 1; 
+            transform: translateY(-50%) scale(1.3);
+          }
+        }
+      `}</style>
     </div>
   );
 }

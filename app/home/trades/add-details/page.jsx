@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { X, Info } from "lucide-react";
 import Link from "next/link";
 import TradeRequestInfo from "../../../../components/trade-cards/trade-request-info";
+import WarningDialog from "../../../../components/trade-cards/warning-dialog";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,6 +20,7 @@ export default function AddTradeDetailsPage() {
   const [deadline, setDeadline] = useState("");
   const [charCount, setCharCount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [tradeData, setTradeData] = useState({ requested: "", exchange: "" });
   const [showSkillTooltip, setShowSkillTooltip] = useState(false);
@@ -51,6 +53,11 @@ export default function AddTradeDetailsPage() {
   
   const handleConfirm = () => {
     setShowConfirmModal(false);
+    setShowWarningModal(true);
+  };
+
+  const handleWarningConfirm = () => {
+    setShowWarningModal(false);
     setShowSuccessModal(true);
   };
 
@@ -113,6 +120,7 @@ export default function AddTradeDetailsPage() {
                   {showSkillTooltip && (
                     <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
                       <div className="text-sm text-white space-y-2">
+                        <div>Indicates the level of expertise required for a trade, helping users set clear expectations for skill and experience.</div>
                         <div><strong>Beginner</strong> – Just starting out and have basic knowledge of the skill.</div>
                         <div><strong>Intermediate</strong> – Comfortable with the skill and can perform it with some independence.</div>
                         <div><strong>Advanced</strong> – Highly skilled and able to perform complex tasks with expertise.</div>
@@ -157,6 +165,7 @@ export default function AddTradeDetailsPage() {
                   {showRequestTooltip && (
                     <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
                       <div className="text-sm text-white space-y-2">
+                        <div>Defines the format of the trade, whether it involves time-based services, one-time outputs, or ongoing projects.</div>
                         <div><strong>Service</strong> – An action done for someone else within a period of time (e.g., tutoring, house repairs, fitness training).</div>
                         <div><strong>Output</strong> – A one-time deliverable you create or provide (e.g., logo design, video edit, custom playlist)</div>
                         <div><strong>Project</strong> – A long-term recurring collaboration. (e.g., developing a website, co-writing a film, organizing an event)</div>
@@ -245,11 +254,12 @@ export default function AddTradeDetailsPage() {
                   placeholder="Example: I'm seeking a beginner-to-novice graphic designer to create visually compelling and unique designs that capture my brand's identity. It would be preferred to have experience with logo design, branding, and digital graphics. This is for my personal project and I need help with visual direction."
                   value={details}
                   onChange={handleDetailsChange}
+                  maxLength={250}
                   className="w-full h-[250px] min-h-[250px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[25px] text-[16px] text-white outline-none placeholder:text-[#413663] resize-none"
                   required
                 />
                 <div className="flex justify-end">
-                  <span className="text-[16px] text-[#413663]">{charCount} characters left</span>
+                  <span className="text-[16px] text-[#413663]">{charCount}/250</span>
                 </div>
               </div>
             </div>
@@ -307,6 +317,13 @@ export default function AddTradeDetailsPage() {
           </div>
         </div>
       )}
+      
+      {/* Warning Modal */}
+      <WarningDialog 
+        isOpen={showWarningModal}
+        onClose={() => setShowWarningModal(false)}
+        onConfirm={handleWarningConfirm}
+      />
       
       {/* Success Modal */}
       {showSuccessModal && (
