@@ -30,6 +30,7 @@ urlpatterns = [
     path("users/username/<str:username>/", views.user_detail_by_username),
 
     path('users/<int:user_id>/interests/', views.user_interests),
+    path("users/add_interests/", views.add_user_interests, name="add-user-interests"),
     path('users/<int:user_id>/skills/', views.user_skills),
     path('users/<int:user_id>/credentials/', views.user_credentials),
 

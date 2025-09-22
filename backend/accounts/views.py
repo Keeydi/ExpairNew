@@ -584,15 +584,30 @@ def add_user_interests(request):
 
     return Response({"added_or_existing": created}, status=status.HTTP_201_CREATED)
 
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 @permission_classes([AllowAny])
 def user_interests(request, user_id: int):
     """
-    Returns a simple list of general interests (GenSkill.genCateg) for a user.
+    GET -> list user interests
+    DELETE -> remove selected interests (bulk supported)
     """
-    qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
-    interests = [ui.genSkills_id.genCateg for ui in qs]
-    return Response({"interests": interests})
+    if request.method == 'GET':
+        qs = UserInterest.objects.filter(user_id=user_id).select_related("genSkills_id")
+        interests = [ui.genSkills_id.genCateg for ui in qs]
+        return Response(interests, status=200)
+
+    elif request.method == 'DELETE':
+        # Expect: { "genSkills_ids": [1, 3, 5] }
+        ids = request.data.get("genSkills_ids", [])
+        if not isinstance(ids, list) or not ids:
+            return Response({"error": "genSkills_ids must be a non-empty list"}, status=400)
+
+        deleted, _ = UserInterest.objects.filter(
+            user_id=user_id,
+            genSkills_id_id__in=ids
+        ).delete()
+
+        return Response({"deleted_count": deleted}, status=200)
 
 @api_view(['GET'])
 @permission_classes([AllowAny]) 
