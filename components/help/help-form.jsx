@@ -9,7 +9,10 @@ import { Listbox } from "@headlessui/react";
 import { Icon } from "@iconify/react";
 
 export function HelpForm() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");  
   const [category, setCategory] = useState("");
+  const [text, setText] = useState("");
   const [photo, setPhoto] = useState(null);
 
 
@@ -62,11 +65,20 @@ export function HelpForm() {
     },
   ];
 
-  const [text, setText] = useState("");
   const maxChars = 500;
 
+  const isFormValid =
+    name.trim() !== "" &&
+    email.trim() !== "" &&
+    category.trim() !== "" &&
+    text.trim() !== "";
+
+
   return (
-    <div id="contact" className="max-w-3xl mx-auto pt-[50px] text-white px-4 sm:px-6">
+    <div
+      id="contact"
+      className="max-w-3xl mx-auto pt-[50px] text-white px-4 sm:px-6"
+    >
       <h2 className="text-[22px] sm:text-[25px] font-semibold mb-[30px] text-center">
         Create a ticket
       </h2>
@@ -77,6 +89,8 @@ export function HelpForm() {
           <p className="text-white font-normal mb-[15px]">Your name *</p>
           <Input
             placeholder="John Doe"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full max-w-[450px] h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] placeholder-[#413663] placeholder:text-[16px] text-white"
           />
         </div>
@@ -87,6 +101,8 @@ export function HelpForm() {
           <Input
             type="email"
             placeholder="youremail@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full max-w-[450px] h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] placeholder-[#413663] placeholder:text-[16px] text-white"
           />
         </div>
@@ -134,32 +150,36 @@ export function HelpForm() {
           </div>
         </div>
 
-            {/* Photo upload */}
-              <label className="text-white font-normal mb-[15px]">Upload a photo for context</label>
-              <div className="relative">
-                <input 
-                  type="file" 
-                  id="photo-upload" 
-                  className="hidden" 
-                  onChange={(e) => setPhoto(e.target.files[0])}
-                />
-                <label 
-                  htmlFor="photo-upload" 
-                  className="w-full max-w-[450px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] flex justify-between items-center cursor-pointer"
-                >
-                  <span className="text-[16px] text-[#413663]">
-                    {photo ? photo.name : "Upload photo"}
-                  </span>
-                  <Icon 
-                    icon="material-symbols:upload" 
-                    className="text-white w-[24px] h-[24px]" 
-                  />
-                </label>
-              </div>
+        {/* Photo upload */}
+        <label className="text-white font-normal mb-[15px]">
+          Upload a photo for context
+        </label>
+        <div className="relative">
+          <input
+            type="file"
+            id="photo-upload"
+            className="hidden"
+            onChange={(e) => setPhoto(e.target.files[0])}
+          />
+          <label
+            htmlFor="photo-upload"
+            className="w-full max-w-[450px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] flex justify-between items-center cursor-pointer"
+          >
+            <span className="text-[16px] text-[#413663]">
+              {photo ? photo.name : "Upload photo"}
+            </span>
+            <Icon
+              icon="material-symbols:upload"
+              className="text-white w-[24px] h-[24px]"
+            />
+          </label>
+        </div>
 
         {/* Textarea with Counter */}
         <div>
-          <p className="text-white font-normal mb-[15px]">Describe the ticket in detail *</p>
+          <p className="text-white font-normal mb-[15px]">
+            Describe the ticket in detail *
+          </p>
           <div className="relative w-full max-w-[656px]">
             <Textarea
               placeholder="Example: I am submitting a report concerning a potential scam incident..."
@@ -179,7 +199,8 @@ export function HelpForm() {
         <div className="flex justify-center mb-[195px] w-full">
           <Button
             type="submit"
-            className="font-normal w-[240px] h-[50px] px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] text-white text-sm sm:text-[16px] hover:bg-[#1a4dff] transition rounded-[15px]"
+            disabled={!isFormValid}
+            className="font-normal w-[240px] h-[50px] px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] text-white text-sm sm:text-[16px] hover:bg-[#1a4dff] transition rounded-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Submit
           </Button>

@@ -15,7 +15,7 @@ import {
   Heart,
   Flag,
 } from "lucide-react";
-import AnimatedLevelBar from "../../../components/ui/animated-level-bar";
+import AnimatedLevelBar from "../../../../components/ui/animated-level-bar";
 
 const inter = Inter({ subsets: ["latin"] });
 

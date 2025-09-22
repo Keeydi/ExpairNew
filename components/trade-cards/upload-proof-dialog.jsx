@@ -126,33 +126,36 @@ export default function UploadProofDialog({ isOpen, onClose, onSubmit, title = "
           </div>
 
           {/* Upload area */}
-          <div 
-            className={`w-full h-[280px] border-2 border-dashed rounded-[25px] flex flex-col items-center justify-center ${dragActive ? 'border-white' : 'border-white/60'}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className="flex flex-col items-center gap-[15px]">
-              <Icon icon="lucide:cloud-upload" className="w-[120px] h-[80px] text-white/40" />
-              <p className="text-[18px] text-white/60 text-center">
-                Drag and drop your files here
-              </p>
-            </div>
-            <button 
-              onClick={() => fileInputRef.current.click()}
-              className="mt-[30px] px-[60px] py-[15px] border border-white rounded-[12px] text-[14px] text-white hover:bg-[#1A0F3E] transition-colors"
+          {/* Upload area (only in upload mode) */}
+          {mode === "upload" && (
+            <div 
+              className={`w-full h-[280px] border-2 border-dashed rounded-[25px] flex flex-col items-center justify-center ${dragActive ? 'border-white' : 'border-white/60'}`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
             >
-              Browse files
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={handleChange}
-              className="hidden"
-            />
-          </div>
+              <div className="flex flex-col items-center gap-[15px]">
+                <Icon icon="lucide:cloud-upload" className="w-[120px] h-[80px] text-white/40" />
+                <p className="text-[18px] text-white/60 text-center">
+                  Drag and drop your files here
+                </p>
+              </div>
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="mt-[30px] px-[60px] py-[15px] border border-white rounded-[12px] text-[14px] text-white hover:bg-[#1A0F3E] transition-colors"
+              >
+                Browse files
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleChange}
+                className="hidden"
+              />
+            </div>
+          )}
 
           {/* Uploaded files */}
           <div className="flex flex-col gap-[25px] w-full">

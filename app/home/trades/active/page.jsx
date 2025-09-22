@@ -271,7 +271,7 @@ export default function ActiveTradesPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="px-[25px] pb-[15px] flex flex-wrap justify-between">
+                <div className="px-[25px] pb-[25px] flex flex-wrap justify-between">
                   <button 
                     className="flex items-center justify-center"
                     onClick={() => toggleCardExpand(trade.id)}
