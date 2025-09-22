@@ -61,6 +61,12 @@ export default function AddTradeDetailsPage() {
     setShowSuccessModal(true);
   };
 
+  const isFormValid =
+  deliveryMode.trim() !== "" &&
+  skillLevel.trim() !== "" &&
+  requestType.trim() !== "" &&
+  details.trim() !== "";
+
   return (
     <div className={`w-full min-h-screen text-white ${inter.className} relative overflow-x-hidden`}>
       {/* Background glows */}
@@ -92,7 +98,7 @@ export default function AddTradeDetailsPage() {
                   onChange={(e) => setDeliveryMode(e.target.value)}
                   required
                 >
-                  <option value="" disabled hidden className="text-[#413663]">Onsite</option>
+                  <option value="" disabled hidden className="text-[#413663]">-- select --</option>
                   <option value="onsite">Onsite</option>
                   <option value="online-sync">Online (synchronous)</option>
                   <option value="online-async">Online (asynchronous)</option>
@@ -137,7 +143,7 @@ export default function AddTradeDetailsPage() {
                   onChange={(e) => setSkillLevel(e.target.value)}
                   required
                 >
-                  <option value="" disabled hidden className="text-[#413663]">Select skill level</option>
+                  <option value="" disabled hidden className="text-[#413663]">-- select --</option>
                   <option value="beginner">Beginner</option>
                   <option value="intermediate">Intermediate</option>
                   <option value="advanced">Advanced</option>
@@ -181,7 +187,7 @@ export default function AddTradeDetailsPage() {
                   onChange={(e) => setRequestType(e.target.value)}
                   required
                 >
-                  <option value="" disabled hidden className="text-[#413663]">Service</option>
+                  <option value="" disabled hidden className="text-[#413663]">-- select --</option>
                   <option value="service">Service</option>
                   <option value="output">Output</option>
                   <option value="project">Project</option>
@@ -254,12 +260,12 @@ export default function AddTradeDetailsPage() {
                   placeholder="Example: I'm seeking a beginner-to-novice graphic designer to create visually compelling and unique designs that capture my brand's identity. It would be preferred to have experience with logo design, branding, and digital graphics. This is for my personal project and I need help with visual direction."
                   value={details}
                   onChange={handleDetailsChange}
-                  maxLength={250}
-                  className="w-full h-[250px] min-h-[250px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[25px] text-[16px] text-white outline-none placeholder:text-[#413663] resize-none"
+                  maxLength={500}
+                  className="w-full h-[390px] min-h-[250px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[25px] text-[16px] text-white outline-none placeholder:text-[#413663] resize-none"
                   required
                 />
                 <div className="flex justify-end">
-                  <span className="text-[16px] text-[#413663]">{charCount}/250</span>
+                  <span className="text-[16px] text-[#413663]">{charCount}/500</span>
                 </div>
               </div>
             </div>
@@ -268,7 +274,8 @@ export default function AddTradeDetailsPage() {
             <div className="flex justify-end mt-auto">
               <button
                 onClick={handleSubmit}
-                className="w-[240px] h-[50px] bg-[#0038FF] rounded-[15px] text-[20px] font-medium text-white shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
+                disabled={!isFormValid}
+                className="w-[240px] h-[50px] bg-[#0038FF] rounded-[15px] text-[20px] font-medium text-white shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirm
               </button>

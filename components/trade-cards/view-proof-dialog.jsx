@@ -30,7 +30,7 @@ export default function ViewProofDialog({ isOpen, onClose, trade }) {
     <>
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
         <div 
-          className="w-[618px] h-[643px] flex flex-col items-center justify-center p-[50px] relative"
+          className="w-[618px] h-[520px] flex flex-col items-center justify-center p-[50px] relative"
           style={{
             background: "rgba(0, 0, 0, 0.05)",
             border: "2px solid #0038FF",
@@ -54,15 +54,43 @@ export default function ViewProofDialog({ isOpen, onClose, trade }) {
               {trade?.firstname}&apos;s proof
             </h2>
 
-            {/* Proof Image */}
-            <div className="w-[470px] h-[250px] border-2 border-white rounded-[25px] overflow-hidden">
-              <Image
-                src="/defaultavatar.png" // This would be the actual proof image
-                alt="Proof"
-                width={470}
-                height={250}
-                className="w-full h-full object-cover"
-              />
+            {/* Proof File Card */}
+            <div className="flex flex-row justify-between items-center p-[20px] bg-[#120A2A] rounded-[12px] shadow-lg w-full">
+              <div className="flex items-center gap-[15px] min-w-0 flex-1">
+                {/* Thumbnail or icon */}
+                <div className="w-[50px] h-[50px] rounded-[8px] overflow-hidden flex-shrink-0 border border-white/20 bg-[#1A0F3E] flex items-center justify-center">
+                  {trade?.proofFile?.isImage ? (
+                    <img
+                      src={trade.proofFile.preview || "/defaultavatar.png"}
+                      alt={trade.proofFile.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Icon icon="lucide:file" className="w-[24px] h-[24px] text-white/60" />
+                  )}
+                </div>
+
+                {/* File info */}
+                <div className="flex flex-col gap-[2px] min-w-0 flex-1">
+                  <span className="text-[16px] text-white truncate" title={trade?.proofFile?.name}>
+                    {trade?.proofFile?.name || "Proof file"}
+                  </span>
+                  <span className="text-[12px] text-white/50">
+                    {trade?.proofFile?.isImage ? "Image file" : "Document"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-[12px] flex-shrink-0">
+                <button
+                  onClick={() => window.open(trade?.proofFile?.url || "#", "_blank")}
+                  className="hover:bg-white/10 p-2 rounded transition-colors"
+                  title="View file"
+                >
+                  <Icon icon="lucide:eye" className="w-[20px] h-[20px] text-white" />
+                </button>
+              </div>
             </div>
 
             {/* Question and Disclaimer */}

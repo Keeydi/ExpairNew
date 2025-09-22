@@ -18,6 +18,7 @@ import {
   Heart,
   Flag,
 } from "lucide-react";
+import AnimatedLevelBar from "../../../../components/ui/animated-level-bar";
 import ProfileAvatar from "@/components/avatar";
 
 // ===== XP / Level  based on CUMULATIVE THRESHOLDS =====

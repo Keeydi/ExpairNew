@@ -236,7 +236,9 @@ export default function ActiveTradesPage() {
                         </span>
                       </div>
                     </div>
-                    <span className="text-[14px] font-semibold text-[#906EFF]">{trade.xp}</span>
+                    <span className="text-[16px] font-semibold text-[#906EFF]">
+                      {trade.xp}
+                    </span>
                   </div>
 
                   <div className="flex flex-col gap-4">
@@ -274,7 +276,7 @@ export default function ActiveTradesPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="px-[25px] pb-[15px] flex flex-wrap justify-between">
+                <div className="px-[25px] pb-[25px] flex flex-wrap justify-between">
                   <button 
                     className="min-w-[220px] max-w-[280px] h-[40px] flex justify-center items-center rounded-[15px] cursor-pointer transition-all"
                     onClick={(e) => {
@@ -412,7 +414,7 @@ export default function ActiveTradesPage() {
                     </div>
                   </div>
 
-                  <span className="text-[16px] font-normal text-[#906EFF]">{trade.xp}</span>
+                  <span className="text-[16px] font-semibold text-[#906EFF]">{trade.xp}</span>
                 </div>
 
                 {/* Bottom Row - Location and Due Date */}
@@ -421,7 +423,7 @@ export default function ActiveTradesPage() {
                     <Icon icon="lucide:map-pin" className="w-4 h-4 text-white" />
                     <span className="text-[13px] text-white">{trade.location}</span>
                   </div>
-                  <span className="text-[13px] text-white">Due on {trade.deadline}</span>
+                  <span className="text-[13px] font-normal text-white/60">Due on {trade.deadline}</span>
                 </div>
 
                 {/* Chevron Down + Action Buttons */}
