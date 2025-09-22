@@ -234,7 +234,7 @@ export default function ActiveTradesPage() {
                         </span>
                       </div>
                     </div>
-                    <span className="text-[16px] font-normal text-[#906EFF]">
+                    <span className="text-[16px] font-semibold text-[#906EFF]">
                       {trade.xp}
                     </span>
                   </div>
@@ -398,7 +398,7 @@ export default function ActiveTradesPage() {
                     </div>
                   </div>
 
-                  <span className="text-[16px] font-normal text-[#906EFF]">{trade.xp}</span>
+                  <span className="text-[16px] font-semibold text-[#906EFF]">{trade.xp}</span>
                 </div>
 
                 {/* Bottom Row - Location and Due Date */}
@@ -407,7 +407,7 @@ export default function ActiveTradesPage() {
                     <Icon icon="lucide:map-pin" className="w-4 h-4 text-[rgba(255,255,255,0.60)]" />
                     <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">{trade.location}</span>
                   </div>
-                  <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">Due on {trade.deadline}</span>
+                  <span className="text-[13px] font-normal text-white/60">Due on {trade.deadline}</span>
                 </div>
 
                 {/* Chevron Down + Action Buttons */}
