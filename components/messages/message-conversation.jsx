@@ -129,58 +129,28 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
           <Image
             src={conversation.avatar}
             alt={conversation.name}
-            width={45}
-            height={45}
+            width={48}
+            height={48}
             className="rounded-full"
           />
           <div>
-            <h3 className="text-[16px] text-white flex items-center gap-2">
-              {conversation.name}
-            </h3>
-            <div className="flex items-center gap-5 mt-1">
-              {/* Group 1: LVL */}
-              <div className="flex items-center">
-                <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">
-                  LVL {conversation.level}
-                </span>
-              </div>
-
-              {/* Group 2: Star + Rating */}
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
-                <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">
-                  {conversation.rating}
-                </span>
-              </div>
-
-              {/* Group 3: SVG + Rating Label */}
-              <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
-                  <path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z" fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5"/>
-                  <defs>
-                    <radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)">
-                      <stop offset="0.4" stopColor="#933BFF"/>
-                      <stop offset="1" stopColor="#34188D"/>
-                    </radialGradient>
-                    <linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="white"/>
-                      <stop offset="0.5" stopColor="#999999"/>
-                      <stop offset="1" stopColor="white"/>
-                    </linearGradient>
-                  </defs>
-                </svg>
-
-                <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">
-                  {conversation.ratingLabel}
-                </span>
-              </div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-white">{conversation.name}</h3>
+              <span className="text-xs bg-[#120A2A] px-2 py-0.5 rounded-full text-[#8E7EB3]">
+                LVL {conversation.level}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs">
+              <Icon icon="lucide:star" className="w-3 h-3 text-[#906EFF] fill-current" />
+              <span className="font-bold">{conversation.rating}</span>
+              <span className="text-[#8E7EB3] ml-1">{conversation.ratingLabel}</span>
             </div>
           </div>
         </div>
         
         <div className="flex items-center">
-          <button className="w-[40px] h-[40px] flex items-center justify-center text-white transition">
-            <Icon icon="lucide:more-horizontal" className="w-5 h-5" />
+          <button className="w-[40px] h-[40px] bg-[#120A2A] rounded-full flex items-center justify-center text-white hover:bg-[#1A0F3E] transition">
+            <Icon icon="lucide:more-vertical" className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -191,15 +161,15 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
           <div className="flex justify-between">
             <div className="flex items-start gap-4">
               <div className="flex flex-col">
-                <span className="text-[16px] text-white">Requested</span>
-                <div className="px-[10px] py-[5px] mt-1 bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
-                  <span className="text-[13px] text-white">{conversation.requests.requested}</span>
+                <span className="text-xs text-[#8E7EB3]">Requested</span>
+                <div className="px-[10px] py-[5px] mt-1 bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px]">
+                  <span className="text-xs text-white">{conversation.requests.requested}</span>
                 </div>
               </div>
               <div className="flex flex-col">
-                <span className="text-[16px] text-white">In exchange for</span>
-                <div className="px-[10px] py-[5px] mt-1 bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
-                  <span className="text-[13px] text-white">{conversation.requests.exchange}</span>
+                <span className="text-xs text-[#8E7EB3]">In exchange for</span>
+                <div className="px-[10px] py-[5px] mt-1 bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px]">
+                  <span className="text-xs text-white">{conversation.requests.exchange}</span>
                 </div>
               </div>
             </div>

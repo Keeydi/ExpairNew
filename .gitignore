@@ -39,10 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.taskmaster
-.cursorrules
-.env
-.env.local
-.env.development
-.env.production
-.env.test
+
+# Python virtualenv
+venv/
+backend/venv/
+*/venv/
+
+__pycache__/
+*.pyc
+*.pyo

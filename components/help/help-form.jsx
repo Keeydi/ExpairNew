@@ -6,7 +6,6 @@ import { Textarea } from "../ui/textarea";
 import { Upload, ChevronDown } from "lucide-react";
 import { useState, Fragment } from "react";
 import { Listbox } from "@headlessui/react";
-import { Icon } from "@iconify/react";
 
 export function HelpForm() {
   const [name, setName] = useState("");

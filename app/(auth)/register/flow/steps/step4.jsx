@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../../../../../components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
@@ -10,8 +10,8 @@ const inter = Inter({ subsets: ["latin"] });
 
 // Category data with icons and selection state
 const categories = [
-  { id: 1, name: "Technical & IT", icon: "laptop" },
-  { id: 2, name: "Creative & Design", icon: "palette" },
+  { id: 1, name: "Creative & Design", icon: "palette" },
+  { id: 2, name: "Technical & IT", icon: "laptop" },
   { id: 3, name: "Business & Management", icon: "user-business" },
   { id: 4, name: "Communication & Interpersonal", icon: "communication" },
   { id: 5, name: "Health & Wellness", icon: "health" },
@@ -27,9 +27,40 @@ const categories = [
   { id: 15, name: "Research & Critical Thinking", icon: "book" },
 ];
 
-export default function Step4({ onNext, onPrev }) {
-  const [selectedCategories, setSelectedCategories] = useState([]);
+export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
+  const [selectedCategories, setSelectedCategories] = useState(step4Data.selectedCategories || []);
+
   const [errorMessage, setErrorMessage] = useState("");
+
+  // 🔗 Map real DB ids by category name (e.g., { "Technical & IT": 3, ... })
+  const [serverIdByName, setServerIdByName] = useState({});
+
+  // Fetch real categories to get the correct genskills_id mapping
+  useEffect(() => {
+  const load = async () => {
+    try {
+      const res = await fetch('/api/dj/skills/general/'); // Remove unnecessary empty object
+      const data = await res.json(); // [{ genSkills_id, genCateg }]
+      
+      // Build a name->id dictionary
+      const map = {};
+      (Array.isArray(data) ? data : []).forEach((row) => {
+        map[row.genCateg] = row.genSkills_id;
+      });
+      setServerIdByName(map);  // Update state with the map of categories to IDs
+    } catch (e) {
+      console.error("Failed to load general skills:", e);  // Log any errors encountered
+    }
+  };
+  load();
+}, []);
+
+
+  useEffect(() => {
+    if (step4Data) {
+      setSelectedCategories(step4Data.selectedCategories);
+    }
+  }, [step4Data]);
 
   const toggleCategory = (categoryId) => {
     setSelectedCategories((prev) => {
@@ -52,10 +83,21 @@ export default function Step4({ onNext, onPrev }) {
       return;
     }
     setErrorMessage("");
-    onNext();
-  };  
 
-  // Get the appropriate icon for each category
+    // Save selected categories to the parent
+    onDataSubmit({
+      selectedCategories, // Pass selected categories to the parent
+    });
+
+    onNext(); // Proceed to next step (Step 5)
+  };
+
+  const handlePrev = () => {
+    onPrev({ selectedCategories });
+  };
+
+
+  // ⬇️ Your existing icon renderer (unchanged)
   const getCategoryIcon = (iconName) => {
     switch (iconName) {
       case "laptop":
@@ -261,10 +303,10 @@ export default function Step4({ onNext, onPrev }) {
         </div>
         
         {/* Pagination - Centered at bottom */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px]">
+        <div   className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
-            onClick={onPrev}
+            onClick={handlePrev}
           />
           <span>4 of 6</span>
           <ChevronRight

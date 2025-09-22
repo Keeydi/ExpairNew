@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
 import Image from "next/image";
@@ -13,6 +14,8 @@ import Tooltip from "../../../../components/ui/tooltip";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function PendingTradesPage() {
+  const { data: session } = useSession();
+
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedSort, setSelectedSort] = useState("Date");
   const [showSortOptions, setShowSortOptions] = useState(false);
@@ -23,36 +26,11 @@ export default function PendingTradesPage() {
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [expandedFinalizationCardId, setExpandedFinalizationCardId] = useState(null);
 
-  // Data for trades you posted
-  const postedTrades = [
-    {
-      id: 1,
-      name: "John Doe",
-      rating: "5.0",
-      reviews: "25",
-      level: "15",
-      needs: "Plumbing",
-      interested: [
-        { id: 1, avatar: "/defaultavatar.png" },
-        { id: 2, avatar: "/defaultavatar.png" },
-        { id: 3, avatar: "/defaultavatar.png" }
-      ],
-      until: "July 5"
-    },
-    {
-      id: 2,
-      name: "John Doe",
-      rating: "5.0",
-      reviews: "25",
-      level: "15",
-      needs: "Logo and Branding Design",
-      interested: [
-        { id: 1, avatar: "/defaultavatar.png" },
-        { id: 2, avatar: "/defaultavatar.png" }
-      ],
-      until: "July 11"
-    }
-  ];
+  const [postedTrades, setPostedTrades] = useState([]);
+  //const [initiatedTrades, setInitiatedTrades] = useState([]);
+  //const [finalizationTrades, setFinalizationTrades] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Data for trades you initiated
   const initiatedTrades = [
@@ -88,7 +66,7 @@ export default function PendingTradesPage() {
       rating: "5.0",
       reviews: "20",
       level: "14",
-      needs: "Nutrition Coaching",
+      needs: "Nutrition Coaching for Weight Loss",
       offers: "Graphic Design",
       until: "July 1"
     },
@@ -104,20 +82,90 @@ export default function PendingTradesPage() {
     }
   ];
 
-  // Toggle card expand for finalization trades
-  const toggleFinalizationCardExpand = (id) => {
-    if (expandedFinalizationCardId === id) {
-      setExpandedFinalizationCardId(null);
-    } else {
-      setExpandedFinalizationCardId(id);
-    }
+    // Fetch all trade data
+  useEffect(() => {
+    const fetchAllTrades = async () => {
+      if (!session?.access) return;
+      
+      try {
+        setLoading(true);
+        
+        // Fetch trades user posted
+        const postedResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/posted-trades/`, {
+          headers: {
+            'Authorization': `Bearer ${session.access}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (postedResponse.ok) {
+          const postedData = await postedResponse.json();
+          const transformedPostedTrades = postedData.posted_trades.map(trade => ({
+            id: trade.tradereq_id,
+            tradereq_id: trade.tradereq_id,
+            name: `${session.user.first_name || ''} ${session.user.last_name || ''}`.trim() || session.user.username || 'You',
+            rating: session.user.rating || "0.0",
+            reviews: session.user.reviews || "0",
+            level: session.user.level || "1",
+            needs: trade.reqname,
+            interested: trade.interested_users.map(user => ({
+              id: user.id,
+              name: user.name,
+              username: user.username,
+              avatar: user.profilePic || "/defaultavatar.png",
+              rating: user.rating,
+              reviews: user.rating_count,
+              level: user.level,
+            })),
+            interested_users: trade.interested_users,
+            until: trade.deadline ? new Date(trade.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : 'No deadline',
+          }));
+          setPostedTrades(transformedPostedTrades);
+        }
+
+        
+      } catch (error) {
+        console.error('Error fetching trades:', error);
+        setError('Failed to load trades');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllTrades();
+  }, [session]);
+
+  const handleViewClick = (trade) => {
+    setSelectedTrade(trade);
+    setSelectedService(trade.needs);
+    setShowOffersPopup(true);
   };
+
+  if (loading) {
+    return (
+      <div className={`w-[950px] mx-auto pt-10 pb-20 text-white ${inter.className}`}>
+        <div className="flex justify-center items-center h-64">
+          <div className="text-lg">Loading your trades...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`w-[950px] mx-auto pt-10 pb-20 text-white ${inter.className}`}>
+        <div className="flex justify-center items-center h-64">
+          <div className="text-lg text-red-400">{error}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`w-[950px] mx-auto pt-10 pb-20 text-white ${inter.className}`}>
       {/* Page Title with Sort/Filter */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-[25px] font-[600]">Pending trades</h1>
+        <h1 className="text-[25px] font-bold">Pending trades</h1>
 
         <div className="flex items-center gap-4">
           {/* Sort Button */}
@@ -167,84 +215,86 @@ export default function PendingTradesPage() {
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="relative">
-                  <button onClick={() => setOpenMenuIndex(openMenuIndex === index ? null : index)}>
-                    <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
-                  </button>
-                  {openMenuIndex === index && (
-                    <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
-                        <Icon icon="lucide:edit" className="text-white text-base" />
-                        Edit
-                      </button>
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
-                        <Icon icon="lucide:trash-2" className="text-white text-base" />
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Needs and Interested Section */}
-              <div className="flex justify-between items-start w-full">
-                {/* Needs */}
-                <div className="flex flex-col items-start gap-[10px]">
-                  <span className="text-[13px] text-white">Needs</span>
-                  <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
-                    <span className="text-[13px] text-white leading-tight">{trade.needs}</span>
-                  </div>
-                </div>
-                
-                {/* Interested People */}
-                <div className="flex flex-col items-end gap-[10px]">
-                  <span className="text-[13px] text-white">Look who's interested</span>
-                  <div className="flex -space-x-2">
-                    {trade.interested.map((person) => (
-                      <div key={person.id} className="w-[25px] h-[25px] rounded-full border border-white overflow-hidden">
-                        <Image
-                          src={person.avatar}
-                          alt="Avatar"
-                          width={25}
-                          height={25}
-                        />
+                  <div className="relative">
+                    <button onClick={() => setOpenMenuIndex(openMenuIndex === index ? null : index)}>
+                      <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
+                    </button>
+                    {openMenuIndex === index && (
+                      <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
+                        <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
+                          <Icon icon="lucide:edit" className="text-white text-base" />
+                          Edit
+                        </button>
+                        <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
+                          <Icon icon="lucide:trash-2" className="text-white text-base" />
+                          Delete
+                        </button>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Date */}
-              <div className="flex justify-end items-center w-full">
-                <span className="text-[13px] [color:var(--White-Heavy,_rgba(255,255,255,0.60))]">until {trade.until}</span>
-              </div>
+                {/* Needs and Interested Section */}
+                <div className="flex justify-between items-start w-full">
+                  {/* Needs */}
+                  <div className="flex flex-col items-start gap-[10px]">
+                    <span className="text-[13px] text-white">Needs</span>
+                    <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px]">
+                      <span className="text-[12px] text-white leading-tight">{trade.needs}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Interested People */}
+                  <div className="flex flex-col items-end gap-[10px]">
+                    <span className="text-[13px] text-white">Look who's interested</span>
+                    <div className="flex -space-x-2">
+                      {trade.interested && trade.interested.length > 0 ? (
+                        trade.interested.map((person) => (
+                          <div key={person.id} className="w-[25px] h-[25px] rounded-full border border-white overflow-hidden">
+                            <Image
+                              src={person.avatar}
+                              alt="Avatar"
+                              width={25}
+                              height={25}
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[12px] text-white/60">No interest yet</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-              {/* View Button - Centered */}
-              <div className="flex justify-center w-full">
+                {/* Date */}
+                <div className="flex justify-end items-center w-full">
+                  <span className="text-[13px] text-white/60">until {trade.until}</span>
+                </div>
+
+                {/* View Button */}
                 <button 
                   className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors"
-                  onClick={() => {
-                    setSelectedService(trade.needs);
-                    setShowOffersPopup(true);
-                  }}
+                  onClick={() => handleViewClick(trade)}
+                  disabled={!trade.interested || trade.interested.length === 0}
                 >
-                  <span className="text-[13px] text-white">View</span>
+                  <span className="text-[13px] text-white">
+                    {(!trade.interested || trade.interested.length === 0) ? 'No offers' : 'View'}
+                  </span>
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Trades You Initiated Section */}
+      
+      {/* Trades You're Interested In Section */}
       <div className="mb-10">
-        <h2 className="text-[20px] font-medium mb-5 text-[#FB9696]">Trades you initiated</h2>
+        <h2 className="text-[20px] font-medium mb-5 text-[#FB9696]">Trades you're interested in</h2>
         <div className="flex flex-wrap gap-[25px]">
           {initiatedTrades.map((trade, index) => (
             <div
               key={trade.id}
-              className="transition-all duration-300 hover:scale-[1.01]transition-all duration-300 hover:scale-[1.01] w-[440px] h-[240px] p-[25px] flex flex-col justify-between rounded-[20px] border-[3px] border-[#FB9696]/80"
+              className="w-[440px] h-[240px] p-[25px] flex flex-col justify-between rounded-[20px] border-[3px] border-[#FB9696]/80"
               style={{
                 background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
                 boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)"
@@ -253,14 +303,13 @@ export default function PendingTradesPage() {
               {/* Trade Header */}
               <div className="flex justify-between items-start w-full">
                 <div className="flex items-start gap-[10px]">
-                  <img src="/defaultavatar.png" alt="Default Avatar" className="w-[25px] h-[25px] rounded-full object-cover" />
+                  <div className="w-[25px] h-[25px] rounded-full bg-gray-400"></div>
                   <div className="flex flex-col items-start gap-[5px]">
                     <span className="text-[16px] text-white">{trade.name}</span>
                     <div className="flex items-center gap-[15px]">
                       <div className="flex items-center gap-[5px]">
-                        <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
-                        <span className="text-[13px] font-bold text-white">{trade.rating}</span>
-                        <span className="text-[13px] font-normal text-white"> ({trade.reviews})</span>
+                        <Icon icon="lucide:star" className="w-4 h-4 text-[#906EFF] fill-current flex-shrink-0" />
+                        <span className="text-[13px] font-bold text-white">{trade.rating} ({trade.reviews})</span>
                       </div>
                       <div className="flex flex-col gap-[3px]">
                         <div className="flex items-center gap-[5px]">
@@ -300,40 +349,35 @@ export default function PendingTradesPage() {
                 </div>
               </div>
 
-              {/* Needs / Offers */}
-              <div className="flex justify-between items-start w-full">
-                <div className="flex flex-col items-start gap-[10px]">
+              {/* Needs/Offers Section */}
+              <div className="flex justify-between items-start w-full space-x-4">
+                <div className="flex flex-col justify-center items-start gap-[10px] flex-1">
                   <span className="text-[13px] text-white">Needs</span>
-                  <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
-                    <span className="text-[13px] text-white leading-tight">{trade.needs}</span>
+                  <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px] max-w-full">
+                    <span className="text-[12px] text-white leading-tight line-clamp-2">{trade.needs}</span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-[10px]">
+                <div className="flex flex-col justify-center items-end gap-[10px] flex-1">
                   <span className="text-[13px] text-white">Can offer</span>
-                  <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
-                    <span className="text-[13px] text-white leading-tight">{trade.offers}</span>
+                  <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px] max-w-full">
+                    <span className="text-[12px] text-white leading-tight line-clamp-2">{trade.offers}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Date - Bottom Right */}
-              <div className="flex justify-end items-center w-full">
+              {/* Status and Date */}
+              <div className="flex justify-between items-center w-full">
+                <span className="text-[13px] text-white/60">{trade.status}</span>
                 <span className="text-[13px] text-white/60">until {trade.until}</span>
               </div>
-
-              {/* Status - Centered */}
-              <div className="flex justify-center w-full">
-                <span className="text-[13px] text-white/60">{trade.status}</span>
-              </div>
-
             </div>
           ))}
         </div>
       </div>
 
-      {/* Trades for Finalization Section */}
+      {/* Trades for Confirmation Section */}
       <div className="mb-10">
-        <h2 className="text-[20px] font-medium mb-5 text-[#6DDFFF]">Trades for finalization</h2>
+        <h2 className="text-[20px] font-medium mb-5 text-[#6DDFFF]">Trades for confirmation</h2>
         <div className="flex flex-wrap gap-[25px]">
           {finalizationTrades.map((trade, index) => (
             <div
@@ -606,13 +650,13 @@ export default function PendingTradesPage() {
         isOpen={showOffersPopup} 
         onClose={() => setShowOffersPopup(false)} 
         service={selectedService} 
+        trade={selectedTrade} 
       />
 
       {/* Evaluation Dialog */}
       <EvaluationDialog
         isOpen={showEvaluationDialog}
         onClose={() => setShowEvaluationDialog(false)}
-        closeParentDialog={() => setShowEvaluationDialog(false)}
         tradeData={selectedTrade}
       />
     </div>

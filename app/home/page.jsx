@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSession } from "next-auth/react";
+import Image from "next/image";
+import { Star } from "lucide-react"
+
 import { useRouter } from "next/navigation";
 import { Inter } from "next/font/google";
 import { Archivo } from "next/font/google";
@@ -9,15 +13,18 @@ import { Icon } from "@iconify/react";
 import ActiveTradeCardHome from "../../components/trade-cards/active-home";
 import SortDropdown from "../../components/shared/sortdropdown";
 import ExploreCard from "../../components/trade-cards/explore-card";
-import Image from "next/image";
-import { Star } from "lucide-react";
 
-
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 const inter = Inter({ subsets: ["latin"] });
 const archivo = Archivo({ subsets: ["latin"] });
 
 export default function HomePage() {
   const router = useRouter();
+  const { data: session } = useSession();
+
+  const [exploreItems, setExploreItems] = useState([]); // Explore items from backend
+  const [exploreErr, setExploreErr] = useState(""); // Error message for explore fetch
+
   const [greeting, setGreeting] = useState("Starry evening, voyager");
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedSort, setSelectedSort] = useState("Date");
@@ -40,25 +47,22 @@ export default function HomePage() {
     minLevel: 0,
   });
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Refs for click-outside handling
   const menuRefs = useRef([]);
   const exploreSortMenuRef = useRef(null);
   const exploreFilterMenuRef = useRef(null);
 
   const handleNotInterested = (partnerId) => {
-    // In a real app, you would update the user's preferences
-    // For now, just close the menu and show a message
     setOpenMenuIndex(null);
     console.log(`Marked partner ${partnerId} as not interested`);
-    // You could also remove the partner from the list or add a visual indicator
   };
 
   const handleReport = (partnerId) => {
-    // In a real app, you would open a report form or send a report
-    // For now, just close the menu and show a message
     setOpenMenuIndex(null);
     console.log(`Reported partner ${partnerId}`);
-    // You could also show a confirmation message to the user
   };
 
   // Handle "I'm interested" button click
@@ -68,12 +72,37 @@ export default function HomePage() {
   };
 
   // Handle confirmation dialog actions
-  const handleConfirmInterest = () => {
-    setShowConfirmDialog(false);
-    setShowSuccessDialog(true);
-    // In a real app, you would send the trade invitation here
-    console.log(`Sent trade invitation to ${selectedPartner?.name}`);
-  };
+  const handleConfirmInterest = async () => {
+  setShowConfirmDialog(false);
+  
+  try {
+    const headers = { "Content-Type": "application/json" };
+    const token = session?.access || session?.accessToken;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    
+    const response = await fetch(`${BACKEND_URL}/express-interest/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        tradereq_id: selectedPartner?.tradereq_id,
+        requester_name: selectedPartner?.name
+      }),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Interest expressed successfully:", data);
+      setShowSuccessDialog(true);
+    } else {
+      const errorData = await response.json();
+      console.error("Failed to express interest:", errorData.error);
+      // Show error message to user
+    }
+  } catch (error) {
+    console.error("Network error:", error);
+    // Show error message to user
+  }
+};
 
   const handleCancelInterest = () => {
     setShowConfirmDialog(false);
@@ -168,17 +197,129 @@ export default function HomePage() {
   // Set greeting based on time of day
   useEffect(() => {
     const hour = new Date().getHours();
+    let prefix = "Starry night", emoji = "⭐";
+    if (hour >= 5 && hour < 12) { prefix = "Bright morning"; emoji = "☀️"; }
+    else if (hour >= 12 && hour < 17) { prefix = "Good afternoon"; emoji = "☁️"; }
+    else if (hour >= 17 && hour < 22) { prefix = "Stellar evening"; emoji = "🌙"; }
 
-    if (hour >= 5 && hour < 12) {
-      setGreeting("Bright morning, voyager ☀️");
-    } else if (hour >= 12 && hour < 17) {
-      setGreeting("Good afternoon, voyager ☁️");
-    } else if (hour >= 17 && hour < 22) {
-      setGreeting("Stellar evening, voyager 🌙");
-    } else {
-      setGreeting("Starry night, voyager ⭐");
+    console.log("Session user object:", session?.user);
+    
+    // 1) Prefer DB-backed name from session (Google or credentials via NextAuth)
+    let first =
+      (session?.user?.first_name || "").trim() ||          
+      (session?.user?.name || "").trim().split(" ")[0];    
+
+    // 2) Only use localStorage if no session data exists
+    if (!first && !session?.user && typeof window !== "undefined") {
+      const fromLS =
+        localStorage.getItem("first_name") ||
+        localStorage.getItem("prefill_name") || "";
+      first = fromLS.trim().split(" ")[0];
     }
-  }, []);
+        
+    if (!first) {
+      // derive from username/email as a last resort (optional)
+      const handle = session?.user?.username || session?.user?.email || "";
+      first = handle.split(/[._\-\s@]+/)[0]?.replace(/\d+/g, "") || "voyager";
+    }
+    setGreeting(`${prefix}, ${first} ${emoji}`);
+  }, [session]);
+
+  // Load Explore feed from backend
+useEffect(() => {
+  (async () => {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      const token = session?.access || session?.accessToken;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const resp = await fetch(`${BACKEND_URL}/explore/feed/`, { headers });
+      if (!resp.ok) {
+        setExploreErr(`Failed to load feed (HTTP ${resp.status})`);
+        return;
+      }
+      const data = await resp.json();
+      
+      // 🔍 DEBUG: Check for duplicates in raw data
+      console.log("Raw API response:", data.items);
+      console.log("Total items:", data.items?.length);
+      
+      const tradereqIds = data.items?.map(item => item.tradereq_id) || [];
+      const uniqueIds = [...new Set(tradereqIds)];
+      console.log("Unique tradereq_ids:", uniqueIds.length);
+      console.log("Total tradereq_ids:", tradereqIds.length);
+      
+      if (uniqueIds.length !== tradereqIds.length) {
+        console.error("🚨 DUPLICATE tradereq_ids found in API response!");
+        const duplicates = tradereqIds.filter((id, index) => tradereqIds.indexOf(id) !== index);
+        console.error("Duplicate IDs:", duplicates);
+      }
+      
+      // Check for duplicate names
+      const names = data.items?.map(item => item.name) || [];
+      const duplicateNames = names.filter((name, index) => names.indexOf(name) !== index);
+      if (duplicateNames.length > 0) {
+        console.log("Users with multiple requests:", [...new Set(duplicateNames)]);
+      }
+      
+      const uniqueItems = Array.from(
+        new Map(data.items.map(item => [item.tradereq_id, item])).values()
+      );
+
+      setExploreItems(uniqueItems);
+    } catch (e) {
+      setExploreErr(e?.message || "Network error");
+    }
+  })();
+}, [session]);
+
+  const fmtUntil = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+  };
+
+  // Filter and sort explore items
+  const getFilteredAndSortedItems = () => {
+    let filtered = exploreItems.filter((item) => {
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          item.name?.toLowerCase().includes(query) ||
+          item.need?.toLowerCase().includes(query) ||
+          item.offer?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+
+      // Rating filter
+      if (exploreFilters.minRating > 0 && item.rating < exploreFilters.minRating) return false;
+      
+      // Level filter
+      if (exploreFilters.minLevel > 0 && item.level < exploreFilters.minLevel) return false;
+      
+      // Skill category filter (you may need to add skillCategory to your backend data)
+      // if (exploreFilters.skillCategory !== "all" && item.skillCategory !== exploreFilters.skillCategory) return false;
+      
+      return true;
+    });
+
+    // Sort the filtered items
+    return filtered.sort((a, b) => {
+      switch (exploreSortBy) {
+        case "date":
+          return new Date(a.deadline) - new Date(b.deadline);
+        case "level":
+          return b.level - a.level;
+        case "rating":
+          return b.rating - a.rating;
+        case "recommended":
+        default:
+          return b.rating - a.rating; // fallback to rating
+      }
+    });
+  };
+
+  const filteredAndSortedItems = getFilteredAndSortedItems();
 
   return (
     <div
@@ -337,7 +478,7 @@ export default function HomePage() {
                               handleExploreFilterChange("minRating", rating)
                             }
                           >
-                            {rating === 0 ? "Any" : `${rating}★+`}
+                            {rating === 0 ? "Any" : `${rating}⭐+`}
                           </div>
                         ))}
                       </div>
@@ -421,216 +562,52 @@ export default function HomePage() {
               type="text"
               placeholder="Search"
               className="w-full h-full bg-transparent text-[16px] text-white outline-none placeholder:text-[#413663]"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
-        {/* Trade Partner Cards */}
+        {/* Explore Cards Grid */}
         <div className="flex flex-wrap justify-start gap-x-[25px] gap-y-[25px] w-full max-w-[940px]">
-          {(() => {
-            const partners = [
-              {
-                id: 1,
-                name: "Olivia Brown",
-                rating: 5.0,
-                reviews: 20,
-                level: 14,
-                rank: "Intermediate",
-                needs: "Nutrition Coaching for Weight Loss",
-                offers: "Graphic Design",
-                skillCategory: "Creative",
-                until: "July 1",
-                date: new Date("2025-07-01"),
-              },
-              {
-                id: 2,
-                name: "James Wilson",
-                rating: 4.9,
-                reviews: 10,
-                level: 12,
-                rank: "Intermediate",
-                needs: "Algebra Tutoring",
-                offers: "Gardening",
-                skillCategory: "Home Services",
-                until: "June 20",
-                date: new Date("2025-06-20"),
-              },
-              {
-                id: 3,
-                name: "Sophia Garcia",
-                rating: 4.4,
-                reviews: 42,
-                level: 10,
-                rank: "Beginner",
-                needs: "Interior Decorating",
-                offers: "Language Lessons",
-                skillCategory: "Education",
-                until: "June 28",
-                date: new Date("2025-06-28"),
-              },
-              {
-                id: 4,
-                name: "Daniel Kim",
-                rating: 4.8,
-                reviews: 20,
-                level: 11,
-                rank: "Intermediate",
-                needs: "Furniture Assembly",
-                offers: "Social Media Management",
-                skillCategory: "Technology",
-                until: "June 5",
-                date: new Date("2025-06-05"),
-              },
-              {
-                id: 5,
-                name: "Jason Miller",
-                rating: 5.0,
-                reviews: 27,
-                level: 17,
-                rank: "Advanced",
-                needs: "Tech Support",
-                offers: "House Painting",
-                skillCategory: "Home Services",
-                until: "July 1",
-                date: new Date("2025-07-01"),
-              },
-              {
-                id: 6,
-                name: "Mia Robinson",
-                rating: 4.7,
-                reviews: 12,
-                level: 11,
-                rank: "Intermediate",
-                needs: "Guitar Lessons",
-                offers: "Baking Lessons",
-                skillCategory: "Performance Arts",
-                until: "June 20",
-                date: new Date("2025-06-20"),
-              },
-            ];
-
-            // Filtering
-            const filteredPartners = partners.filter((partner) => {
-              if (exploreFilters.minRating > 0 && partner.rating < exploreFilters.minRating) return false;
-              if (exploreFilters.skillCategory !== "all" && partner.skillCategory !== exploreFilters.skillCategory) return false;
-              if (exploreFilters.minLevel > 0 && partner.level < exploreFilters.minLevel) return false;
-              return true;
-            });
-
-            // Sorting
-            const sortedPartners = [...filteredPartners].sort((a, b) => {
-              switch (exploreSortBy) {
-                case "date": return a.date - b.date;
-                case "level": return b.level - a.level;
-                case "rating": return b.rating - a.rating;
-                default: return b.rating - a.rating;
-              }
-            });
-
-            // No matches
-            if (sortedPartners.length === 0) {
-              return (
-                <div className="w-full py-10 flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-[#1A0F3E] flex items-center justify-center mb-4">
-                    <Icon icon="lucide:search" className="w-8 h-8 text-white/50" />
-                  </div>
-                  <h3 className="text-xl font-medium text-white mb-2">No matches found</h3>
-                  <p className="text-white/60 text-center max-w-md">
-                    Try adjusting your filters or search criteria to see more results
-                  </p>
-                </div>
-              );
-            }
-
-            // Cards
-            return sortedPartners.map((partner, index) => (
-              <div
-                key={partner.id}
-                className="transition-all duration-300 hover:scale-[1.01] w-[440px] p-[25px] flex flex-col gap-[15px] rounded-[20px] border-[3px] border-[#284CCC]/80 relative"
-                style={{
-                  background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
-                  boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)",
-                }}
-              >
-                {/* Partner Header */}
-                <div className="flex justify-between items-start w-full">
-                  <div className="flex items-start gap-[10px]">
-                    <Image src="/defaultavatar.png" alt="Default Avatar" width={25} height={25} className="rounded-full object-cover" />
-                    <div className="flex flex-col items-start gap-[5px]">
-                      <span className="text-[16px] text-white">{partner.name}</span>
-                      <div className="flex items-center gap-[15px]">
-                        <div className="flex items-center gap-[5px]">
-                          <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
-                          <span className="text-[13px]">
-                            <span className="font-bold">{partner.rating.toFixed(1)}</span>{" "}
-                            <span className="text-white">({partner.reviews})</span>
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-[5px]">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z" fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5"/><defs><radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)"><stop offset="0.4" stopColor="#933BFF"/><stop offset="1" stopColor="#34188D"/></radialGradient><linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse"><stop stopColor="white"/><stop offset="0.5" stopColor="#999999"/><stop offset="1" stopColor="white"/></linearGradient></defs></svg>
-                          <span className="text-[13px] text-white">LVL {partner.level}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Menu */}
-                  <div className="relative" ref={(el) => (menuRefs.current[index] = el)}>
-                    <button onClick={() => setOpenMenuIndex(index === openMenuIndex ? null : index)}>
-                      <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white cursor-pointer hover:text-gray-300 transition-colors" />
-                    </button>
-                    {openMenuIndex === index && (
-                      <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                        <button onClick={() => handleReport(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
-                          <Icon icon="mdi:alert-circle-outline" className="text-white text-base" /> Report
-                        </button>
-                        <button onClick={() => handleNotInterested(partner.id)} className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left">
-                          <Icon icon="mdi:eye-off-outline" className="text-white text-base" /> Not Interested
-                        </button>                        
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Needs / Can Offer */}
-                <div className="flex justify-between items-start w-full">
-                  <div className="flex flex-col gap-[10px] items-start flex-shrink-0">
-                    <span className="text-[13px] text-white">Needs</span>
-                    <div className="inline-block px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
-                      <span className="text-[12px] text-white leading-tight whitespace-nowrap">
-                        {partner.needs}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-[10px] items-end flex-shrink-0">
-                    <span className="text-[13px] text-white">Can offer</span>
-                    <div className="inline-block px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
-                      <span className="text-[12px] text-white leading-tight whitespace-nowrap">
-                        {partner.offers}
-                      </span>
-                    </div>
-                    <span className="text-[13px] text-white/60">until {partner.until}</span>
-                  </div>
-                </div>
-
-                {/* Interested Button */}
-                <div className="flex justify-center">
-                  <button
-                    className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors"
-                    onClick={() => handleInterestedClick(partner)}
-                  >
-                    <span className="text-[13px] text-white">I'm interested</span>
-                  </button>
-                </div>
+          {exploreErr ? (
+            <div className="w-full py-4 text-red-400">{exploreErr}</div>
+          ) : filteredAndSortedItems.length === 0 ? (
+            <div className="w-full py-10 flex flex-col items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-[#1A0F3E] flex items-center justify-center mb-4">
+                <Icon icon="lucide:search" className="w-8 h-8 text-white/50" />
               </div>
-            ));
-          })()}
+              <h3 className="text-xl font-medium text-white mb-2">
+                {exploreItems.length === 0 ? "No matches yet" : "No matches found"}
+              </h3>
+              <p className="text-white/60 text-center max-w-md">
+                {exploreItems.length === 0 
+                  ? "New requests will appear here as users post them."
+                  : "Try adjusting your filters or search criteria to see more results"
+                }
+              </p>
+            </div>
+          ) : (
+            filteredAndSortedItems.map((item, i) => (
+              <ExploreCard
+              key={`explore-${item.tradereq_id || i}`}  
+              name={item.name}
+              rating={item.rating}
+              ratingCount={item.ratingCount}
+              level={item.level}
+              need={item.need}
+              offer={item.offer}
+              deadline={item.deadline ? `until ${fmtUntil(item.deadline)}` : ""}
+              onInterestedClick={() => handleInterestedClick(item)}
+            />
+            ))
+          )}
         </div>
       </div>
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && selectedPartner && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="relative flex flex-col items-center justify-center w-[500px] h-[200px] bg-[#120A2A]/95 border-2 border-[#0038FF] shadow-[0px_4px_15px_#284CCC] backdrop-blur-[10px] rounded-[20px] overflow-hidden">
             {/* Background gradients */}
             <div className="absolute top-[-50px] left-[-50px] w-[150px] h-[150px] rounded-full bg-[#0038FF]/15 blur-[40px]"></div>
@@ -669,7 +646,7 @@ export default function HomePage() {
 
       {/* Success Dialog */}
       {showSuccessDialog && selectedPartner && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="relative flex flex-col items-center justify-center w-[500px] h-[200px] bg-[#120A2A]/95 border-2 border-[#0038FF] shadow-[0px_4px_15px_#284CCC] backdrop-blur-[10px] rounded-[20px] overflow-hidden">
             {/* Background gradients */}
             <div className="absolute top-[-50px] left-[-50px] w-[150px] h-[150px] rounded-full bg-[#0038FF]/15 blur-[40px]"></div>

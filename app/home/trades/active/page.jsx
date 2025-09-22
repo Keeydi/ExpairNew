@@ -32,11 +32,13 @@ export default function ActiveTradesPage() {
   const activeTrades = [
     {
       id: 1,
-      firstname: "Olivia",
-      lastname: "Brown",
+      name: "Olivia Brown",
       avatar: "/defaultavatar.png",
-      requested: "Nutrition Coaching for Weight Loss",
-      offering: "Graphic Design",
+      rating: "5.0",
+      reviews: "20",
+      level: "14",
+      requested: "Responsive Number Coaching for Weight Loss",
+      offering: "Health & Wellness",
       location: "Online (synchronous)",
       deadline: "July 9",
       xp: "300 XP",
@@ -52,9 +54,11 @@ export default function ActiveTradesPage() {
     },
     {
       id: 2,
-      firstname: "Emily",
-      lastname: "Johnson",
+      name: "Emily Johnson",
       avatar: "/defaultavatar.png",
+      rating: "4.8",
+      reviews: "15",
+      level: "12",
       requested: "Logo Design for New Cafe",
       offering: "Gardening Services",
       location: "Online (asynchronous)",
@@ -72,8 +76,7 @@ export default function ActiveTradesPage() {
     },
     {
       id: 3,
-      firstname: "Michael",
-      lastname: "Lee",
+      name: "Michael Lee",
       avatar: "/defaultavatar.png",
       rating: "4.9",
       reviews: "25",
@@ -95,8 +98,7 @@ export default function ActiveTradesPage() {
     },
     {
       id: 4,
-      firstname: "Jason",
-      lastname: "Miller",
+      name: "Jason Miller",
       avatar: "/defaultavatar.png",
       rating: "4.7",
       reviews: "12",
@@ -147,7 +149,7 @@ export default function ActiveTradesPage() {
     <div className={`w-[950px] mx-auto pt-10 pb-20 text-white ${inter.className}`}>
       {/* Page Title with Sort/Filter */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-[25px] font-semibold">Active trades</h1>
+        <h1 className="text-[25px] font-bold">Active trades</h1>
 
         <div className="flex items-center gap-4">
           {/* Sort Button */}
@@ -165,7 +167,7 @@ export default function ActiveTradesPage() {
       </div>
 
       {/* Active Trades Section */}
-      <div className="flex flex-col gap-[25px]">
+      <div className="flex flex-col gap-[15px]">
         {activeTrades.map((trade) => (
           <div
             key={trade.id}
@@ -181,16 +183,16 @@ export default function ActiveTradesPage() {
                 {/* Header with more options button */}
                 <div className="p-[25px] pb-[15px] flex justify-between items-start">
                   <div className="flex items-start gap-[10px]">
-                    <div className="w-[25px] h-[25px] rounded-full overflow-hidden">
+                    <div className="w-[35px] h-[35px] rounded-full overflow-hidden">
                       <Image
                         src={trade.avatar}
                         alt="Avatar"
-                        width={25}
-                        height={25}
+                        width={35}
+                        height={35}
                       />
                     </div>
                     <div>
-                      <h3 className="text-[16px] font-normal">{trade.firstname} {trade.lastname}</h3>
+                      <h3 className="text-[18px] font-medium">{trade.name}</h3>
                     </div>
                   </div>
                   <div className="relative">
@@ -203,7 +205,7 @@ export default function ActiveTradesPage() {
                     {openMenuIndex === trade.id && (
                       <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
                         <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
-                          <Icon icon="lucide:alert-circle" className="text-white text-base" />
+                          <Icon icon="mdi:flag" className="text-white text-base" />
                           Report
                         </button>
                       </div>
@@ -212,8 +214,8 @@ export default function ActiveTradesPage() {
                 </div>
 
                 {/* Large Image */}
-                <div className="px-[25px] pb-[20px]">
-                  <div className="w-full h-[321px] rounded-[15px] overflow-hidden shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)]">
+                <div className="px-[25px] pb-[15px]">
+                  <div className="w-full h-[300px] rounded-[15px] overflow-hidden">
                     <Image
                       src="/defaultavatar.png" // This would be the actual trade image
                       alt="Trade Preview"
@@ -225,7 +227,7 @@ export default function ActiveTradesPage() {
                 </div>
 
                 {/* Trade Details */}
-                <div className="px-[25px] pb-[20px]">
+                <div className="px-[25px] pb-[15px]">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
                       <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px] inline-block">
@@ -240,43 +242,57 @@ export default function ActiveTradesPage() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <Icon icon="lucide:map-pin" className="w-4 h-4 text-[rgba(255,255,255,0.60)]" />
-                        <span className="text-[13px] text-[rgba(255,255,255,0.60)]">{trade.location}</span>
+                    <div>
+                      <span className="text-[13px] text-white/60 block mb-1">Requested</span>
+                      <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px] inline-block">
+                        <span className="text-[12px] text-white">{trade.requested}</span>
                       </div>
-                      <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">Due on {trade.deadline}</span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-[15px]">
-                      {["Health & Wellness", "Nutrition Coaching", "Certified", "Service"].map((tag, index) => (
-                        <div
-                          key={index}
-                          className="px-[15px] py-[4px] border-[2px] border-white rounded-[15px]"
-                        >
-                          <span className="text-[13px] font-normal text-white">{tag}</span>
-                        </div>
-                      ))}
                     </div>
 
                     <div>
-                      <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px] inline-block">
-                        <span className="text-[16px] text-white">In exchange for {trade.offering}</span>
+                      <span className="text-[13px] text-white/60 block mb-1">In exchange for</span>
+                      <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px] inline-block">
+                        <span className="text-[12px] text-white">{trade.offering}</span>
                       </div>
                     </div>
 
-                    <p className="text-[13px] text-[rgba(255,255,255,0.60)]">{trade.description}</p>
+                    <div className="flex items-center gap-2">
+                      <Icon icon="lucide:map-pin" className="w-4 h-4 text-white" />
+                      <span className="text-[13px] text-white">{trade.location}</span>
+                    </div>
+
+                    <p className="text-[14px] text-white/80">{trade.description}</p>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-[13px] text-white/60">Due on {trade.deadline}</span>
+                      <button 
+                        className="flex items-center justify-center w-6 h-6"
+                        onClick={() => toggleCardExpand(trade.id)}
+                      >
+                        <Icon icon="lucide:chevron-up" className="w-5 h-5 text-white" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="px-[25px] pb-[25px] flex flex-wrap justify-between">
                   <button 
-                    className="flex items-center justify-center"
-                    onClick={() => toggleCardExpand(trade.id)}
+                    className="min-w-[220px] max-w-[280px] h-[40px] flex justify-center items-center rounded-[15px] cursor-pointer transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTrade(trade);
+                      setShowViewProofDialog(true);
+                    }}
+                    style={{
+                      background: "#0038FF",
+                      boxShadow: "0px 0px 15px rgba(40, 76, 204, 0.6)"
+                    }}
                   >
-                    <Icon icon="lucide:chevron-up" className="w-[30px] h-[30px] text-white"/>
+                    <div className="flex items-center gap-[10px] px-3">
+                      <Icon icon="lucide:image" className="w-[18px] h-[18px] text-white flex-shrink-0" />
+                      <span className="text-[16px] text-white truncate">View proof</span>
+                    </div>
                   </button>
                   <div className="flex items-center gap-[15px]">
                     {trade.canRate && trade.status === "completed" && (
@@ -370,7 +386,7 @@ export default function ActiveTradesPage() {
                     {openMenuIndex === trade.id && (
                       <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
                         <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
-                          <Icon icon="lucide:alert-circle" className="text-white text-base" />
+                          <Icon icon="mdi:flag" className="text-white text-base" />
                           Report
                         </button>
                       </div>
@@ -392,8 +408,8 @@ export default function ActiveTradesPage() {
 
                     <div className="flex flex-col gap-[15px]">
                       <span className="text-[16px] text-white">In exchange for</span>
-                      <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
-                        <span className="text-[15px] text-white">{trade.offering}</span>
+                      <div className="px-[15px] py-[10px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px]">
+                        <span className="text-[13px] text-white">{trade.offering}</span>
                       </div>
                     </div>
                   </div>
@@ -404,8 +420,8 @@ export default function ActiveTradesPage() {
                 {/* Bottom Row - Location and Due Date */}
                 <div className="flex justify-between items-center w-full opacity-60">
                   <div className="flex items-center gap-[5px]">
-                    <Icon icon="lucide:map-pin" className="w-4 h-4 text-[rgba(255,255,255,0.60)]" />
-                    <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">{trade.location}</span>
+                    <Icon icon="lucide:map-pin" className="w-4 h-4 text-white" />
+                    <span className="text-[13px] text-white">{trade.location}</span>
                   </div>
                   <span className="text-[13px] font-normal text-white/60">Due on {trade.deadline}</span>
                 </div>
@@ -497,7 +513,7 @@ export default function ActiveTradesPage() {
                           setShowEvaluationDialog(true);
                         }}
                       >
-                        <StarEvaluateIcon size="70" />
+                        <StarEvaluateIcon size="60" />
                       </button>
                     </div>
                   </div>

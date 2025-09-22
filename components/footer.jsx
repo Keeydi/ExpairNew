@@ -80,7 +80,7 @@ export default function Footer() {
                   Trades <ChevronDown className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-[#120A2A] text-white border border-[#2B124C] rounded-[15px] shadow-[0_5px_15px_rgba(0,0,0,0.25)]">
+              <DropdownMenuContent className="bg-[#15042C] text-white border border-[#2B124C]">
                 <Link href="/home/trades/pending">
                   <DropdownMenuItem className="text-white data-[highlighted]:bg-transparent data-[highlighted]:text-white data-[highlighted]:font-semibold">
                     Pending

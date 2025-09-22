@@ -10,8 +10,8 @@ const inter = Inter({ subsets: ["latin"] });
 
 // Skills data with selection state
 const skills = [
-  { id: 1, name: "Technical & IT", icon: "laptop" },
-  { id: 2, name: "Creative & Design", icon: "palette" },
+  { id: 1, name: "Creative & Design", icon: "palette" },
+  { id: 2, name: "Technical & IT", icon: "laptop" },
   { id: 3, name: "Business & Management", icon: "user-business" },
   { id: 4, name: "Communication & Interpersonal", icon: "communication" },
   { id: 5, name: "Health & Wellness", icon: "health" },
@@ -27,8 +27,21 @@ const skills = [
   { id: 15, name: "Research & Critical Thinking", icon: "book" },
 ];
 
-export default function Step5({ onNext, onPrev, initialSelectedSkills = [] }) {
-  const [selectedSkills, setSelectedSkills] = useState(initialSelectedSkills);
+export default function Step5({ onNext, onPrev, onDataSubmit, step5Data = [] }) {
+  // Initialize selectedSkills from step5Data prop
+  const [selectedSkills, setSelectedSkills] = useState(() => {
+    // Extract category_ids from step5Data if it's in ranked format
+    if (Array.isArray(step5Data) && step5Data.length > 0) {
+      // Check if step5Data contains ranked objects with category_id
+      if (step5Data[0] && typeof step5Data[0] === 'object' && step5Data[0].category_id) {
+        return step5Data.map(item => item.category_id);
+      }
+      // If step5Data is just an array of IDs
+      return step5Data;
+    }
+    return [];
+  });
+  
   const [errorMessage, setErrorMessage] = useState("");
 
   const toggleSkill = (skillId) => {
@@ -50,15 +63,20 @@ export default function Step5({ onNext, onPrev, initialSelectedSkills = [] }) {
   };
 
   const handleContinue = () => {
-    if (selectedSkills.length === 0) {
-      setErrorMessage("Please select at least one skill.");
-      return;
-    }
+  if (selectedSkills.length === 0) {
+    setErrorMessage("Please select at least one skill.");
+    return;
+  }
+  setErrorMessage("");
 
-    setErrorMessage("");
-    onNext(selectedSkills);
-  };
+  const ranked = selectedSkills.map((id, idx) => ({
+    category_id: id,
+    rank: idx + 1,
+  }));
 
+  onDataSubmit(ranked);  // Send `ranked` data back to parent
+  onNext();  // Move to the next step 
+};
   // Get the appropriate icon for each skill
   const getSkillIcon = (iconName) => {
     switch (iconName) {
@@ -239,7 +257,7 @@ export default function Step5({ onNext, onPrev, initialSelectedSkills = [] }) {
         </div>
 
         {/* Error Message (fixed height) */}
-        <div className="h-[10px] mt-8">
+        <div className="mt-4 min-h-[24px]">
           {errorMessage && (
             <p className="text-red-500 text-sm">{errorMessage}</p>
           )}
@@ -256,10 +274,10 @@ export default function Step5({ onNext, onPrev, initialSelectedSkills = [] }) {
         </div>
         
         {/* Pagination - Centered at bottom */}
-        <div className="flex justify-center items-center gap-2 text-sm text-white opacity-60 mt-[20px]">
+        <div   className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
-            onClick={onPrev}
+            onClick={() => onPrev?.()}
           />
           <span>5 of 6</span>
           <ChevronRight
