@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import HelpLayout from "../../components/help/helplayout";
+import HelpLayout from "../../../../components/help/helplayout";
 
 export default function PoliciesLegalPage() {
   return (
