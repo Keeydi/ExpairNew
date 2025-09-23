@@ -3,6 +3,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
+from .views import add_user_interests, user_interests
 
 urlpatterns = [
     path('register/', views.register_user, name='register_user'),
@@ -36,5 +37,9 @@ urlpatterns = [
 
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    path("users/add_interests/", add_user_interests, name="add-user-interests"),
+    path("users/<int:user_id>/interests/", user_interests, name="user_interests"),
 ]
+
 

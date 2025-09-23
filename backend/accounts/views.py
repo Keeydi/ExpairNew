@@ -122,7 +122,14 @@ def _public_user_payload(user, request=None):
 
     if status == "UNVERIFIED" and getattr(user, "userVerifyId", None) and not bool(getattr(user, "is_verified", False)):
         status = "PENDING"
-        
+    
+    # Interests
+    interests = []
+    try:
+        qs = UserInterest.objects.filter(user_id=user.id).select_related("genSkills_id")
+        interests = [ui.genSkills_id.genCateg for ui in qs]
+    except Exception as e:
+        print(f"[DEBUG] could not fetch interests for user {user.id}: {e}")
 
     payload = {
         # Primary ID fields - include both variations for compatibility
@@ -137,7 +144,10 @@ def _public_user_payload(user, request=None):
         "bio": user.bio,
         "location": getattr(user, "location", ""),
         "links": links_array,
-        
+        "interests": [
+            ui.genSkills_id.genCateg
+            for ui in UserInterest.objects.filter(user=user).select_related("genSkills_id")
+        ],        
         # Stats
         "avgStars": float(user.avgStars or 0),
         "ratingCount": int(user.ratingCount or 0),
@@ -287,7 +297,7 @@ def user_credentials(request, user_id: int):
         
         serializer = UserCredentialSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(user_id=user_id)
         
         return Response(serializer.data, status=201)
 
@@ -634,7 +644,7 @@ def add_user_skills(request):
     created = 0
     for it in items:
         gid = it['genskills_id']
-        ids = list(it.get('specskills_ids') or [])
+        ids = list(it.get('specskills') or [])
         names = list(it.get('spec_names') or [])
 
         # If names were provided, resolve to ids (and validate they belong to the same gen)
@@ -658,11 +668,11 @@ def add_user_skills(request):
                 spec = SpecSkill.objects.get(pk=sid)
                 if int(spec.genSkills_id_id) != int(gid):
                     return Response(
-                        {"detail": f"specskills_id {sid} does not belong to genskills_id {gid}."},
+                        {"detail": f"specskills {sid} does not belong to genskills_id {gid}."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             except SpecSkill.DoesNotExist:
-                return Response({"detail": f"specskills_id {sid} not found."}, status=404)
+                return Response({"detail": f"specskills {sid} not found."}, status=404)
 
             try:
                 _, was_created = UserSkill.objects.get_or_create(

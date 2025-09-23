@@ -20,7 +20,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "first_name", "last_name", "bio",
-            "username", "email", "profilePic",
+            "username", "email", "profilePic", 
+            'tot_XpPts',
             "userVerifyId", 
             "location",
             "links",              
@@ -190,49 +191,38 @@ class UserSkillBulkSerializer(serializers.Serializer):
         return data
     
 class UserCredentialSerializer(serializers.ModelSerializer):
-    # Include related field names for easier frontend consumption
     genskills_name = serializers.CharField(source='genskills_id.genCateg', read_only=True)
     specskills_name = serializers.CharField(source='specskills_id.specName', read_only=True)
-    
-    # Add skills field that returns an array
+
     skills = serializers.SerializerMethodField()
-    
-    # Map field names to match frontend expectations
-    title = serializers.CharField(source='credential_title', read_only=True)
-    org = serializers.CharField(source='issuer', read_only=True)
-    issueDate = serializers.DateField(source='issue_date', read_only=True)
-    expiryDate = serializers.DateField(source='expiry_date', read_only=True)
-    id = serializers.CharField(source='cred_id', read_only=True)
-    url = serializers.URLField(source='cred_url', read_only=True)
 
     class Meta:
         model = UserCredential
         fields = [
             'usercred_id',
-            'credential_title', 
-            'issuer', 
-            'issue_date', 
+            'user',
+            'credential_title',
+            'issuer',
+            'issue_date',
             'expiry_date',
-            'cred_id', 
+            'cred_id',
             'cred_url',
             'genskills_id',
             'specskills_id',
             'genskills_name',
             'specskills_name',
-            'title',     
-            'org',      
-            'issueDate',  
-            'expiryDate', 
-            'id',        
-            'url',        
-            'skills',     
-            'created_at'
+            'skills',
+            'created_at',
         ]
+        read_only_fields = ['user_id']
+
+    def get_specskills_names(self, obj):
+        return [s.specName for s in obj.specskills.all()]
 
     def get_skills(self, obj):
         """Return skills as an array for frontend compatibility"""
         skills = []
-        if hasattr(obj, 'specskills_id') and obj.specskills_id:
+        if obj.specskills_id and obj.specskills_id.specName:
             skills.append(obj.specskills_id.specName)
         return skills
 
@@ -247,7 +237,7 @@ class UserCredentialSerializer(serializers.ModelSerializer):
         """Ensure expiry date is after issue date if provided"""
         issue_date = data.get('issue_date')
         expiry_date = data.get('expiry_date')
-        
+
         if issue_date and expiry_date and expiry_date <= issue_date:
             raise serializers.ValidationError(
                 "Expiry date must be after the issue date."

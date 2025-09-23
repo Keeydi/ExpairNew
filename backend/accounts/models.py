@@ -140,16 +140,21 @@ class UserCredential(models.Model):
     expiry_date = models.DateField(null=True, blank=True, db_column='expiry_date')
     cred_id = models.CharField(max_length=100, null=True, blank=True, db_column='cred_id')
     cred_url = models.TextField(null=True, blank=True, db_column='cred_url')
-    genskills_id = models.ForeignKey('GenSkill', db_column='genskills_id', on_delete=models.RESTRICT, null=True, blank=True)
-    specskills_id = models.ForeignKey('SpecSkill', db_column='specskills_id', on_delete=models.RESTRICT, null=True, blank=True)
+    genskills_id = models.ForeignKey('GenSkill', db_column='genskills_id',
+                                     on_delete=models.RESTRICT, null=True, blank=True)
+    # keep only ONE specific skill
+    specskills_id = models.ForeignKey(
+        SpecSkill, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        db_column="specskills_id"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'usercredentials_tbl'
         managed = True
-
-    def __str__(self):
-        return f"{self.credential_title} - {self.user.username}"
 
 class TradeRequest(models.Model):
     class Status(models.TextChoices):
@@ -177,7 +182,7 @@ class TradeRequest(models.Model):
     tradereq_id = models.AutoField(primary_key=True, db_column='tradereq_id')
     requester = models.ForeignKey('User', db_column='requester_id', on_delete=models.CASCADE, related_name='trade_requests_made')
     responder = models.ForeignKey('User', db_column='responder_id', on_delete=models.CASCADE, null=True, blank=True, related_name='trade_requests_received')
-    specSkills = models.ForeignKey('SpecSkill', db_column='specskills_id', on_delete=models.RESTRICT, null=True, blank=True)
+    specSkills = models.ForeignKey('SpecSkill', db_column='specskills', on_delete=models.RESTRICT, null=True, blank=True)
     reqname = models.CharField(max_length=100, db_column='reqname')
     skillprof = models.CharField(
         max_length=13,
