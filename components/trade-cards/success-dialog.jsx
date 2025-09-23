@@ -149,11 +149,11 @@ export default function SuccessDialog({ isOpen, onClose, trade }) {
                 {/* Trade Details */}
                 <div className="flex items-center gap-4 text-white text-center max-w-[500px]">
                   <div className="flex-1 px-3 py-2 bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px]">
-                    <span className="text-[14px]">{trade?.requested}</span>
+                    <span className="truncate block text-[14px]">{trade?.requested}</span>
                   </div>
                   <Icon icon="lucide:x" className="w-5 h-5 flex-shrink-0" />
                   <div className="flex-1 px-3 py-2 bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px]">
-                    <span className="text-[14px]">{trade?.offering}</span>
+                    <span className="truncate block text-[14px]">{trade?.offering}</span>
                   </div>
                 </div>
                 

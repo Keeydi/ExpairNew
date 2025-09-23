@@ -126,16 +126,16 @@ export default function MessageList({ conversations = [], selectedId, onSelect }
                 <Image
                   src={conversation.avatar}
                   alt={conversation.name}
-                  width={48}
-                  height={48}
+                  width={45}
+                  height={45}
                   className="rounded-full"
                 />
               </div>
               
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
-                  <h4 className="font-medium text-white truncate">{conversation.name}</h4>
-                  <span className="text-xs text-[#8E7EB3]">{conversation.time}</span>
+                  <h4 className="text-[16px] text-white truncate">{conversation.name}</h4>
+                  <span className="text-[13px] text-[#8E7EB3]">{conversation.time}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <p className={cn(
@@ -162,11 +162,11 @@ export default function MessageList({ conversations = [], selectedId, onSelect }
                 {/* Trade tags */}
                 {conversation.requests && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-2 w-full">
-                    <div className="max-w-[45%] px-2 py-0.5 text-xs bg-[rgba(40,76,204,0.2)] text-[#0038FF] rounded-full border border-[#0038FF]/30 truncate">
+                    <div className="max-w-[45%] text-[#0038FF] text-[13px] font-normal truncate">
                       {conversation.requests.requested}
                     </div>
                     <span className="text-xs text-[#8E7EB3] flex-shrink-0">×</span>
-                    <div className="max-w-[45%] px-2 py-0.5 text-xs bg-[rgba(144,110,255,0.2)] text-[#906EFF] rounded-full border border-[#906EFF]/30 truncate">
+                    <div className="max-w-[45%] text-[#906EFF] text-[13px] font-normal truncate">
                       {conversation.requests.exchange}
                     </div>
                   </div>

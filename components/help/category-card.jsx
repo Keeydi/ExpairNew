@@ -5,7 +5,7 @@ export function HelpCategoryCard({ title, desc, iconSrc, className, href }) {
   return (
     <div
       className={
-        "relative flex flex-col items-center text-center rounded-[20px] border-[3px] border-[#284ccccc] shadow-[0_5px_40px_0_rgba(40,76,204,0.2)] w-full sm:w-[250px] md:w-[280px] lg:w-[300px] mx-auto " +
+        "relative flex flex-col items-center text-center rounded-[20px] border-[3px] border-[#284ccccc] shadow-[0_5px_40px_0_rgba(40,76,204,0.2)] w-full sm:w-[250px] md:w-[280px] lg:w-[300px] mx-auto transition-all duration-300 hover:scale-[1.01] " +
         className
       }
       style={{

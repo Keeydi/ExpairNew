@@ -1,69 +1,147 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { X, Check } from "lucide-react";
 import { Icon } from "@iconify/react";
 
-export default function ConfirmDialog({ isOpen, onClose, trade }) {
+export default function ConfirmDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  setSelectedPartner, // for resetting selected partner
+}) {
+  const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
 
-  if (!isOpen) return null;
+  if (!isOpen && !showSuccess) return null;
 
-  const handleSubmit = () => {
+  const handleConfirm = () => {
     setSubmitting(true);
     // Simulate API call
     setTimeout(() => {
       setSubmitting(false);
-      onClose();
-      // Here you would typically redirect or update the UI
-    }, 1500);
+      setShowSuccess(true);
+    }, 1000);
+  };
+
+  const handleGoToActiveTrades = () => {
+    setShowSuccess(false);
+    if (setSelectedPartner) setSelectedPartner(null);
+    if (onConfirm) onConfirm(); // Call the parent callback to close all dialogs
+    router.push("/home/trades/active");
+  };
+
+  // Handle close with proper cleanup
+  const handleClose = () => {
+    setShowSuccess(false);
+    setSubmitting(false);
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#15042C] w-[500px] rounded-[20px] border-2 border-[#284CCC]/80 p-8 relative">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-white hover:text-gray-300"
-        >
-          <Icon icon="lucide:x" className="w-5 h-5" />
-        </button>
+    <>
+      {/* Main Confirm Dialog */}
+      {isOpen && !showSuccess && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60]">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={handleClose}
+          ></div>
 
-        {/* Content */}
-        <div className="flex flex-col items-center gap-6">
-          <div className="w-16 h-16 rounded-full bg-[#0038FF]/20 flex items-center justify-center">
-            <Icon icon="lucide:check-circle" className="w-8 h-8 text-[#0038FF]" />
-          </div>
-
-          <h2 className="text-2xl font-bold text-white text-center">
-            Confirm Trade Completion
-          </h2>
-
-          <p className="text-white/80 text-center">
-            Are you sure you want to mark this trade with {trade?.name} as complete? 
-            This action will finalize the trade and award {trade?.xp} to your account.
-          </p>
-
-          <div className="flex flex-col w-full gap-3 mt-4">
+          {/* Dialog */}
+          <div className="relative w-[940px] h-[274px] flex flex-col justify-center items-center p-[98.5px_74px] bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 isolate">
+            {/* Close button */}
             <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full h-[45px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="absolute top-[35px] right-[35px] text-white cursor-pointer flex items-center justify-center w-[30px] h-[30px] bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+              onClick={handleClose}
+              aria-label="Close dialog"
+              type="button"
             >
-              <span className="text-[15px] text-white">
-                {submitting ? "Submitting..." : "Confirm Completion"}
-              </span>
+              <X className="w-[15px] h-[15px]" />
             </button>
-            <button
-              onClick={onClose}
-              disabled={submitting}
-              className="w-full h-[45px] flex justify-center items-center bg-transparent border border-white/30 rounded-[10px] cursor-pointer hover:bg-[#1A0F3E] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="text-[15px] text-white">Cancel</span>
-            </button>
+
+            {/* Title */}
+            <h2 className="w-[590px] h-[60px] font-bold text-[25px] leading-[120%] text-center text-white mb-[25px]">
+              Are you sure you want to confirm this trade?
+            </h2>
+
+            {/* Action section */}
+            <div className="flex flex-col items-center gap-[25px] w-[792px]">
+              <div className="flex flex-row justify-center items-center gap-[50px] w-[792px] h-[70px]">
+                <div className="flex items-center gap-[15px]">
+                  {/* Confirm button */}
+                  <button
+                    className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] cursor-pointer relative disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleConfirm}
+                    disabled={submitting}
+                    type="button"
+                  >
+                    <div className="absolute inset-0 bg-[#0038FF] rounded-[100px]"></div>
+                    <Check className="w-[35px] h-[25px] text-white z-10" />
+                  </button>
+
+                  <span className="font-medium text-[20px] leading-[120%] text-white">
+                    {submitting ? "Activating..." : "Yes. Activate this trade."}
+                  </span>
+                </div>
+              </div>
+
+              {/* Disclaimer */}
+              <p className="w-[702px] text-[13px] leading-[120%] text-center text-white/60">
+                Please exercise caution when proceeding with trades with other
+                users. Expair is not liable for any losses arising from this
+                trade. All trades are handled solely by its users and it is the
+                user's discretion.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* Success Dialog */}
+      {showSuccess && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70]">
+          <div
+            className="w-[618px] h-[274px] flex flex-col items-center justify-center p-[50px] relative"
+            style={{
+              background: "rgba(0, 0, 0, 0.4)",
+              border: "2px solid #0038FF",
+              boxShadow: "0px 4px 15px #D78DE5",
+              backdropFilter: "blur(40px)",
+              borderRadius: "15px",
+            }}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setShowSuccess(false);
+                if (onConfirm) onConfirm(); // Close all dialogs including parent
+              }}
+              className="absolute top-[26px] right-[26px] text-white hover:text-gray-300"
+              type="button"
+            >
+              <Icon icon="lucide:x" className="w-[15px] h-[15px]" />
+            </button>
+
+            <div className="flex flex-col items-center gap-[30px] w-[470px]">
+              <h2 className="text-[25px] font-semibold text-white text-center">
+                Success! Added to your active trades.
+              </h2>
+
+              <button
+                onClick={handleGoToActiveTrades}
+                className="w-[258px] h-[40px] bg-[#0038FF] rounded-[15px] text-white text-[16px] shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
+                type="button"
+              >
+                Go to Active Trades
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

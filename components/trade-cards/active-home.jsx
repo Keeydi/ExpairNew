@@ -37,7 +37,7 @@ export default function ActiveTradeHome() {
       {trades.map((trade, index) => (
         <div
           key={index}
-          className="flex flex-col w-[440px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] gap-[20px] relative"
+          className="flex flex-col w-[440px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] gap-[20px] relative transition-all duration-300 hover:scale-[1.01]"
           style={{
             background: 'radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)'
           }}

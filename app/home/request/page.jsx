@@ -128,9 +128,15 @@ export default function RequestPage() {
           </div>
           
           
-          {/* Service input field */}
+          {/* Service input field with gradient border */}
           <div className="flex flex-col items-center gap-[15px] w-full mb-[40px]">
-            <div className="w-[407px] h-[50px] bg-[#120A2A] rounded-[15px] px-[14px] py-[8px] flex items-center">
+            <div
+              className="w-[407px] h-[50px] rounded-[15px] p-[2px] flex items-center"
+              style={{
+                background:
+                  "linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)",
+              }}
+            >
               <input
                 type="text"
                 placeholder="Enter a service you need. (e.g., Plumbing)"
@@ -141,7 +147,7 @@ export default function RequestPage() {
                     setErrors((prev) => ({ ...prev, serviceRequest: "" }));
                   }
                 }}
-                className="w-full h-full bg-transparent text-[16px] text-white outline-none placeholder:text-[#413663]"
+                className="w-full h-full bg-[#120A2A] rounded-[13px] px-[14px] py-[8px] text-[16px] text-white outline-none placeholder:text-[#413663]"
               />
             </div>
             <div className="h-[10px]">
@@ -168,7 +174,7 @@ export default function RequestPage() {
                     setErrors((prev) => ({ ...prev, date: "" }));
                   }
                 }}
-                className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[18px] py-[15px] pr-[45px] text-[16px] text-white outline-none placeholder:text-[#413663]"
+                className="appearance-none w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[18px] py-[15px] pr-[45px] text-[16px] text-white outline-none placeholder:text-[#413663]"
               />
               <Calendar
                 size={20}

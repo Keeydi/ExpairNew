@@ -126,13 +126,15 @@ export default function Navbar() {
       <div className="flex items-center justify-between max-w-[1440px] mx-auto px-6 sm:px-[250px]">
         {/* Logo and Button */}
         <div className="flex items-center gap-4 sm:gap-6">
-          <Image
-            src="/expair.png"
-            alt="Expair Logo"
-            width={120}
-            height={40}
-            className="w-auto h-[40px]"
-          />
+          <Link href="/home">
+            <Image
+              src="/expair.png"
+              alt="Expair Logo"
+              width={120}
+              height={40}
+              className="w-auto h-[40px] cursor-pointer"
+            />
+          </Link>
           <Link href="/home/request">
             <Button className="font-normal flex w-[160px] h-[40px] px-[38px] py-[13px] justify-center items-center gap-[5px] flex-shrink-0 shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] text-white text-sm sm:text-[16px] hover:bg-[#1a4dff] transition rounded-[15px]">
               ✦ New request
