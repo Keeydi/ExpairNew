@@ -180,3 +180,13 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+# Email settings for password reset functionality
+# Make sure you use your own email provider's settings here
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com' 
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'expaircs@gmail.com' 
+EMAIL_HOST_PASSWORD = 'qjfy dmyf vmff xkpa' 
+DEFAULT_FROM_EMAIL = 'expaircs@gmail.com'

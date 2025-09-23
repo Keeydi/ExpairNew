@@ -22,70 +22,76 @@ export default function LoginPage() {
 
   const { username, password, setUsername, setPassword } = useLoginStore();
 
-const handleLogin = async (e) => {
-  e?.preventDefault?.();
-  setErrorMessage("");
+  const handleLogin = async (e) => {
+    e?.preventDefault?.();
+    setErrorMessage("");
 
-  console.log("=== FRONTEND LOGIN DEBUG ===");
-  console.log("Username:", username);
-  console.log("Password length:", password?.length);
-  console.log("Captcha:", !!captcha);
+    console.log("=== FRONTEND LOGIN DEBUG ===");
+    console.log("Username:", username);
+    console.log("Password length:", password?.length);
+    console.log("Captcha:", !!captcha);
 
-  // Basic form checks
-  if (!username || !password) {
-    setErrorMessage("Please enter both username and password");
-    return;
-  }
-  if (!captcha) {
-    setErrorMessage("Please verify CAPTCHA");
-    return;
-  }
-
-  try {
-    console.log("Calling NextAuth signIn...");
-    
-    const result = await signIn("credentials", {
-      identifier: username,   // This goes to your NextAuth credentials provider
-      password: password,
-      redirect: false,        // Don't auto-redirect, handle it manually
-    });
-
-    console.log("NextAuth signIn result:", result);
-
-    if (result?.ok) {
-      // Login successful
-      console.log("Login successful, redirecting to /home");
-      router.push("/home");
-    } else {
-      // Login failed - provide more specific error messages
-      console.log("Login failed:", result);
-      
-      let errorMsg = "Login failed. Please try again.";
-      
-      if (result?.error === "CredentialsSignin") {
-        errorMsg = "Invalid username/email or password";
-      } else if (result?.error) {
-        errorMsg = result.error;
-      }
-      
-      setErrorMessage(errorMsg);
+    // Basic form checks
+    if (!username || !password) {
+      setErrorMessage("Please enter both username and password");
+      return;
     }
-  } catch (err) {
-    console.error("Login error:", err);
-    setErrorMessage("Network error. Please try again.");
-  }
-};
+    if (!captcha) {
+      setErrorMessage("Please verify CAPTCHA");
+      return;
+    }
+
+    try {
+      console.log("Calling NextAuth signIn...");
+
+      const result = await signIn("credentials", {
+        identifier: username, // This goes to your NextAuth credentials provider
+        password: password,
+        redirect: false, // Don't auto-redirect, handle it manually
+      });
+
+      console.log("NextAuth signIn result:", result);
+
+      if (result?.ok) {
+        // Login successful
+        console.log("Login successful, redirecting to /home");
+        router.push("/home");
+      } else {
+        // Login failed - provide more specific error messages
+        console.log("Login failed:", result);
+
+        let errorMsg = "Login failed. Please try again.";
+
+        if (result?.error === "CredentialsSignin") {
+          errorMsg = "Invalid username/email or password";
+        } else if (result?.error) {
+          errorMsg = result.error;
+        }
+
+        setErrorMessage(errorMsg);
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setErrorMessage("Network error. Please try again.");
+    }
+  };
 
   const handleGoogleLogin = async () => {
   try {
-    const res = await signIn("google", { prompt: "select_account", callbackUrl: "/home" });
+    const res = await signIn("google", { redirect: false });
 
-    if (res && res.error) {
-      // Log the error message from NextAuth
-      console.log("Google login failed:", res.error);
+    if (res?.ok) {
+      // Successful login - existing user
+      router.push("/home");
+    } else if (res?.error) {
+      // Check if this is a "new user" case by calling your backend directly
+      // We need to detect this somehow - maybe store the Google data temporarily
+      console.log("Google login failed, might be new user");
+      
+      // For new users, redirect to registration with Google data
+      // You'll need to store the Google data somewhere accessible
+      router.push("/register");
     }
-
-    console.log("Sign in result:", res); // This will log the result of the sign-in attempt
   } catch (error) {
     console.error("Google login error:", error);
   }
@@ -112,7 +118,9 @@ const handleLogin = async (e) => {
         </div>
 
         {/* Username */}
-        <p className="text-white font-normal mb-[15px]">Username or email address</p>
+        <p className="text-white font-normal mb-[15px]">
+          Username or email address
+        </p>
         <Input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -156,7 +164,10 @@ const handleLogin = async (e) => {
             <input type="checkbox" className="accent-blue-500" />
             Remember me
           </label>
-          <a href="/forgot-password" className="text-white opacity-50 hover:underline">
+          <a
+            href="/forgot-password"
+            className="text-white opacity-50 hover:underline"
+          >
             Forgot password?
           </a>
         </div>

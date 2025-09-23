@@ -199,8 +199,8 @@ export default function HomePage() {
     const hour = new Date().getHours();
     let prefix = "Starry night", emoji = "⭐";
     if (hour >= 5 && hour < 12) { prefix = "Bright morning"; emoji = "☀️"; }
-    else if (hour >= 12 && hour < 17) { prefix = "Good afternoon"; emoji = "☁️"; }
-    else if (hour >= 17 && hour < 22) { prefix = "Stellar evening"; emoji = "🌙"; }
+    else if (hour >= 12 && hour < 18) { prefix = "Good afternoon"; emoji = "☁️"; }
+    else if (hour >= 18 && hour < 22) { prefix = "Stellar evening"; emoji = "🌙"; }
 
     console.log("Session user object:", session?.user);
     

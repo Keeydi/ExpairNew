@@ -8,10 +8,13 @@ import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
 import PasswordResetSuccessDialog from '../../../components/auth/password-reset-success-dialog';
+import { useSearchParams } from 'next/navigation';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export default function ResetPasswordPage() {
+  const searchParams = useSearchParams(); 
+  const token = searchParams.get('token'); 
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +24,9 @@ export default function ResetPasswordPage() {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!token) {
+        throw new Error('Invalid or missing token.');
+      }
       if (!password || !repeatPassword) {
         throw new Error('Please fill in all fields.');
       }
@@ -28,16 +34,27 @@ export default function ResetPasswordPage() {
         throw new Error('Passwords do not match.');
       }
 
-      // For demo purposes, we'll simulate a successful response
-      // In a real application, you would make an API call here
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return { success: true };
+      // API call to your Django backend
+      const response = await fetch('http://127.0.0.1:8000/api/reset-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reset password.');
+      }
+
+      return response.json();
     },
     onSuccess: () => {
-      setErrorMessage('');
       setIsSuccessDialogOpen(true);
     },
     onError: (error) => {
+      console.warn('Error:', error.message);
       setErrorMessage(error.message);
     },
   });

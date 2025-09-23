@@ -2,6 +2,39 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth.hashers import make_password
 from django.contrib.postgres.fields import ArrayField
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+import os
+import binascii
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = self.generate_token()
+        if not self.expires_at:
+            # Set a 24-hour expiration time
+            self.expires_at = timezone.now() + timezone.timedelta(hours=24)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        return timezone.now() < self.expires_at
+
+    @staticmethod
+    def generate_token():
+        return binascii.hexlify(os.urandom(32)).decode()
+
+    def __str__(self):
+        return f"Token for {self.user.username}"
+
+    class Meta:
+        db_table = 'password_reset_token_tbl'
+        managed = True
 
 class VerificationStatus(models.TextChoices):
     UNVERIFIED = "UNVERIFIED", "Unverified"
@@ -143,11 +176,10 @@ class UserCredential(models.Model):
                                      on_delete=models.RESTRICT, null=True, blank=True)
     # keep only ONE specific skill
     specskills_id = models.ForeignKey(
-        SpecSkill, 
+        'SpecSkill', 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
-        db_column="specskills_id"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

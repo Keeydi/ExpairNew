@@ -38,26 +38,6 @@ const backendUrl = "http://localhost:8000";
 export default function SettingsPage() {
   const { data: session } = useSession();
 
-  useEffect(() => {
-    if (!session) return; // wait until session is ready
-
-    const run = async () => {
-      try {
-        const res = await authFetch(
-          `${backendUrl}/api/accounts/me/`,
-          {},
-          session
-        );
-        const data = await res.json();
-        console.log("Me endpoint:", data);
-      } catch (err) {
-        console.error("[settings] load error", err);
-      }
-    };
-
-    run();
-  }, [session]);
-
   const [activeTab, setActiveTab] = useState("profile");
 
   // form state
@@ -406,9 +386,9 @@ export default function SettingsPage() {
 
       const API_BASE = resolveAccountsBase(backendUrl);
       const fd = new FormData();
-      if (file) fd.append("profilePic", file); 
+      if (file) fd.append("profilePic", file);
       if (norm(username)) fd.append("username", norm(username));
-      if (norm(emailAdd)) fd.append("emailAdd", norm(emailAdd));
+      if (norm(emailAdd)) fd.append("email", norm(emailAdd));
       if (norm(bio)) fd.append("bio", norm(bio));
       if (norm(location)) fd.append("location", norm(location));
       if (userId) fd.append("user_id", String(userId));

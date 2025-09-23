@@ -10,15 +10,21 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
-  const [profilePicFile, setProfilePicFile] = useState(step3Data.profilePicFile || null);
+  const [profilePicFile, setProfilePicFile] = useState(
+    step3Data.profilePicFile || null
+  );
   const [profilePreview, setProfilePreview] = useState("/defaultavatar.png");
 
   const [userIDFile, setUserIDFile] = useState(step3Data.userIDFile || null);
-  const [userIDFileName, setUserIDFileName] = useState(step3Data.userIDFileName || ""); 
+  const [userIDFileName, setUserIDFileName] = useState(
+    step3Data.userIDFileName || ""
+  );
 
-  const [introduction, setIntroduction] = useState(step3Data.introduction || "");
+  const [introduction, setIntroduction] = useState(
+    step3Data.introduction || ""
+  );
   const [links, setLinks] = useState(step3Data.links || [""]); // keep as array
-  
+
   // preview when a profile picture is selected
   useEffect(() => {
     if (!profilePicFile) return setProfilePreview("/defaultavatar.png");
@@ -28,13 +34,13 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
   }, [profilePicFile]);
 
   useEffect(() => {
-  if (step3Data) {
-    setProfilePicFile(step3Data.profilePicFile || null);
-    setUserIDFile(step3Data.userIDFile || null);
-    setIntroduction(step3Data.introduction || "");
-    setLinks(step3Data.links || []);
-  }
-}, [step3Data]);
+    if (step3Data) {
+      setProfilePicFile(step3Data.profilePicFile || null);
+      setUserIDFile(step3Data.userIDFile || null);
+      setIntroduction(step3Data.introduction || "");
+      setLinks(step3Data.links || []);
+    }
+  }, [step3Data]);
 
   const handleAddLink = () => {
     setLinks((prev) => [...prev, ""]);
@@ -51,23 +57,22 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
   };
 
   const handleContinue = () => {
-  // Filter out empty links and ensure it's an array
-  const filteredLinks = links.filter(link => link && link.trim() !== "");
-  
-  onDataSubmit({
-    profilePicFile,
-    userIDFile,
-    userIDFileName,
-    introduction,
-    links: filteredLinks, // Keep as array, don't stringify here
-  });
-  onNext();
-};
+    // Filter out empty links and ensure it's an array
+    const filteredLinks = links.filter((link) => link && link.trim() !== "");
+
+    onDataSubmit({
+      profilePicFile,
+      userIDFile,
+      userIDFileName,
+      introduction,
+      links: filteredLinks, // Keep as array, don't stringify here
+    });
+    onNext();
+  };
 
   const handlePrev = () => {
     onPrev({ profilePicFile, userIDFile, userIDFileName, introduction, links });
   };
-
 
   return (
     <div
@@ -93,7 +98,7 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
             className="rounded-full mb-[30px] w-[180px] sm:w-[250px]"
           />
           <h1 className="font-[600] text-[18px] sm:text-[25px] text-center mb-[40px] sm:mb-[70px]">
-            Customize your profile for further verification.
+            Customize your profile for additional verification.
           </h1>
         </div>
 
@@ -102,10 +107,12 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
           {/* Left column - Photo upload */}
           <div className="flex flex-col items-center min-w-[250px]">
             <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[20px] sm:mb-[30px] text-center w-full">
-                Upload a photo
+              Upload a photo
             </p>
-            <div className="relative w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] mb-[30px] sm:mb-[41px]">
-              <label htmlFor="photo-upload" className="cursor-pointer">
+
+            <div className="flex flex-col items-center mb-[30px] sm:mb-[41px]">
+              {/* Profile photo preview */}
+              <div className="relative w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] mb-8">
                 <div className="w-full h-full bg-[#120A2A] rounded-full shadow-[0px_20px_60px_rgba(0,0,0,0.35)] relative">
                   <Image
                     src={profilePreview}
@@ -114,13 +121,17 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
                     height={200}
                     className="object-cover w-full h-full rounded-full"
                   />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-[50px] h-[50px] sm:w-[60px] sm:h-[60px] rounded-full bg-[#0038FF] flex items-center justify-center shadow-[0px_0px_15px_#284CCC]">
-                      <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-                    </div>
-                  </div>
                   <div className="absolute inset-0 border-[4px] sm:border-[5px] border-white/80 rounded-full"></div>
                 </div>
+              </div>
+
+              {/* Upload button */}
+              <label
+                htmlFor="photo-upload"
+                className="cursor-pointer bg-[#0038FF] hover:bg-[#1a4dff] text-white px-5 py-2 sm:px-6 sm:py-3 rounded-[15px] shadow-[0px_0px_15px_#284CCC] flex items-center gap-2"
+              >
+                <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
+                <span>Choose Photo</span>
               </label>
               <input
                 id="photo-upload"
@@ -151,7 +162,7 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
                 />
               ))} 
             </div> */}
-          </div> 
+          </div>
 
           {/* Middle + Right columns */}
           <div className="flex flex-col lg:flex-row gap-[40px] lg:gap-[100px] w-full">
@@ -164,7 +175,7 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
                 </p>
                 <div className="relative">
                   <div className="w-full h-[45px] sm:h-[50px] rounded-[12px] sm:rounded-[15px] border border-white/40 bg-[#120A2A] px-4 flex items-center justify-between cursor-pointer">
-                    <span className="text-[#413663] text-[14px] sm:text-[16px]">
+                    <span className="text-white/50 text-[14px] sm:text-[16px]">
                       {userIDFileName || "Upload file or photo"}
                     </span>
                     <Upload className="text-white w-5 h-5 sm:w-6 sm:h-6" />
@@ -173,7 +184,7 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
                       accept="image/*,application/pdf"
                       className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
                       onChange={(e) => {
-                        setUserIDFile(e.target.files[0] || null);  // Set the file
+                        setUserIDFile(e.target.files[0] || null); // Set the file
                         setUserIDFileName(e.target.files[0]?.name || ""); // Update the file name state
                       }}
                     />
@@ -182,70 +193,72 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
               </div>
 
               {/* Introduction */}
-            <div>
+              <div>
                 <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[15px] sm:mb-[25px] text-left">
                   Write a stellar introduction
                 </p>
-              <div className="relative">
-                <textarea
-                  rows={4}
-                  maxLength={500}
-                  className="w-full h-[150px] sm:h-[207px] rounded-[12px] sm:rounded-[15px] px-3 sm:px-4 py-2 sm:py-3 text-white bg-[#120A2A] border border-white/40 resize-none placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[16px]"
-                  placeholder="Tell us more about yourself"
-                  value={introduction}
-                  onChange={(e) => setIntroduction(e.target.value)}
-                />
+                <div className="relative">
+                  <textarea
+                    rows={4}
+                    maxLength={500}
+                    className="w-full h-[150px] sm:h-[207px] rounded-[12px] sm:rounded-[15px] px-3 sm:px-4 py-2 sm:py-3 text-white bg-[#120A2A] border border-white/40 resize-none placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[16px]"
+                    placeholder="Tell us more about yourself"
+                    value={introduction}
+                    onChange={(e) => setIntroduction(e.target.value)}
+                  />
                   <span className="absolute bottom-2 right-3 sm:bottom-3 sm:right-4 text-[10px] sm:text-xs text-gray-400">
-                  {500 - introduction.length} characters left
-                </span>
+                    {500 - introduction.length} characters left
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
             {/* Right side: links */}
             <div className="flex-1 min-w-[200px] sm:min-w-[400px] text-left">
               <p className="text-white font-[500] text-[18px] sm:text-[20px] mb-[12px] sm:mb-[15px] text-left">
                 Add a website or a link
               </p>
-                <div className="max-h-[200px] sm:max-h-[310px] overflow-y-auto custom-scrollbar">
-                  {links.map((link, index) => (
+              <div className="max-h-[200px] sm:max-h-[310px] overflow-y-auto custom-scrollbar">
+                {links.map((link, index) => (
                   <div key={index} className="relative mb-[12px] sm:mb-[15px]">
-                      <Input
-                        type="url"
-                        value={link}
-                        onChange={(e) => handleLinkChange(index, e.target.value)}
-                        placeholder="Link here"
+                    <Input
+                      type="url"
+                      value={link}
+                      onChange={(e) => handleLinkChange(index, e.target.value)}
+                      placeholder="Link here"
                       className="bg-[#120A2A] text-white border border-white/40 rounded-[12px] sm:rounded-[15px] w-full pr-8 sm:pr-10 h-[45px] sm:h-[50px] placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[16px]"
+                    />
+                    {index > 0 && (
+                      <X
+                        className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-white/70 cursor-pointer"
+                        onClick={() => handleRemoveLink(index)}
                       />
-                      {index > 0 && (
-                        <X
-                          className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-white/70 cursor-pointer"
-                          onClick={() => handleRemoveLink(index)}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddLink}
-                  className="font-[400] text-[14px] sm:text-[16px] text-[#0038FF] hover:underline text-left mt-1"
-                >
-                  + Add another link
-                </button>
+                    )}
+                  </div>
+                ))}
               </div>
+              <button
+                type="button"
+                onClick={handleAddLink}
+                className="font-[400] text-[14px] sm:text-[16px] text-[#0038FF] hover:underline text-left mt-1"
+              >
+                + Add another link
+              </button>
             </div>
           </div>
+        </div>
 
-        {/* Skip */}
-        <p
-          onClick={onNext}
-          className="underline text-center font-[500] text-[16px] sm:text-[20px] mt-[75px] mb-[25px] text-[#0038FF] cursor-pointer"
-        >
-          Skip for now
-        </p>
+        {/* Continue Button */}
+        <div className="flex justify-center mt-[75px] mb-[25px]">
+          <Button
+            className="cursor-pointer flex w-[180px] sm:w-[240px] h-[45px] sm:h-[50px] justify-center items-center px-[20px] sm:px-[38px] py-[10px] sm:py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-normal transition rounded-[12px] sm:rounded-[15px]"
+            onClick={handleContinue}
+          >
+            Continue
+          </Button>
+        </div>
 
         {/* Pagination */}
-        <div   className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-gray-300 hover:text-white"
             onClick={handlePrev}

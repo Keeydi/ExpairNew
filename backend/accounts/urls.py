@@ -52,6 +52,13 @@ urlpatterns = [
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/accounts/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    path("users/add_interests/", add_user_interests, name="add-user-interests"),
+    path("users/<int:user_id>/interests/", user_interests, name="user_interests"),
+    
+    path('forgot-password/', views.forgot_password, name='forgot_password'),
+    path('reset-password/', views.reset_password, name='reset_password'),
+
 ]
 
 

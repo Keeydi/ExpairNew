@@ -38,32 +38,52 @@ const clampLevel = (lvl) =>
   Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
 
 // Width of the current level band (XP range inside this level)
-const getLevelWidth = (lvl) => {
-  const idx = clampLevel(lvl) - 1;
-  const prev = idx === 0 ? 0 : LVL_CAPS[idx - 1];
-  return LVL_CAPS[idx] - prev;
-};
+const getLevelWidth = (lvl) => LVL_CAPS[clampLevel(lvl) - 1] || 1;
 
 // Derive level + in-level progress from lifetime total XP (tot_xppts)
 // Inclusive boundary: exact cap stays on the same level
+// Derive level + in-level progress from lifetime total XP (tot_xppts)
 const deriveFromTotalXp = (totalXp) => {
   const t = Math.max(0, Number(totalXp) || 0);
-  let idx = LVL_CAPS.findIndex((cap) => t <= cap);
-  if (idx === -1) idx = LVL_CAPS.length - 1; // clamp to 100
-  const level = idx + 1;
-  const prevCap = idx === 0 ? 0 : LVL_CAPS[idx - 1];
-  const currCap = LVL_CAPS[idx];
-  const xpInLevel = Math.max(0, t - prevCap);
-  const levelWidth = currCap - prevCap;
-  return { level, xpInLevel, levelWidth, prevCap, currCap };
+
+  let cumulative = 0;
+  let level = 1;
+
+  for (let i = 0; i < LVL_CAPS.length; i++) {
+    if (t < cumulative + LVL_CAPS[i]) {
+      // Still inside this level
+      const xpInLevel = t - cumulative;
+      const levelWidth = LVL_CAPS[i];
+      return {
+        level: i + 1,
+        xpInLevel,
+        levelWidth,
+        prevCap: cumulative,
+        currCap: cumulative + LVL_CAPS[i],
+      };
+    }
+    cumulative += LVL_CAPS[i];
+  }
+
+  // If XP exceeds all caps, clamp to max level
+  const lastLevel = LVL_CAPS.length;
+  return {
+    level: lastLevel,
+    xpInLevel: LVL_CAPS[lastLevel - 1],
+    levelWidth: LVL_CAPS[lastLevel - 1],
+    prevCap: cumulative - LVL_CAPS[lastLevel - 1],
+    currCap: cumulative,
+  };
 };
 
 // Helper function to format month input value to readable format
-const formatMonthYear = (monthValue) => {
-  if (!monthValue) return "";
-  const [year, month] = monthValue.split("-");
-  const date = new Date(year, month - 1);
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+const formatMonthYear = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+  }); // e.g., "January 2024"
 };
 
 const safeFixed = (val, digits = 1) => {
@@ -277,6 +297,9 @@ export default function ProfilePage() {
           })(),
         }));
 
+        setUserInterests(data.interests || []);
+        setOriginalUserInterests(data.interests || []);
+
         console.log("[profile] User state updated successfully");
 
         // Load interests and skills
@@ -311,8 +334,8 @@ export default function ProfilePage() {
             const interests = Array.isArray(iJson?.interests)
               ? iJson.interests
               : [];
-            setUserInterests(interests);
-            setOriginalUserInterests(interests);
+            setUserInterests(data.interests || []);
+            setOriginalUserInterests(data.interests || []);
 
             if (sJson?.skill_groups && typeof sJson.skill_groups === "object") {
               const skillGroupsArray = Object.entries(sJson.skill_groups).map(
@@ -1140,6 +1163,7 @@ export default function ProfilePage() {
   };
 
   // Main save function for interests (updated to use combined endpoint)
+  // Main save function for interests
   const handleSaveInterests = async () => {
     if (!user?.id) {
       setInterestsError("User ID not found");
@@ -1160,9 +1184,8 @@ export default function ProfilePage() {
         headers.Authorization = `Bearer ${session.access}`;
       }
 
-      // Remove interests first (using the same endpoint with DELETE method)
+      // Remove interests first
       if (interestsToRemove.length > 0) {
-        // Get general skill IDs for interests to remove
         const removeGenSkillIds = [];
 
         for (const interest of interestsToRemove) {
@@ -1180,27 +1203,24 @@ export default function ProfilePage() {
         }
 
         if (removeGenSkillIds.length > 0) {
-          const deleteRes = await fetch(
+          const removeRes = await fetch(
             `${API_BASE}/users/${user.id}/interests/`,
             {
               method: "DELETE",
               headers,
-              body: JSON.stringify({
-                genSkills_ids: removeGenSkillIds,
-              }),
+              body: JSON.stringify({ genSkills_ids: removeGenSkillIds }),
             }
           );
 
-          if (!deleteRes.ok) {
-            const errorText = await deleteRes.text();
+          if (!removeRes.ok) {
+            const errorText = await removeRes.text();
             throw new Error(`Failed to remove interests: ${errorText}`);
           }
         }
       }
 
-      // Add new interests (using the same endpoint with POST method)
+      // Add new interests
       if (interestsToAdd.length > 0) {
-        // Get general skill IDs for the new interests
         const addGenSkillIds = [];
 
         for (const interest of interestsToAdd) {
@@ -1220,16 +1240,14 @@ export default function ProfilePage() {
         }
 
         if (addGenSkillIds.length > 0) {
-          const addRes = await fetch(
-            `${API_BASE}/users/${user.id}/interests/`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                genSkills_ids: addGenSkillIds,
-              }),
-            }
-          );
+          const addRes = await fetch(`${API_BASE}/users/add_interests/`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              user_id: user.id,
+              genSkills_ids: addGenSkillIds,
+            }),
+          });
 
           if (!addRes.ok) {
             const errorText = await addRes.text();
@@ -1529,6 +1547,18 @@ export default function ProfilePage() {
       closeRepeatModal();
     };
 
+    const handleSave = () => {
+      const validationErrors = validateCredentials(formData);
+
+      if (validationErrors.length > 0) {
+        // Display errors to user instead of sending to backend
+        alert(validationErrors.join("\n")); // Or use a proper error display component
+        return;
+      }
+
+      onSave(formData);
+    };
+
     return (
       <div className="flex flex-col gap-[25px]">
         <h4 className="text-[22px] font-semibold">
@@ -1587,11 +1617,12 @@ export default function ProfilePage() {
                       Issue Date <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="month" // Changed from type="date" to type="month"
-                      value={cred.issueDate ? cred.issueDate.slice(0, 7) : ""}
+                      type="date"
+                      value={cred.issueDate || ""}
                       onChange={(e) =>
                         handleChange(index, "issueDate", e.target.value)
                       }
+                      placeholder="Month Year"
                       className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
                     />
                   </div>
@@ -1599,11 +1630,12 @@ export default function ProfilePage() {
                   <div className="flex flex-col gap-2">
                     <label className="text-sm text-white/50">Expiry Date</label>
                     <input
-                      type="month" // Changed from type="date" to type="month"
-                      value={cred.expiryDate ? cred.expiryDate.slice(0, 7) : ""}
+                      type="date"
+                      value={cred.expiryDate || ""}
                       onChange={(e) =>
                         handleChange(index, "expiryDate", e.target.value)
                       }
+                      placeholder="Month Year"
                       className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
                     />
                   </div>
@@ -1737,7 +1769,7 @@ export default function ProfilePage() {
             Cancel
           </Button>
           <Button
-            onClick={() => onSave(formData)}
+            onClick={handleSave}
             className="bg-[#0038FF] hover:bg-[#1a4dff] text-white shadow-[0px_0px_15px_#284CCC]"
           >
             Save Changes
@@ -1859,6 +1891,26 @@ export default function ProfilePage() {
     } finally {
       setCredentialsLoading(false);
     }
+  };
+
+  const validateCredentials = (credentials) => {
+    const errors = [];
+
+    credentials.forEach((cred, index) => {
+      if (!cred.title?.trim()) {
+        errors.push(`Credential ${index + 1}: Name is required`);
+      }
+      if (!cred.org?.trim()) {
+        errors.push(
+          `Credential ${index + 1}: Issuing Organization is required`
+        );
+      }
+      if (!cred.issueDate) {
+        errors.push(`Credential ${index + 1}: Issue Date is required`);
+      }
+    });
+
+    return errors;
   };
 
   // Conditionally render the edit page or the profile page
@@ -2183,7 +2235,7 @@ export default function ProfilePage() {
         {/* Right Section */}
         <div className="flex-1 flex flex-col">
           {/* Top Row: Name + Verified Badge */}
-          <div className="flex items-center gap-3 mb-[5px]">
+          <div className="flex items-center gap-6 mb-[5px]">
             {basicInfoEditing ? (
               <div className="flex gap-3">
                 <input
@@ -2206,10 +2258,10 @@ export default function ProfilePage() {
                 {`${user.firstname} ${user.lastname}`.trim() || "—"}
               </h3>
             )}
-            {user.verified && (
+            {(user.is_verified || verificationStatus === "verified") && (
               <Icon
                 icon="mdi:check-decagram"
-                className="text-[#0038FF] w-6 h-6"
+                className="text-[#0038FF] w-[1.8em] h-[1.8em]" // scale with font size
               />
             )}
           </div>
@@ -2266,7 +2318,12 @@ export default function ProfilePage() {
             </div>
 
             {/* Level Bar Section */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* LVL label (moved to the left, purple) */}
+              <span className="text-[16px] font-semibold text-purple-400">
+                LVL {user.level}
+              </span>
+
               {/* Track */}
               <div className="relative w-[220px] h-[20px] rounded-[32px] border-2 border-white overflow-hidden">
                 {/* Fill */}
@@ -2285,7 +2342,11 @@ export default function ProfilePage() {
                   }}
                 />
               </div>
-              <span className="text-[16px]">LVL {user.level}</span>
+
+              {/* XP progress (current / needed) */}
+              <span className="text-[16px] text-white/80">
+                {user.xpPoints}/{getLevelWidth(user.level || 1)}
+              </span>
             </div>
           </div>
 
@@ -2343,7 +2404,7 @@ export default function ProfilePage() {
               {verificationStatus === "unverified" && (
                 <button
                   onClick={() => setShowVerificationPopup(true)}
-                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2"
+                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2 shadow-[0px_0px_15px_#284CCC]"
                 >
                   <Icon icon="material-symbols:verified" className="w-4 h-4" />
                   <span>Get Verified</span>
@@ -2373,18 +2434,11 @@ export default function ProfilePage() {
                     }
                     setShowVerificationPopup(true);
                   }}
-                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+                  className="bg-red-600 hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2 shadow-[0px_0px_15px_red]"
                 >
-                  Resubmit ID
-                </button>
-              )}
-
-              {/* VERIFIED → Green badge */}
-              {verificationStatus === "verified" && (
-                <span className="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm rounded-[15px] px-5 py-2">
                   <Icon icon="material-symbols:verified" className="w-4 h-4" />
-                  <span>Verified</span>
-                </span>
+                  <span>Resubmit ID</span>
+                </button>
               )}
             </div>
           )}
@@ -2828,27 +2882,23 @@ export default function ProfilePage() {
                     </button>
                   )}
                   {/* Group 1 */}
-                  <div>
-                    <h6 className="text-[20px] font-semibold mb-[5px]">
-                      {cred.title}
-                    </h6>
-                    <p className="text-[16px]">{cred.org}</p>
-                  </div>
-
-                  {/* Group 2 */}
+                  <h6 className="text-[20px] font-semibold mb-[5px]">
+                    {cred.credential_title}
+                  </h6>
+                  <p className="text-[16px]">{cred.issuer}</p> {/* Group 2 */}
                   <div className="mt-[15px] text-[16px] text-white/50 leading-[1.6]">
-                    Issued {formatMonthYear(cred.issueDate)} •{" "}
-                    {cred.expiryDate
-                      ? `Expires ${formatMonthYear(cred.expiryDate)}`
+                    Issued <span>{formatMonthYear(cred.issue_date)}</span> •{" "}
+                    {/* Changed from cred.issueDate */}
+                    {cred.expiry_date
+                      ? `Expires ${formatMonthYear(cred.expiry_date)}`
                       : "No expiry"}
                     <br />
-                    ID: {cred.id}
+                    {cred.cred_id ? `ID: ${cred.cred_id}` : ""}
                   </div>
-
                   {/* Group 3 */}
                   <div className="mt-[15px]">
                     <a
-                      href={cred.url}
+                      href={cred.cred_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-[#0038FF] hover:underline transition-colors"
@@ -2857,18 +2907,12 @@ export default function ProfilePage() {
                       <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
                     </a>
                   </div>
-
-                  {/* Group 4: Skills */}
+                  {/* Group 4: Skill */}
                   {(cred.skills || []).length > 0 && (
-                    <div className="mt-[20px]">
-                      <div className="text-white/50 text-[16px] mb-[10px]">
-                        Associated Skills
-                      </div>
-                      <div className="flex flex-wrap gap-[10px]">
-                        {(cred.skills || []).map((skill, skillIndex) => (
-                          <TradePill key={skillIndex} content={skill} />
-                        ))}
-                      </div>
+                    <div className="mt-[20px] flex items-center gap-[10px]">
+                      {(cred.skills || []).map((skill, skillIndex) => (
+                        <TradePill key={skillIndex} content={skill} />
+                      ))}
                     </div>
                   )}
                 </div>

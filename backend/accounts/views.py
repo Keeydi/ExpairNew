@@ -1,32 +1,111 @@
 import json
-from datetime import date, timezone, datetime
+import datetime
+from datetime import date
 
 from rest_framework import status
-
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from .models import Evaluation, GenSkill, UserInterest, User, VerificationStatus, UserCredential
-from .models import SpecSkill, UserSkill, TradeRequest, TradeInterest, TradeDetail  
-from .models import User 
-
-from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.contrib.auth.hashers import check_password
 from django.utils import timezone as django_timezone
+from django.utils.timezone import localdate
+from django.conf import settings
+from django.template.loader import render_to_string
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.shortcuts import get_object_or_404
 
-from .serializers import ProfileUpdateSerializer, UserCredentialSerializer
-from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
-from .serializers import UserSerializer
-from .serializers import GenSkillSerializer, UserInterestBulkSerializer
+from .models import (
+    Evaluation, GenSkill, UserInterest, User, VerificationStatus, UserCredential,
+    SpecSkill, UserSkill, TradeRequest, TradeInterest, PasswordResetToken
+)
+from .serializers import (
+    ProfileUpdateSerializer, UserCredentialSerializer,
+    SpecSkillSerializer, UserSkillBulkSerializer,
+    UserSerializer, GenSkillSerializer, UserInterestBulkSerializer
+)
 
+def forgot_password(request):
+    """
+    Handles a forgot password request by creating a token and sending a reset email.
+    """
+    try:
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+        user = get_object_or_404(User, email=email)
+
+        PasswordResetToken.objects.filter(user=user).delete()
+        token = PasswordResetToken.objects.create(user=user)
+        
+        # Link to your frontend password reset page
+        reset_link = f"http://localhost:3000/reset-password?token={token.token}"
+        
+        # Use a context dictionary to pass data to the template
+        context = {
+            'user': user,
+            'reset_link': reset_link,
+        }
+        
+        # Render the HTML template
+        html_message = render_to_string('emails/password_reset_email.html', context)
+        
+        # Create a plain text version for email clients that don't support HTML
+        plain_message = f"Hello {user.first_name},\n\nClick the following link to reset your password:\n{reset_link}"
+
+        # Send the email with both HTML and plain text versions
+        send_mail(
+            'Expair Password Reset Request',
+            plain_message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+            html_message=html_message,
+        )
+
+        return Response({'message': 'Password reset link sent to your email.'}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        print(f"Error in forgot_password view: {e}")
+        return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    Handles a password reset request by validating the token and updating the password.
+    """
+    try:
+        token_value = request.data.get('token')
+        new_password = request.data.get('password')
+        
+        if not token_value or not new_password:
+            return Response({'error': 'Token and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the token and validate it
+        token_obj = get_object_or_404(PasswordResetToken, token=token_value)
+        if not token_obj.is_valid():
+            return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = token_obj.user
+        
+        # Update the user's password and delete the token
+        user.set_password(new_password)
+        user.save()
+        token_obj.delete()
+
+        return Response({'message': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
+
+    except PasswordResetToken.DoesNotExist:
+        return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        print(f"Error in reset_password view: {e}")
+        return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
