@@ -18,7 +18,7 @@ from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.contrib.auth.hashers import check_password
-from django.utils.timezone import localdate
+from django.utils import timezone as django_timezone
 
 from .serializers import ProfileUpdateSerializer, UserCredentialSerializer
 from .serializers import SpecSkillSerializer, UserSkillBulkSerializer
@@ -1875,13 +1875,13 @@ def confirm_trade_evaluation(request, tradereq_id):
                 if evaluation.requester_evaluation_status is not None:
                     return Response({"error": "You have already responded to this evaluation"}, status=400)
                 evaluation.requester_evaluation_status = Evaluation.EvaluationStatus.CONFIRMED
-                evaluation.requester_responded_at = timezone.now()
+                evaluation.requester_responded_at = django_timezone.now()
                 print(f"Set requester status to CONFIRMED")
             else:  # responder
                 if evaluation.responder_evaluation_status is not None:
                     return Response({"error": "You have already responded to this evaluation"}, status=400)
                 evaluation.responder_evaluation_status = Evaluation.EvaluationStatus.CONFIRMED
-                evaluation.responder_responded_at = timezone.now()
+                evaluation.responder_responded_at = django_timezone.now()
                 print(f"Set responder status to CONFIRMED")
             
             evaluation.save()
@@ -1955,12 +1955,12 @@ def reject_trade_evaluation(request, tradereq_id):
                 if evaluation.requester_evaluation_status is not None:
                     return Response({"error": "You have already responded to this evaluation"}, status=400)
                 evaluation.requester_evaluation_status = Evaluation.EvaluationStatus.REJECTED
-                evaluation.requester_responded_at = timezone.now()
+                evaluation.requester_responded_at = django_timezone.now()   
             else:  # responder
                 if evaluation.responder_evaluation_status is not None:
                     return Response({"error": "You have already responded to this evaluation"}, status=400)
                 evaluation.responder_evaluation_status = Evaluation.EvaluationStatus.REJECTED
-                evaluation.responder_responded_at = timezone.now()
+                evaluation.responder_responded_at = django_timezone.now()
             
             evaluation.save()
             print(f"Evaluation rejection saved")
