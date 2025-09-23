@@ -35,8 +35,16 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
     timeCommitment: 50,
     skillLevel: 80,
   });
-  
-  // Update evaluation if tradeData includes these values
+
+  // Animated progress states
+  const [progress, setProgress] = useState({
+    tradeScore: 0,
+    taskComplexity: 0,
+    timeCommitment: 0,
+    skillLevel: 0,
+  });
+
+  // Update evaluation when new tradeData is passed
   useEffect(() => {
     if (tradeData) {
       setEvaluation(prev => ({
@@ -48,33 +56,98 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
       }));
     }
   }, [tradeData]);
-  
+
+  // Trigger staggered animations after evaluation updates
+  useEffect(() => {
+    if (isOpen) {
+      // Reset progress first
+      setProgress({
+        tradeScore: 0,
+        taskComplexity: 0,
+        timeCommitment: 0,
+        skillLevel: 0,
+      });
+
+      // Staggered animations
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, tradeScore: (evaluation.tradeScore / 10) * 100 }));
+      }, 200);
+
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, taskComplexity: evaluation.taskComplexity }));
+      }, 600);
+
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, timeCommitment: evaluation.timeCommitment }));
+      }, 900);
+
+      setTimeout(() => {
+        setProgress(prev => ({ ...prev, skillLevel: evaluation.skillLevel }));
+      }, 1200);
+    }
+  }, [evaluation, isOpen]);
+
+  // Handle close
+  const handleClose = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    onClose();
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleClose(e);
+    }
+  };
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && isOpen) {
+        handleClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+      return () => document.removeEventListener("keydown", handleEscape);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Default data if not provided
   const data = tradeData || {
     requestTitle: "Nutrition Coaching for Weight Loss",
     offerTitle: "Yoga Instruction",
-    feedback: "Olivia's trade for nutrition coaching in exchange for yoga instruction is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results."
+    feedback:
+      "Olivia's trade for nutrition coaching in exchange for yoga instruction is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.",
   };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose}></div>
-      
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={handleBackdropClick}
+      ></div>
+
       {/* Dialog */}
-      <div className="relative w-[900px] h-[650px] flex flex-col justify-center items-center p-[80px_60px] bg-black/10 shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[50px] rounded-[15px] z-50 isolate">
+      <div className="relative w-[940px] h-[790px] flex flex-col justify-center items-center p-[80px_60px] bg-black/10 shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[50px] rounded-[15px] z-60 isolate">
         {/* Close button */}
-        <button 
-          className="absolute top-[35px] right-[35px] text-white cursor-pointer flex items-center justify-center w-[30px] h-[30px] bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-          onClick={onClose}
+        <button
+          className="absolute top-[35px] right-[35px] text-white cursor-pointer flex items-center justify-center w-[30px] h-[30px] transition-all duration-200 hover:bg-white/10 hover:text-[#D78DE5] rounded-full z-[100]"
+          onClick={handleClose}
+          onMouseDown={(e) => e.stopPropagation()}
           aria-label="Close dialog"
         >
           <X className="w-[15px] h-[15px]" />
         </button>
-        
-        {/* Background glow effects */}
+
+        {/* Background glow */}
         <div className="absolute w-[942px] h-[218px] left-[-1px] top-0 z-[1]">
           {/* Indigo glow left */}
           <div className="absolute w-[421px] h-[218px] left-[calc(50%-421px/2-260.5px)] top-0 bg-[#906EFF] blur-[175px]"></div>
@@ -85,30 +158,30 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
           {/* Blue glow bottom left */}
           <div className="absolute w-[225px] h-[105.09px] left-[calc(50%-225px/2-283.5px)] top-[83.85px] bg-[#0038FF] blur-[60px]"></div>
         </div>
-        
-        {/* Content container */}
-        <div className="flex flex-col justify-center items-center gap-[40px] w-[792px] h-[513px] z-[2]">
-          {/* Header section with titles */}
-          <div className="flex flex-col items-center gap-[25px] w-[792px] h-[100px]">
-            <div className="flex flex-row justify-between items-start gap-[35px] w-[792px] h-[100px]">
-              {/* Left side - Request */}
-              <div className="flex flex-col items-start gap-[15px] w-[300px] h-[100px]">
-                <h3 className="w-[300px] h-[60px] font-bold text-[25px] leading-[120%] text-white">
+
+        {/* Content */}
+        <div className="flex flex-col justify-center items-center gap-[40px] w-[792px] h-[613px] z-[2]">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-[25px] w-[792px] h-[150px]">
+            <div className="flex flex-row justify-between items-center w-[792px] h-[150px]">
+              {/* Left */}
+              <div className="flex flex-col items-start justify-between w-[300px] h-full">
+                <h3 className="w-[300px] font-[700] text-[25px] leading-[120%] text-white">
                   {data.requestTitle}
                 </h3>
                 <p className="w-[300px] h-[19px] text-[16px] leading-[120%] text-white mt-6">
                   What you'll provide
                 </p>
               </div>
-              
-              {/* Center - Logo */}
-              <div className="w-[100px] h-[100px]">
+
+              {/* Center */}
+              <div className="flex items-center justify-center w-[200px] h-[200px]">
                 <StarLogo />
               </div>
-              
-              {/* Right side - Offer */}
-              <div className="flex flex-col items-center gap-[15px] w-[300px] h-[100px]">
-                <h3 className="w-[300px] h-[60px] font-bold text-[25px] leading-[120%] text-right text-white">
+
+              {/* Right */}
+              <div className="flex flex-col items-end justify-between w-[300px] h-full">
+                <h3 className="w-[300px] font-[700] text-[25px] leading-[120%] text-right text-white">
                   {data.offerTitle}
                 </h3>
                 <p className="w-[300px] h-[19px] text-[16px] leading-[120%] text-right text-white mt-6">
@@ -117,19 +190,40 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
               </div>
             </div>
           </div>
-          
-          {/* Trade assessment section */}
+
+          {/* Trade score */}
           <div className="flex flex-col items-center gap-[15px] w-[300px] h-[83px]">
-            {/* Progress bar */}
-            <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] relative isolate">
-              <div 
-                className="w-[16px] h-[16px] rounded-[100px]"
-                style={{ 
-                  marginLeft: `${(evaluation.tradeScore/10) * 100 - 8}%`,
-                  background: "linear-gradient(to right, #FB9696, #D78DE5, #7E59F8, #284CCC, #6DDFFF)" 
+            <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+              <div
+                className="h-full rounded-[30px] z-[2] transition-all duration-700 ease-out relative"
+                style={{
+                  width: `calc(${progress.tradeScore}% - 4px)`,
+                  background: "linear-gradient(to right, #FB9696, #D78DE5, #7E59F8, #284CCC, #6DDFFF)",
+                  boxShadow: progress.tradeScore > 0 ? "0px 0px 20px rgba(126, 89, 248, 0.4)" : "none"
                 }}
-              ></div>
-              <div className="absolute w-[295px] h-[20px] left-[calc(50%-295px/2+0.5px)] top-[calc(50%-20px/2)] bg-white opacity-35 z-[1]"></div>
+              >
+                {/* Inner glow effect */}
+                <div 
+                  className="absolute inset-0 rounded-[30px] opacity-60"
+                  style={{
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                  }}
+                />
+
+                {/* Shimmer effect */}
+                {progress.tradeScore > 10 && (
+                  <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                    <div 
+                      className="absolute top-0 left-[-100%] w-full h-full opacity-40"
+                      style={{
+                        background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                        animation: "shimmer 3s infinite ease-in-out"
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="absolute top-[2px] left-[2px] right-[2px] bottom-[2px] bg-white opacity-35 z-[1] rounded-[30px]"></div>
             </div>
             
             {/* Trade assessment text */}
@@ -142,19 +236,58 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
               </p>
             </div>
           </div>
-          
-          {/* Assessment metrics */}
-          <div className="flex flex-col items-end gap-[15px] w-[457px] h-[90px]">
+
+          {/* Metrics */}
+          <div className="flex flex-col items-end gap-[15px] w-[457px]">
             {/* Task complexity */}
             <div className="flex flex-row items-end gap-[20px] w-[452px] h-[20px]">
               <span className="w-[132px] h-[19px] text-[16px] leading-[120%] text-right text-white whitespace-nowrap">
                 Task complexity
               </span>
-              <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
-                <div 
-                  className="w-[16px] h-[16px] bg-gradient-to-r from-[#FB9696] to-[#FA6666] rounded-[100px]"
-                  style={{ marginLeft: `${evaluation.taskComplexity - 8}%` }}
-                ></div>
+
+              <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+                <div
+                  className="h-full rounded-[30px] transition-all duration-800 ease-out relative"
+                  style={{
+                    width: `calc(${progress.taskComplexity}% - 4px)`,
+                    background: "linear-gradient(to right, #FB9696, #FA6666)",
+                    boxShadow: progress.taskComplexity > 0 ? "0px 0px 15px rgba(251, 150, 150, 0.5)" : "none"
+                  }}
+                >
+                  {/* Inner glow effect */}
+                  <div 
+                    className="absolute inset-0 rounded-[30px] opacity-60"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                    }}
+                  />
+
+                  {/* Shimmer effect */}
+                  {progress.taskComplexity > 10 && (
+                    <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-[-100%] w-full h-full opacity-50"
+                        style={{
+                          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                          animation: "shimmer 2s infinite ease-in-out"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Pulse effect at the end */}
+                  {progress.taskComplexity > 5 && (
+                    <div 
+                      className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
+                      style={{
+                        background: "#FFFFFF",
+                        boxShadow: "0px 0px 8px rgba(255,255,255,0.9)",
+                        transform: "translateY(-50%)",
+                        animation: "pulse 1.5s infinite ease-in-out"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
             
@@ -163,11 +296,51 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
               <span className="w-[137px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Time commitment
               </span>
-              <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
-                <div 
-                  className="w-[16px] h-[16px] bg-gradient-to-r from-[#D78DE5] to-[#C865DC] rounded-[100px]"
-                  style={{ marginLeft: `${evaluation.timeCommitment - 8}%` }}
-                ></div>
+
+              <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+                <div
+                  className="h-full rounded-[30px] transition-all duration-900 ease-out relative"
+                  style={{
+                    width: `calc(${progress.timeCommitment}% - 4px)`,
+                    background: "linear-gradient(to right, #D78DE5, #C865DC)",
+                    boxShadow: progress.timeCommitment > 0 ? "0px 0px 15px rgba(215, 141, 229, 0.5)" : "none"
+                  }}
+                >
+                  {/* Inner glow effect */}
+                  <div 
+                    className="absolute inset-0 rounded-[30px] opacity-60"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                    }}
+                  />
+
+                  {/* Shimmer effect */}
+                  {progress.timeCommitment > 10 && (
+                    <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-[-100%] w-full h-full opacity-50"
+                        style={{
+                          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                          animation: "shimmer 2.2s infinite ease-in-out",
+                          animationDelay: "0.3s"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Pulse effect at the end */}
+                  {progress.timeCommitment > 5 && (
+                    <div 
+                      className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
+                      style={{
+                        background: "#FFFFFF",
+                        boxShadow: "0px 0px 8px rgba(255,255,255,0.9)",
+                        transform: "translateY(-50%)",
+                        animation: "pulse 1.8s infinite ease-in-out"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
             
@@ -176,11 +349,51 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
               <span className="w-[70px] h-[19px] text-[16px] leading-[120%] text-right text-white">
                 Skill level
               </span>
-              <div className="flex flex-row items-center p-[2px] gap-[10px] w-[300px] h-[20px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px]">
-                <div 
-                  className="w-[16px] h-[16px] bg-gradient-to-r from-[#6DDFFF] to-[#38D3FF] rounded-[100px]"
-                  style={{ marginLeft: `${evaluation.skillLevel - 8}%` }}
-                ></div>
+
+              <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
+                <div
+                  className="h-full rounded-[30px] transition-all duration-1000 ease-out relative"
+                  style={{
+                    width: `calc(${progress.skillLevel}% - 4px)`,
+                    background: "linear-gradient(to right, #6DDFFF, #38D3FF)",
+                    boxShadow: progress.skillLevel > 0 ? "0px 0px 15px rgba(109, 223, 255, 0.5)" : "none"
+                  }}
+                >
+                  {/* Inner glow effect */}
+                  <div 
+                    className="absolute inset-0 rounded-[30px] opacity-60"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
+                    }}
+                  />
+
+                  {/* Shimmer effect */}
+                  {progress.skillLevel > 10 && (
+                    <div className="absolute inset-0 rounded-[30px] overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-[-100%] w-full h-full opacity-50"
+                        style={{
+                          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
+                          animation: "shimmer 2.5s infinite ease-in-out",
+                          animationDelay: "0.6s"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Pulse effect at the end */}
+                  {progress.skillLevel > 5 && (
+                    <div 
+                      className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
+                      style={{
+                        background: "#FFFFFF",
+                        boxShadow: "0px 0px 8px rgba(255,255,255,0.9)",
+                        transform: "translateY(-50%)",
+                        animation: "pulse 2s infinite ease-in-out"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -188,8 +401,17 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
           {/* Feedback section */}
           <div className="flex flex-col items-start gap-[15px] w-[792px] h-[110px]">
             <div className="flex flex-row items-center gap-[15px] w-[792px] h-[19px]">
-              <svg width="15" height="16" viewBox="0 0 15 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7.57483 0.5C8.08409 4.35956 11.1404 7.41579 15 7.92506V8.07483C11.1404 8.58409 8.08409 11.6404 7.57483 15.5H7.42517C6.91591 11.6404 3.85956 8.58409 0 8.07483V7.92506C3.85956 7.41579 6.91591 4.35956 7.42517 0.5H7.57483Z" fill="#D9D9D9"/>
+              <svg
+                width="15"
+                height="16"
+                viewBox="0 0 15 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M7.57483 0.5C8.08409 4.35956 11.1404 7.41579 15 7.92506V8.07483C11.1404 8.58409 8.08409 11.6404 7.57483 15.5H7.42517C6.91591 11.6404 3.85956 8.58409 0 8.07483V7.92506C3.85956 7.41579 6.91591 4.35956 7.42517 0.5H7.57483Z"
+                  fill="#D9D9D9"
+                />
               </svg>
               <span className="w-[122px] h-[19px] italic text-[16px] leading-[120%] text-white">
                 What we think...
@@ -205,6 +427,25 @@ export default function ActiveEvaluationDialog({ isOpen, onClose, tradeData }) {
         <p className="absolute w-[847px] h-[19px] left-[calc(50%-847px/2+4.5px)] bottom-[25px] text-[12px] leading-[120%] text-center text-white/80 opacity-60 z-[3]">
           This response is generated by AI and may be inaccurate sometimes. This should only serve as a guide for users.
         </p>
+
+        {/* Add keyframes for animations */}
+        <style jsx>{`
+          @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+          }
+          
+          @keyframes pulse {
+            0%, 100% { 
+              opacity: 0.6; 
+              transform: translateY(-50%) scale(0.8);
+            }
+            50% { 
+              opacity: 1; 
+              transform: translateY(-50%) scale(1.3);
+            }
+          }
+        `}</style>
       </div>
     </div>
   );

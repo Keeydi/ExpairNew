@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timezone
 
 from rest_framework import status
 
@@ -10,7 +10,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from .models import GenSkill, UserInterest, User, VerificationStatus, UserCredential
+from .models import Evaluation, GenSkill, UserInterest, User, VerificationStatus, UserCredential
 from .models import SpecSkill, UserSkill, TradeRequest, TradeInterest, TradeDetail  
 from .models import User 
 
@@ -864,12 +864,87 @@ def create_trade_request(request):
             "error": f"Failed to create trade request: {str(e)}"
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_home_active_trades(request):
+    """
+    Get ACTIVE trades where both users have submitted trade details - for home page display.
+    Shows the OTHER user's information and what they're offering.
+    """
+    user = request.user
+    
+    # Get ACTIVE trades where user is either requester or responder
+    active_trades = TradeRequest.objects.filter(
+        status=TradeRequest.Status.ACTIVE
+    ).filter(
+        Q(requester=user) | Q(responder=user)
+    ).select_related('requester', 'responder')
+    
+    # Filter trades where BOTH users have submitted details
+    trades_with_details = []
+    for trade in active_trades:
+        trade_details = TradeDetail.objects.filter(trade_request=trade)
+        
+        # Check if both users have submitted details
+        requester_submitted = trade_details.filter(user=trade.requester).exists()
+        responder_submitted = trade_details.filter(user=trade.responder).exists()
+        
+        if requester_submitted and responder_submitted:
+            trades_with_details.append(trade)
+    
+    home_trades_data = []
+    
+    for trade in trades_with_details:
+        # Determine which user is the "other" user
+        is_requester = (trade.requester.id == user.id)
+        other_user = trade.responder if is_requester else trade.requester
+        
+        # Get the other user's trade detail to calculate total XP
+        other_user_detail = TradeDetail.objects.filter(
+            trade_request=trade,
+            user=other_user
+        ).first()
+        
+        # Determine what the other user is offering to current user
+        if is_requester:
+            # Current user is requester, other user (responder) is offering their exchange skill
+            offering = trade.exchange if trade.exchange else "Skills & Services"
+        else:
+            # Current user is responder, other user (requester) is offering their request
+            offering = trade.reqname
+        
+        # Get profile picture URL
+        profile_pic_url = None
+        if other_user.profilePic:
+            profile_pic_url = request.build_absolute_uri(f"/media/{other_user.profilePic}")
+        
+        home_trades_data.append({
+            "tradereq_id": trade.tradereq_id,
+            "other_user": {
+                "id": other_user.id,
+                "name": f"{other_user.first_name} {other_user.last_name}".strip() or other_user.username,
+                "profilePic": profile_pic_url,
+                "level": other_user.level,
+                "rating": float(other_user.avgStars or 0)
+            },
+            "offering": offering,  # What the other user is offering to current user
+            "total_xp": other_user_detail.total_xp if other_user_detail else 0,
+            "deadline": trade.reqdeadline.isoformat() if trade.reqdeadline else None,
+            "deadline_formatted": trade.reqdeadline.strftime('%B %d') if trade.reqdeadline else "No deadline",
+            "is_requester": is_requester,
+            "status": trade.status
+        })
+    
+    return Response({
+        "home_active_trades": home_trades_data,
+        "count": len(home_trades_data)
+    }, status=200)
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def explore_feed(request):
     """
-    Returns explore feed. For PENDING trades, exchange is NULL so we calculate can_offer.
-    For ACTIVE trades, we use the exchange field.
+    Returns explore feed. Shows what each requester can offer based on skill matching.
     """
     viewer = request.user if getattr(request.user, "id", None) else None
 
@@ -897,64 +972,63 @@ def explore_feed(request):
     items_without_matches = []
     
     for tr in qs:
-        u = tr.requester  # User B (the person who posted the request)
-        display_name = (f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}").strip() or u.username
+        requester = tr.requester  # The person who posted the request
+        display_name = (f"{(requester.first_name or '').strip()} {(requester.last_name or '').strip()}").strip() or requester.username
 
-        # "Needs" = exact reqname that User B posted
+        # "Needs" = what the requester is asking for
         needs = tr.reqname
 
-        # For PENDING trades, exchange is NULL, so calculate can_offer from skills
-        can_offer = ""
-        has_match = False
-        
-        # Get all GenSkills that User B has skills in
-        user_b_gen_skills_query = (
-            UserSkill.objects.filter(user_id=u.id)
+        # Get all skills that the REQUESTER has (what they can offer in exchange)
+        requester_skills_query = (
+            UserSkill.objects.filter(user_id=requester.id)
             .select_related("specSkills__genSkills_id")
             .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
         )
-        user_b_gen_skills = dict(user_b_gen_skills_query)
+        requester_gen_skills = dict(requester_skills_query)
         
-        # Try to find a matching skill first (viewer interested + User B has)
-        if viewer and viewer_gen_interests and user_b_gen_skills:
-            matching_gen_skills = set(viewer_gen_interests) & set(user_b_gen_skills.keys())
+        # Determine what the requester "can offer"
+        can_offer = ""
+        has_match = False
+        
+        # Priority 1: Find skills that the requester has AND the viewer is interested in
+        if viewer and viewer_gen_interests and requester_gen_skills:
+            # Find intersection of requester's skills and viewer's interests
+            matching_skills = set(viewer_gen_interests) & set(requester_gen_skills.keys())
             
-            if matching_gen_skills:
-                # Get the first matching GenSkill name
-                matching_gen_skill_id = list(matching_gen_skills)[0]
-                can_offer = user_b_gen_skills[matching_gen_skill_id]
+            if matching_skills:
+                # Use the first matching skill
+                matching_skill_id = list(matching_skills)[0]
+                can_offer = requester_gen_skills[matching_skill_id]
                 has_match = True
         
-        # If no match, show any skill from User B
-        if not can_offer and user_b_gen_skills:
-            can_offer = list(user_b_gen_skills.values())[0]
+        # Priority 2: If no match, show any skill the requester has
+        if not can_offer and requester_gen_skills:
+            can_offer = list(requester_gen_skills.values())[0]
         
-        # ✅ If User B has no skills, get any skill from database instead of "General Skills"
+        # Priority 3: If requester has no skills, use fallback
         if not can_offer:
             any_skill = GenSkill.objects.first()
             can_offer = any_skill.genCateg if any_skill else "Skills & Services"
         
         item_data = {
             "tradereq_id": tr.tradereq_id,
-            "requester_id": u.id,
+            "requester_id": requester.id,
             "name": display_name,
-            "rating": float(u.avgStars or 0),
-            "ratingCount": int(u.ratingCount or 0),
-            "level": int(u.level or 0),
+            "rating": float(requester.avgStars or 0),
+            "ratingCount": int(requester.ratingCount or 0),
+            "level": int(requester.level or 0),
             "need": needs,
-            "offer": can_offer,
+            "offer": can_offer,  # What the requester can offer
             "deadline": tr.reqdeadline.isoformat() if tr.reqdeadline else "",
         }
         
-        # Separate into matched vs non-matched for sorting
+        # Separate matched items (requester has skill viewer wants) from non-matched
         if has_match:
             items_with_matches.append(item_data)
         else:
             items_without_matches.append(item_data)
     
-    # Combine: matches first, then non-matches
-    items = items_with_matches + items_without_matches
-    
+    # Combine: prioritize matches first, then non-matches
     def unique_by_tradereq(items):
         seen = set()
         unique = []
@@ -964,11 +1038,10 @@ def explore_feed(request):
                 unique.append(item)
         return unique
 
+    # Ensure uniqueness and combine matched + non-matched
     items = unique_by_tradereq(items_with_matches) + unique_by_tradereq(items_without_matches)
 
     return Response({"items": items}, status=200)
-
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1060,7 +1133,6 @@ def express_trade_interest(request):
             "error": f"Failed to express interest: {str(e)}"
         }, status=500)
 
-# Optional: Add a view to get all interests for a trade request
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_trade_interests(request, tradereq_id):
@@ -1142,7 +1214,13 @@ def get_posted_trades(request):
                 if gen_category in user_interests:
                     matching_skill = gen_category  # Use the general category
                     break
-            
+
+            if not matching_skill and requester_skills:
+                matching_skill = list(requester_skills.keys())[0]  # Show any skill from requester
+            elif not matching_skill:
+                any_skill = GenSkill.objects.first()
+                matching_skill = any_skill.genCateg if any_skill else "Skills & Services"
+
             interested_users.append({
                 "id": interested_user.id,
                 "interest_id": interest.trade_interests_id,
@@ -1241,8 +1319,8 @@ def decline_trade_interest(request, interest_id):
 @permission_classes([IsAuthenticated])
 def accept_trade_interest(request, interest_id):
     """
-    Accept a trade interest - sets interest status to ACCEPTED and trade status to ACTIVE
-    Only the requester (who posted the trade) can accept
+    Accept a trade interest - sets interest status to ACCEPTED but keeps trade as PENDING
+    Trade only becomes ACTIVE after evaluation confirmation
     """
     print(f"=== ACCEPT TRADE INTEREST DEBUG ===")
     print(f"Interest ID: {interest_id}")
@@ -1279,53 +1357,73 @@ def accept_trade_interest(request, interest_id):
             trade_interest.status = TradeInterest.InterestStatus.ACCEPTED
             trade_interest.save()
             
-            # Update the trade request status to ACTIVE and set responder
-            trade_request.status = TradeRequest.Status.ACTIVE
+            # Set trade to PENDING and assign responder
+            trade_request.status = TradeRequest.Status.PENDING
             trade_request.responder = trade_interest.interested_user
             
-            # ✅ Calculate and save the exchange field (what responder can offer)
+            print(f"Setting responder to user ID: {trade_interest.interested_user.id}")
+            print(f"Requester ID: {trade_request.requester.id}")
+            print(f"Trade status set to: {trade_request.status}")
+            
+            # Calculate and save the exchange field using CONSISTENT logic with explore_feed
             responder = trade_interest.interested_user
             
-            # Get responder's skills (what they can offer)
-            responder_skills = UserSkill.objects.filter(
-                user=responder
-            ).select_related('specSkills__genSkills_id')
+            # Get responder's skills (what they can offer) - same logic as explore_feed
+            responder_skills_query = (
+                UserSkill.objects.filter(user_id=responder.id)
+                .select_related("specSkills__genSkills_id")
+                .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
+            )
+            responder_gen_skills = dict(responder_skills_query)
             
             # Get requester's interests (what they want to learn)
             requester_interests = UserInterest.objects.filter(
                 user=trade_request.requester
             ).select_related('genSkills_id').values_list('genSkills_id__genCateg', flat=True)
             
-            # Get all general categories where responder has skills
-            responder_gen_categories = set()
-            for skill in responder_skills:
-                responder_gen_categories.add(skill.specSkills.genSkills_id.genCateg)
-            
-            print(f"Responder skills categories: {responder_gen_categories}")
+            print(f"Responder skills: {list(responder_gen_skills.values())}")
             print(f"Requester interests: {list(requester_interests)}")
             
             # Find matching skill between responder's skills and requester's interests
-            matching_skills = responder_gen_categories & set(requester_interests)
+            # SAME LOGIC as explore_feed for consistency
+            exchange_skill = ""
+            has_match = False
             
-            if matching_skills:
-                # Use the first matching skill
-                exchange_skill = list(matching_skills)[0]
-                print(f"Found matching skill: {exchange_skill}")
-            elif responder_gen_categories:
-                # If no match with interests, use responder's first skill category
-                exchange_skill = list(responder_gen_categories)[0]
+            if requester_interests and responder_gen_skills:
+                # Find intersection of responder's skills and requester's interests
+                matching_skills = set(responder_gen_skills.values()) & set(requester_interests)
+                
+                if matching_skills:
+                    # Use the first matching skill
+                    exchange_skill = list(matching_skills)[0]
+                    has_match = True
+                    print(f"Found matching skill: {exchange_skill}")
+            
+            # If no match, show any skill the responder has
+            if not exchange_skill and responder_gen_skills:
+                exchange_skill = list(responder_gen_skills.values())[0]
                 print(f"No match found, using first responder skill: {exchange_skill}")
-            else:
-                # ✅ Fallback: get ANY skill from any user if responder has no skills
+            
+            # If responder has no skills, use fallback
+            if not exchange_skill:
                 any_skill = GenSkill.objects.first()
                 exchange_skill = any_skill.genCateg if any_skill else "Skills & Services"
-                print(f"No responder skills found, using any available skill: {exchange_skill}")
+                print(f"No responder skills found, using fallback: {exchange_skill}")
             
             # Save the exchange field
             trade_request.exchange = exchange_skill
             trade_request.save()
             
+            # Force refresh to ensure the save worked
+            trade_request.refresh_from_db()
+            
+            # Verify the responder was set correctly
+            if not trade_request.responder:
+                raise Exception("Failed to set responder for trade request")
+            
             print(f"Exchange field saved: {exchange_skill}")
+            print(f"Trade saved with requester ID: {trade_request.requester.id}, responder ID: {trade_request.responder.id}")
+            print(f"VERIFICATION - Reloaded trade: requester={trade_request.requester.id}, responder={trade_request.responder.id}")
             
             # Decline all other pending interests for this trade
             other_interests = TradeInterest.objects.filter(
@@ -1336,23 +1434,26 @@ def accept_trade_interest(request, interest_id):
             declined_count = other_interests.update(status=TradeInterest.InterestStatus.DECLINED)
             
             print(f"Trade interest {interest_id} accepted successfully")
-            print(f"Trade {trade_request.tradereq_id} is now ACTIVE")
+            print(f"Trade {trade_request.tradereq_id} is now PENDING (waiting for evaluation)")
             print(f"{declined_count} other interests were declined")
             print(f"Exchange field set to: {trade_request.exchange}")
             
             return Response({
-                "message": "Trade interest accepted successfully",
+                "message": "Trade interest accepted successfully - proceed to evaluation",
                 "interest_id": trade_interest.trade_interests_id,
                 "interest_status": trade_interest.status,
                 "trade_request": {
                     "tradereq_id": trade_request.tradereq_id,
                     "reqname": trade_request.reqname,
-                    "status": trade_request.status,
+                    "status": trade_request.status,  # Will be PENDING, not ACTIVE
                     "exchange": trade_request.exchange,
+                    "requester_id": trade_request.requester.id,
+                    "responder_id": trade_request.responder.id if trade_request.responder else None,
                     "responder": {
                         "id": trade_request.responder.id,
                         "name": f"{trade_request.responder.first_name} {trade_request.responder.last_name}".strip() or trade_request.responder.username
-                    }
+                    },
+                    "requires_evaluation": True  # Indicate that evaluation is needed
                 },
                 "other_interests_declined": declined_count
             }, status=200)
@@ -1464,46 +1565,111 @@ def get_user_interested_trades(request):
 @permission_classes([IsAuthenticated])
 def get_active_trades(request):
     """
-    Get all ACTIVE trades where the authenticated user is either requester or responder.
-    Display from the OTHER user's perspective (what they need and can offer).
+    Get all PENDING trades where the authenticated user is either requester or responder.
+    These are accepted trades waiting for details submission and evaluation.
     """
     user = request.user
     
-    # Get ACTIVE trades where user is either requester or responder
+    print(f"=== GET_ACTIVE_TRADES DEBUG ===")
+    print(f"User ID: {user.id}")
+    
+    # Get PENDING trades where user is either requester or responder
     active_trades = TradeRequest.objects.filter(
-        status=TradeRequest.Status.ACTIVE
+        status=TradeRequest.Status.PENDING
     ).filter(
         Q(requester=user) | Q(responder=user)
-    ).select_related(
-        'requester', 'responder'
-    ).order_by('-tradereq_id')
+    ).select_related('requester', 'responder').order_by('-tradereq_id')
+    
+    print(f"Found {active_trades.count()} PENDING trades")
     
     trades_data = []
     
     for trade in active_trades:
+        print(f"Processing Trade {trade.tradereq_id}:")
+        print(f"  - Requester: {trade.requester.id}")
+        print(f"  - Responder: {trade.responder.id if trade.responder else 'None'}")
+        print(f"  - User is requester: {trade.requester.id == user.id}")
+        print(f"  - User is responder: {trade.responder and trade.responder.id == user.id}")
+        
+        # Skip if responder is not set
+        if not trade.responder:
+            print(f"  - SKIPPING: No responder set for trade {trade.tradereq_id}")
+            continue
+        
         # Determine if current user is the requester or responder
         is_requester = (trade.requester.id == user.id)
         other_user = trade.responder if is_requester else trade.requester
         
-        # Show from OTHER user's perspective
+        # RECALCULATE skills using same logic as explore_feed instead of using saved exchange field
         if is_requester:
-            # You need what the responder can offer - use the exchange field or calculate it
-            if trade.exchange:
-                needs = trade.exchange  # This should be the skill that matched originally
-            else:
-                # Fallback logic if exchange is somehow empty
-                responder_skills = UserSkill.objects.filter(user=trade.responder).select_related('specSkills__genSkills_id')
-                your_interests = UserInterest.objects.filter(user=user).values_list('genSkills_id__genCateg', flat=True)
-                
-                # Find matching skill
-                for skill in responder_skills:
-                    if skill.specSkills.genSkills_id.genCateg in your_interests:
-                        needs = skill.specSkills.genSkills_id.genCateg
-                        break
-                else:
-                    needs = responder_skills.first().specSkills.genSkills_id.genCateg if responder_skills else "Skills & Services"
+            # Current user is requester, show what responder can offer
+            # Use same logic as explore_feed: responder's skills that match requester's interests
             
-            can_offer = trade.reqname
+            # Get responder's skills
+            responder_skills_query = (
+                UserSkill.objects.filter(user_id=trade.responder.id)
+                .select_related("specSkills__genSkills_id")
+                .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
+            )
+            responder_gen_skills = dict(responder_skills_query)
+            
+            # Get requester's interests
+            requester_interests = UserInterest.objects.filter(
+                user_id=trade.requester.id
+            ).values_list('genSkills_id__genCateg', flat=True)
+            
+            # Find matching skill
+            can_offer_by_responder = ""
+            if requester_interests and responder_gen_skills:
+                matching_skills = set(responder_gen_skills.values()) & set(requester_interests)
+                if matching_skills:
+                    can_offer_by_responder = list(matching_skills)[0]
+            
+            if not can_offer_by_responder and responder_gen_skills:
+                can_offer_by_responder = list(responder_gen_skills.values())[0]
+            
+            if not can_offer_by_responder:
+                any_skill = GenSkill.objects.first()
+                can_offer_by_responder = any_skill.genCateg if any_skill else "Skills & Services"
+            
+            needs = can_offer_by_responder  # What responder can offer to requester
+            can_offer = trade.reqname        # What requester originally requested
+            
+        else:
+            # Current user is responder, show what requester needs and what responder can offer
+            needs = trade.reqname  # What requester originally requested
+            
+            # Get what responder (current user) can offer using same logic
+            user_skills_query = (
+                UserSkill.objects.filter(user_id=user.id)
+                .select_related("specSkills__genSkills_id")
+                .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
+            )
+            user_gen_skills = dict(user_skills_query)
+            
+            # Get requester's interests
+            requester_interests = UserInterest.objects.filter(
+                user_id=trade.requester.id
+            ).values_list('genSkills_id__genCateg', flat=True)
+            
+            # Find matching skill
+            can_offer = ""
+            if requester_interests and user_gen_skills:
+                matching_skills = set(user_gen_skills.values()) & set(requester_interests)
+                if matching_skills:
+                    can_offer = list(matching_skills)[0]
+            
+            if not can_offer and user_gen_skills:
+                can_offer = list(user_gen_skills.values())[0]
+                
+            if not can_offer:
+                any_skill = GenSkill.objects.first()
+                can_offer = any_skill.genCateg if any_skill else "Skills & Services"
+        
+        print(f"  - Is requester: {is_requester}")
+        print(f"  - Needs: {needs}")
+        print(f"  - Can offer: {can_offer}")
+        print(f"  - Other user: {other_user.username}")
         
         trades_data.append({
             "id": trade.tradereq_id,
@@ -1515,9 +1681,9 @@ def get_active_trades(request):
             "needs": needs,  
             "offers": can_offer, 
             "until": trade.reqdeadline.strftime('%B %d') if trade.reqdeadline else "No deadline",
-            "status": "ACTIVE",
+            "status": "PENDING",
             "is_requester": is_requester,
-            "created_at": trade.created_at if hasattr(trade, 'created_at') else None,
+            "created_at": None,
             "requester": {
                 "id": trade.requester.id,
                 "username": trade.requester.username,
@@ -1527,7 +1693,7 @@ def get_active_trades(request):
                 "id": trade.responder.id,
                 "username": trade.responder.username,
                 "name": f"{trade.responder.first_name} {trade.responder.last_name}".strip() or trade.responder.username
-            } if trade.responder else None,
+            },
             "other_user": {
                 "id": other_user.id,
                 "username": other_user.username,
@@ -1535,11 +1701,325 @@ def get_active_trades(request):
             }
         })
     
+    print(f"Returning {len(trades_data)} trades for user {user.id}")
+    
     return Response({
         "active_trades": trades_data,
         "count": len(trades_data)
     }, status=200)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_evaluation_details(request, tradereq_id):
+    """
+    Get evaluation details for a trade request.
+    Creates evaluation if both users have submitted trade details.
+    """
+    try:
+        trade_request = TradeRequest.objects.select_related('requester', 'responder').get(
+            tradereq_id=tradereq_id
+        )
+        
+        # Verify user is part of this trade
+        if request.user not in [trade_request.requester, trade_request.responder]:
+            return Response({
+                "error": "You are not authorized to view this evaluation"
+            }, status=403)
+        
+        # Check if both users have submitted details
+        trade_details = TradeDetail.objects.filter(trade_request=trade_request)
+        requester_detail = trade_details.filter(user=trade_request.requester).first()
+        responder_detail = trade_details.filter(user=trade_request.responder).first()
+        
+        if not (requester_detail and responder_detail):
+            return Response({
+                "error": "Both users must submit trade details before evaluation"
+            }, status=400)
+        
+        # Calculate evaluation scores based on trade details
+        def calculate_complexity(req_detail, resp_detail):
+            complexity_map = {
+                TradeDetail.RequestType.OUTPUT: 40,
+                TradeDetail.RequestType.SERVICE: 60,
+                TradeDetail.RequestType.PROJECT: 80,
+            }
+            req_complexity = complexity_map.get(req_detail.reqtype, 50)
+            resp_complexity = complexity_map.get(resp_detail.reqtype, 50)
+            return min(100, max(20, (req_complexity + resp_complexity) // 2))
+        
+        def calculate_time_commitment(req_detail, resp_detail):
+            time_map = {
+                TradeDetail.RequestType.OUTPUT: 30,
+                TradeDetail.RequestType.SERVICE: 50,
+                TradeDetail.RequestType.PROJECT: 80,
+            }
+            req_time = time_map.get(req_detail.reqtype, 40)
+            resp_time = time_map.get(resp_detail.reqtype, 40)
+            return min(100, max(20, (req_time + resp_time) // 2))
+        
+        def calculate_skill_level(req_detail, resp_detail):
+            skill_map = {
+                TradeDetail.SkillProficiency.BEGINNER: 40,
+                TradeDetail.SkillProficiency.INTERMEDIATE: 60,
+                TradeDetail.SkillProficiency.ADVANCED: 80,
+                TradeDetail.SkillProficiency.CERTIFIED: 90,
+            }
+            req_skill = skill_map.get(req_detail.skillprof, 50)
+            resp_skill = skill_map.get(resp_detail.skillprof, 50)
+            return min(100, max(20, (req_skill + resp_skill) // 2))
+        
+        # Calculate dynamic values
+        task_complexity = calculate_complexity(requester_detail, responder_detail)
+        time_commitment = calculate_time_commitment(requester_detail, responder_detail)
+        skill_level = calculate_skill_level(requester_detail, responder_detail)
+        
+        # Generate dynamic feedback
+        complexity_desc = "challenging" if task_complexity > 70 else "moderate" if task_complexity > 40 else "simple"
+        time_desc = "high" if time_commitment > 70 else "moderate" if time_commitment > 40 else "low"
+        skill_desc = "advanced" if skill_level > 70 else "intermediate" if skill_level > 40 else "basic"
+        
+        dynamic_feedback = (
+            f"This trade between {trade_request.requester.first_name} and {trade_request.responder.first_name} "
+            f"involves {complexity_desc} tasks with {time_desc} time commitment and requires {skill_desc} skill levels. "
+            f"The exchange of {trade_request.reqname} for {trade_request.exchange} offers valuable learning opportunities "
+            f"for both parties and represents a well-balanced trade arrangement."
+        )
+        
+        # Get or create evaluation with calculated values
+        evaluation, created = Evaluation.objects.get_or_create(
+            trade_request=trade_request,
+            defaults={
+                'taskcomplexity': task_complexity,
+                'timecommitment': time_commitment,
+                'skilllevel': skill_level,
+                'evaluationdescription': dynamic_feedback
+            }
+        )
+        
+        # If evaluation already exists but was created with defaults, update it
+        if not created and evaluation.evaluationdescription.startswith("Trade evaluation for"):
+            evaluation.taskcomplexity = task_complexity
+            evaluation.timecommitment = time_commitment
+            evaluation.skilllevel = skill_level
+            evaluation.evaluationdescription = dynamic_feedback
+            evaluation.save()
+        
+        print(f"Evaluation data: complexity={task_complexity}, time={time_commitment}, skill={skill_level}")
+        
+        return Response({
+            "evaluation": {
+                "tradereq_id": trade_request.tradereq_id,
+                "requestTitle": trade_request.reqname,
+                "offerTitle": trade_request.exchange,
+                "taskComplexity": evaluation.taskcomplexity,
+                "timeCommitment": evaluation.timecommitment,
+                "skillLevel": evaluation.skilllevel,
+                "tradeScore": min(10, max(1, (evaluation.taskcomplexity + evaluation.timecommitment + evaluation.skilllevel) // 30)),
+                "feedback": evaluation.evaluationdescription,
+                "requester_evaluation_status": evaluation.requester_evaluation_status,
+                "responder_evaluation_status": evaluation.responder_evaluation_status,
+                "both_users_responded": (
+                    evaluation.requester_evaluation_status is not None and 
+                    evaluation.responder_evaluation_status is not None
+                )
+            },
+            "current_user_response": (
+                evaluation.requester_evaluation_status if request.user == trade_request.requester 
+                else evaluation.responder_evaluation_status
+            ),
+            "can_respond": (
+                evaluation.requester_evaluation_status is None if request.user == trade_request.requester
+                else evaluation.responder_evaluation_status is None
+            )
+        }, status=200)
+        
+    except TradeRequest.DoesNotExist:
+        return Response({"error": "Trade request not found"}, status=404)
+    except Exception as e:
+        print(f"Error in get_evaluation_details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to get evaluation details: {str(e)}"}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def confirm_trade_evaluation(request, tradereq_id):
+    """
+    Confirm trade after evaluation - stores user's CONFIRMED response
+    """
+    print(f"=== CONFIRM TRADE EVALUATION DEBUG ===")
+    print(f"Trade ID: {tradereq_id}")
+    print(f"User: {request.user.id}")
+    
+    try:
+        trade_request = TradeRequest.objects.select_related('requester', 'responder').get(
+            tradereq_id=tradereq_id
+        )
+        
+        if request.user not in [trade_request.requester, trade_request.responder]:
+            return Response({"error": "You are not authorized to confirm this trade"}, status=403)
+        
+        # Get the evaluation
+        evaluation = Evaluation.objects.filter(trade_request=trade_request).first()
+        if not evaluation:
+            return Response({"error": "No evaluation found for this trade"}, status=404)
+        
+        print(f"Current evaluation status:")
+        print(f"  Requester status: {evaluation.requester_evaluation_status}")
+        print(f"  Responder status: {evaluation.responder_evaluation_status}")
+        print(f"  Current user is requester: {request.user == trade_request.requester}")
+        
+        with transaction.atomic():
+            # Set user's evaluation status to CONFIRMED
+            if request.user == trade_request.requester:
+                if evaluation.requester_evaluation_status is not None:
+                    return Response({"error": "You have already responded to this evaluation"}, status=400)
+                evaluation.requester_evaluation_status = Evaluation.EvaluationStatus.CONFIRMED
+                evaluation.requester_responded_at = timezone.now()
+                print(f"Set requester status to CONFIRMED")
+            else:  # responder
+                if evaluation.responder_evaluation_status is not None:
+                    return Response({"error": "You have already responded to this evaluation"}, status=400)
+                evaluation.responder_evaluation_status = Evaluation.EvaluationStatus.CONFIRMED
+                evaluation.responder_responded_at = timezone.now()
+                print(f"Set responder status to CONFIRMED")
+            
+            evaluation.save()
+            print(f"Evaluation saved successfully")
+            
+            # Check if both users have confirmed
+            both_confirmed = (
+                evaluation.requester_evaluation_status == Evaluation.EvaluationStatus.CONFIRMED and 
+                evaluation.responder_evaluation_status == Evaluation.EvaluationStatus.CONFIRMED
+            )
+            
+            print(f"Both users confirmed: {both_confirmed}")
+            
+            if both_confirmed:
+                # Both confirmed - activate trade
+                trade_request.status = TradeRequest.Status.ACTIVE
+                trade_request.save()
+                print(f"Trade status set to ACTIVE")
+                message = "Trade confirmed by both parties! Trade is now active."
+                trade_status = "ACTIVE"
+            else:
+                # Waiting for other user
+                other_user_name = (trade_request.responder.first_name if request.user == trade_request.requester 
+                                 else trade_request.requester.first_name)
+                message = f"Your confirmation recorded. Waiting for {other_user_name} to respond."
+                trade_status = "PENDING"
+                print(f"Waiting for other user: {other_user_name}")
+        
+        return Response({
+            "message": message,
+            "tradereq_id": trade_request.tradereq_id,
+            "trade_status": trade_status,
+            "user_response": "CONFIRMED",
+            "both_users_confirmed": both_confirmed,
+            "evaluation_id": evaluation.evaluation_id
+        }, status=200)
+        
+    except TradeRequest.DoesNotExist:
+        return Response({"error": "Trade request not found"}, status=404)
+    except Exception as e:
+        print(f"Error confirming trade: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to confirm trade: {str(e)}"}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reject_trade_evaluation(request, tradereq_id):
+    """
+    Reject trade after evaluation - stores user's REJECTED response and cancels trade
+    """
+    print(f"=== REJECT TRADE EVALUATION DEBUG ===")
+    print(f"Trade ID: {tradereq_id}")
+    print(f"User: {request.user.id}")
+    
+    try:
+        trade_request = TradeRequest.objects.select_related('requester', 'responder').get(
+            tradereq_id=tradereq_id
+        )
+        
+        if request.user not in [trade_request.requester, trade_request.responder]:
+            return Response({"error": "You are not authorized to reject this trade"}, status=403)
+        
+        evaluation = Evaluation.objects.filter(trade_request=trade_request).first()
+        if not evaluation:
+            return Response({"error": "No evaluation found for this trade"}, status=404)
+        
+        with transaction.atomic():
+            # Set user's evaluation status to REJECTED
+            if request.user == trade_request.requester:
+                if evaluation.requester_evaluation_status is not None:
+                    return Response({"error": "You have already responded to this evaluation"}, status=400)
+                evaluation.requester_evaluation_status = Evaluation.EvaluationStatus.REJECTED
+                evaluation.requester_responded_at = timezone.now()
+            else:  # responder
+                if evaluation.responder_evaluation_status is not None:
+                    return Response({"error": "You have already responded to this evaluation"}, status=400)
+                evaluation.responder_evaluation_status = Evaluation.EvaluationStatus.REJECTED
+                evaluation.responder_responded_at = timezone.now()
+            
+            evaluation.save()
+            print(f"Evaluation rejection saved")
+            
+            # Any rejection cancels the trade immediately
+            trade_request.status = TradeRequest.Status.CANCELLED
+            trade_request.save()
+            print(f"Trade status set to CANCELLED")
+        
+        return Response({
+            "message": "Trade rejected successfully. Trade has been cancelled.",
+            "tradereq_id": trade_request.tradereq_id,
+            "trade_status": "CANCELLED",
+            "user_response": "REJECTED",
+            "evaluation_id": evaluation.evaluation_id
+        }, status=200)
+        
+    except TradeRequest.DoesNotExist:
+        return Response({"error": "Trade request not found"}, status=404)
+    except Exception as e:
+        print(f"Error rejecting trade: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to reject trade: {str(e)}"}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cancel_active_trade(request, tradereq_id):
+    """
+    Cancel an active trade via 3-dots menu - sets TradeInterest to CANCELLED
+    """
+    try:
+        trade_request = TradeRequest.objects.get(tradereq_id=tradereq_id)
+        
+        if request.user not in [trade_request.requester, trade_request.responder]:
+            return Response({"error": "You are not authorized to cancel this trade"}, status=403)
+        
+        trade_interest = TradeInterest.objects.filter(
+            trade_request=trade_request,
+            status=TradeInterest.InterestStatus.ACCEPTED
+        ).first()
+        
+        if trade_interest:
+            trade_interest.status = TradeInterest.InterestStatus.CANCELLED
+            trade_interest.save()
+        
+        trade_request.status = TradeRequest.Status.CANCELLED
+        trade_request.save()
+        
+        return Response({
+            "message": "Trade cancelled successfully",
+            "tradereq_id": trade_request.tradereq_id
+        }, status=200)
+        
+    except TradeRequest.DoesNotExist:
+        return Response({"error": "Trade request not found"}, status=404)
+    except Exception as e:
+        return Response({"error": f"Failed to cancel trade: {str(e)}"}, status=500)
+    
 @api_view(['POST', 'GET'])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([IsAuthenticated])
@@ -1855,3 +2335,4 @@ def check_trade_details_status(request, tradereq_id):
         return Response({
             "error": "Trade request not found"
         }, status=404)
+

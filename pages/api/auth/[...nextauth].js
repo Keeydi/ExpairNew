@@ -189,24 +189,39 @@ async jwt({ token, user, account }) {
     const accessExpiry = decodeJwtExp(token.access);
     const now = Date.now();
 
-    if (accessExpiry && accessExpiry < now) {
+    if (accessExpiry && accessExpiry < now + 300000) {
       console.log("Access token expired, attempting refresh...");
 
-      // Refresh token logic (send refresh token to backend and get new access token)
-      const res = await fetch(`${BACKEND_URL}/api/accounts/token/refresh/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ refresh: token.refresh }),
-      });
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/accounts/token/refresh/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refresh: token.refresh }),
+        });
 
-      const data = await res.json();
-      if (res.ok && data.access) {
-        token.access = data.access; // Update with new access token
-      } else {
-        console.log("Token refresh failed:", res.status, data);
-        delete token.access; // Invalidate token if refresh fails
+        if (res.ok) {
+          const data = await res.json();
+          console.log("Token refresh successful");
+          token.access = data.access;
+          
+          // Django rotates refresh tokens, so update it
+          if (data.refresh) {
+            token.refresh = data.refresh;
+          }
+        } else {
+          console.error("Token refresh failed:", res.status);
+          // Clear tokens to force re-authentication
+          delete token.access;
+          delete token.refresh;
+          return null; // This will end the session
+        }
+      } catch (error) {
+        console.error("Refresh request failed:", error);
+        delete token.access;
+        delete token.refresh;
+        return null;
       }
     }
   }

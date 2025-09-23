@@ -152,8 +152,8 @@ class UserCredential(models.Model):
 
 class TradeRequest(models.Model):
     class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"           # just created, waiting for a responder
-        ACTIVE = "ACTIVE", "Active"       # responder matched, trade active
+        PENDING = "PENDING", "Pending"          # just created, waiting for finalization
+        ACTIVE = "ACTIVE", "Active"             # if both users confirmed trade after seeing evaluation
         COMPLETED = "COMPLETED", "Completed"    # finished successfully
         CANCELLED = "CANCELLED", "Cancelled"    # requester/responder backed out
 
@@ -170,6 +170,8 @@ class TradeRequest(models.Model):
         blank=True
     )
     exchange = models.CharField(max_length=255, db_column="exchangename", null=True, blank=True)
+    classified_category = models.CharField(max_length=100, db_column="classifiedcategory", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, db_column='created_at')
 
     class Meta:
         db_table = 'tradereq_tbl'
@@ -213,29 +215,72 @@ class TradeDetail(models.Model):
 
     def __str__(self):
         return f"Trade Detail for {self.trade_request.reqname} - {self.user.username}"
+
+class Evaluation(models.Model):
+    class EvaluationStatus(models.TextChoices):
+        CONFIRMED = 'CONFIRMED', 'Confirmed'  
+        REJECTED = 'REJECTED', 'Rejected'  
+
+    evaluation_id = models.AutoField(primary_key=True, db_column='evaluation_id')
+    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, db_column='tradereq_id')
+    taskcomplexity = models.IntegerField(db_column='taskcomplexity')
+    timecommitment = models.IntegerField(db_column='timecommitment')
+    skilllevel = models.IntegerField(db_column='skilllevel')
+    evaluationdescription = models.CharField(max_length=500, db_column='evaluationdescription')
+    
+    # Requester and responder evaluation statuses (only CONFIRMED or REJECTED)
+    requester_evaluation_status = models.CharField(
+        max_length=20,
+        choices=EvaluationStatus.choices,
+        null=True, 
+        blank=True,  
+        db_column='requester_evaluation_status'
+    )
+    
+    responder_evaluation_status = models.CharField(
+        max_length=20,
+        choices=EvaluationStatus.choices,
+        null=True,  
+        blank=True,  
+        db_column='responder_evaluation_status'
+    )
+
+    requester_responded_at = models.DateTimeField(null=True, blank=True, db_column='requester_responded_at')
+    responder_responded_at = models.DateTimeField(null=True, blank=True, db_column='responder_responded_at')
+
+    class Meta:
+        db_table = 'evaluation_tbl'
+        managed = True
+
+    def __str__(self):
+        return f"Evaluation for Trade Request {self.trade_request.reqname} - Task Complexity: {self.taskcomplexity}"
+    
+    
     
 class TradeInterest(models.Model):
     class InterestStatus(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        ACCEPTED = "ACCEPTED", "Accepted"
-        DECLINED = "DECLINED", "Declined"
+        PENDING = 'PENDING', 'Pending'          # default status
+        ACCEPTED = 'ACCEPTED', 'Accepted'       # accepted in the interest
+        DECLINED = 'DECLINED', 'Declined'       # declined the interest
+        CANCELLED = 'CANCELLED', 'Cancelled'    # change of mind after accepting
 
     trade_interests_id = models.AutoField(primary_key=True, db_column='trade_interests_id')
-    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, related_name='interests', db_column='tradereq_id')
-    interested_user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='trade_interests', db_column='interested_user_id')
+    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, db_column='tradereq_id', related_name='interests')
+    interested_user = models.ForeignKey('User', on_delete=models.CASCADE, db_column='interested_user_id')
     created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
+    
     status = models.CharField(
         max_length=10,
         choices=InterestStatus.choices,
         default=InterestStatus.PENDING,
-        db_column="status"
+        db_column='status'
     )
-    
+
     class Meta:
         db_table = 'trade_interests_tbl'
-        unique_together = ['trade_request', 'interested_user']  
-        ordering = ['-created_at']
         managed = True
-    
+        unique_together = ('trade_request', 'interested_user')  # Ensures unique trade-interest entries
+
     def __str__(self):
-        return f"{self.interested_user.username} interested in {self.trade_request.reqname} [{self.status}]"
+        return f"Trade Interest for {self.trade_request.reqname} - {self.interested_user.username} - {self.status}"
+

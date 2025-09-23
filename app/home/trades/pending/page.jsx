@@ -551,13 +551,38 @@ const refreshTrades = async () => {
                       <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
                     </button>
                     {openMenuIndex === `final-${index}` && (
-                      <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                        <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
-                          <Icon icon="lucide:x" className="text-white text-base" />
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                    <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
+                      <button 
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full"
+                        onClick={async () => {
+                          if (window.confirm('Are you sure you want to cancel this trade?')) {
+                            try {
+                              const response = await fetch(
+                                `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/cancel/`,
+                                {
+                                  method: 'POST',
+                                  headers: {
+                                    'Authorization': `Bearer ${session?.access}`,
+                                    'Content-Type': 'application/json',
+                                  },
+                                }
+                              );
+                              
+                              if (response.ok) {
+                                refreshTrades();
+                                setOpenMenuIndex(null);
+                              }
+                            } catch (error) {
+                              console.error('Error cancelling trade:', error);
+                            }
+                          }
+                        }}
+                      >
+                        <Icon icon="lucide:x" className="text-white text-base" />
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   </div>
                 </div>
 
@@ -622,9 +647,16 @@ const refreshTrades = async () => {
               })()}
               
               <button 
-                className="w-[120px] h-[30px] flex justify-center items-center bg-[#120A2A] border border-white rounded-[10px] cursor-pointer hover:bg-[#1A0F3E] transition-colors"
-                onClick={() => {
+              className={`w-[120px] h-[30px] flex justify-center items-center border border-white rounded-[10px] transition-colors ${
+                trade.detailsStatus?.submission_status?.both_submitted
+                  ? 'bg-[#120A2A] cursor-pointer hover:bg-[#1A0F3E]' 
+                  : 'bg-[#413663] cursor-not-allowed opacity-50'
+              }`}
+              disabled={!trade.detailsStatus?.submission_status?.both_submitted}
+              onClick={() => {
+                if (trade.detailsStatus?.submission_status?.both_submitted) {
                   setSelectedTrade({
+                    tradereq_id: trade.trade_request_id, 
                     requestTitle: trade.needs,
                     offerTitle: trade.offers,
                     taskComplexity: 60,
@@ -633,13 +665,16 @@ const refreshTrades = async () => {
                     feedback: `${trade.name}'s trade for ${trade.needs} in exchange for ${trade.offers} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.`
                   });
                   setShowEvaluationDialog(true);
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  <Icon icon="lucide:star" className="w-4 h-4 text-white" />
-                  <span className="text-[13px] text-white">Evaluate</span>
-                </div>
-              </button>
+                }
+              }}
+            >
+              <div className="flex items-center gap-1">
+                <Icon icon="lucide:star" className="w-4 h-4 text-white" />
+                <span className="text-[13px] text-white">
+                  {trade.detailsStatus?.submission_status?.both_submitted ? 'Evaluate' : 'Waiting for details'}
+                </span>
+              </div>
+            </button>
             </div>
               </div>
             ))}
@@ -661,6 +696,7 @@ const refreshTrades = async () => {
         isOpen={showEvaluationDialog}
         onClose={() => setShowEvaluationDialog(false)}
         tradeData={selectedTrade}
+        onTradeUpdate={refreshTrades}
       />
     </div>
   );
