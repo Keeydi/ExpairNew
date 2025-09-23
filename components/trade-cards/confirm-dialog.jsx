@@ -17,14 +17,23 @@ export default function ConfirmDialog({
 
   if (!isOpen && !showSuccess) return null;
 
-  const handleConfirm = () => {
-    setSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSubmitting(false);
-      setShowSuccess(true);
-    }, 1000);
-  };
+
+  const handleConfirm = async () => {
+  setSubmitting(true);
+  
+  try {
+    // Call the parent's onConfirm which should handle the API call
+    if (onConfirm) {
+      await onConfirm();
+    }
+    
+    setSubmitting(false);
+    setShowSuccess(true);
+  } catch (error) {
+    console.error('Error in confirm dialog:', error);
+    setSubmitting(false);
+  }
+};
 
   const handleGoToActiveTrades = () => {
     setShowSuccess(false);

@@ -321,6 +321,33 @@ useEffect(() => {
 
   const filteredAndSortedItems = getFilteredAndSortedItems();
 
+  const [homeActiveTrades, setHomeActiveTrades] = useState([]);
+  const [homeTradesLoading, setHomeTradesLoading] = useState(true);
+
+  useEffect(() => {
+  const fetchHomeActiveTrades = async () => {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      const token = session?.access || session?.accessToken;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      
+      const response = await fetch(`${BACKEND_URL}/home/active-trades/`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setHomeActiveTrades(data.home_active_trades);
+      }
+    } catch (error) {
+      console.error("Error fetching home active trades:", error);
+    } finally {
+      setHomeTradesLoading(false);
+    }
+  };
+
+  if (session) {
+    fetchHomeActiveTrades();
+  }
+}, [session]);
+
   return (
     <div
       className={`w-[950px] mx-auto pt-10 pb-20 text-white ${inter.className}`}
@@ -361,7 +388,34 @@ useEffect(() => {
 
       {/* Active Trade Cards Grid */}
       <div className="w-full max-w-[940px] flex flex-wrap gap-[25px] mt-6">
-        <ActiveTradeCardHome />
+        {homeTradesLoading ? (
+          <div className="text-white/60">Loading active trades...</div>
+        ) : homeActiveTrades.length === 0 ? (
+          <div className="w-full py-10 text-center">
+            <div className="w-16 h-16 rounded-full bg-[#1A0F3E] flex items-center justify-center mb-4 mx-auto">
+              <Icon icon="lucide:handshake" className="w-8 h-8 text-white/50" />
+            </div>
+            <h3 className="text-xl font-medium text-white mb-2">
+              No active trades ready yet
+            </h3>
+            <p className="text-white/60 text-center max-w-md mx-auto">
+              Complete trade details with your partners to see active trades here.
+            </p>
+          </div>
+        ) : (
+          homeActiveTrades.map((trade) => (
+            <ActiveTradeCardHome
+              key={trade.tradereq_id}
+              name={trade.other_user.name}
+              profilePic={trade.other_user.profilePic}
+              //level={trade.other_user.level}
+              //rating={trade.other_user.rating}
+              offering={trade.offering}
+              totalXp={trade.total_xp}
+              deadline={trade.deadline_formatted}
+            />
+          ))
+        )}
       </div>
 
       {/* Explore Section */}

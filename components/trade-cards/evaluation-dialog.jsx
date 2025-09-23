@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { X, Check } from "lucide-react";
 import Image from "next/image";
 import ConfirmDialog from "./confirm-dialog";
 import RejectDialog from "./reject-dialog";
 
 const StarLogo = () => (
-  <svg width="100" height="100" viewBox="0 0 162 181" fill="none" xmlns="http://www.w3.org/2000/svg" className="filter drop-shadow-[0px_4px_40px_#D78DE5]">
+  <svg width="200" height="200" viewBox="0 0 162 181" fill="none" xmlns="http://www.w3.org/2000/svg" className="filter drop-shadow-[0px_4px_40px_#D78DE5]">
     <g filter="url(#filter0_d_2180_7319)">
       <path d="M81 136.5L90.0723 86.5L81 36.5L71.9277 86.5L81 136.5Z" fill="white"/>
       <path d="M40.5917 55.6433L79.8637 94.3593L91.2485 78.4686L40.5917 55.6433Z" fill="#0038FF"/>
@@ -31,6 +32,9 @@ const StarLogo = () => (
 );
 
 export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
+
+  const { data: session } = useSession();
+
   // Default values that can be easily adjusted
   const [evaluation, setEvaluation] = useState({
     tradeScore: 8,
@@ -137,16 +141,105 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
   }, [isOpen]);
 
   // Handle confirm dialog completion
-  const handleConfirmComplete = () => {
-    setShowConfirmDialog(false);
-    handleClose(); // Close the main evaluation dialog
-  };
+
+  const handleConfirmComplete = async () => {
+  if (!tradeData?.tradereq_id) {
+    console.error('No trade request ID found in tradeData:', tradeData);
+    return;
+  }
+
+  console.log('=== CONFIRM COMPLETE DEBUG ===');
+  console.log('Trade ID:', tradeData.tradereq_id);
+  console.log('Session access token exists:', !!session?.access);
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeData.tradereq_id}/evaluation/confirm/`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('Response status:', response.status);
+    console.log('Response ok:', response.ok);
+
+    const responseText = await response.text();
+    console.log('Raw response:', responseText);
+
+    if (response.ok) {
+      const result = JSON.parse(responseText);
+      console.log('Trade confirmed successfully:', result);
+      setShowConfirmDialog(false);
+      onClose();
+      if (onTradeUpdate) onTradeUpdate();
+    } else {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        errorData = { error: responseText };
+      }
+      console.error('Error confirming trade:', errorData);
+      alert(`Error: ${errorData.error || 'Unknown error occurred'}`);
+    }
+  } catch (error) {
+    console.error('Network error confirming trade:', error);
+    alert('Network error. Please check your connection and try again.');
+  }
+};
 
   // Handle reject dialog completion  
-  const handleRejectComplete = () => {
-    setShowRejectDialog(false);
-    handleClose(); // Close the main evaluation dialog
-  };
+  const handleRejectComplete = async () => {
+  if (!tradeData?.tradereq_id) {
+    console.error('No trade request ID found in tradeData:', tradeData);
+    return;
+  }
+
+  console.log('=== REJECT COMPLETE DEBUG ===');
+  console.log('Trade ID:', tradeData.tradereq_id);
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeData.tradereq_id}/evaluation/reject/`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('Reject response status:', response.status);
+
+    const responseText = await response.text();
+    console.log('Reject raw response:', responseText);
+
+    if (response.ok) {
+      const result = JSON.parse(responseText);
+      console.log('Trade rejected successfully:', result);
+      setShowRejectDialog(false);
+      onClose();
+      if (onTradeUpdate) onTradeUpdate();
+    } else {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        errorData = { error: responseText };
+      }
+      console.error('Error rejecting trade:', errorData);
+      alert(`Error: ${errorData.error || 'Unknown error occurred'}`);
+    }
+  } catch (error) {
+    console.error('Network error rejecting trade:', error);
+    alert('Network error. Please check your connection and try again.');
+  }
+};
   
   if (!isOpen) return null;
 
@@ -160,17 +253,22 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose}></div>
+      <div 
+        className="absolute inset-0 bg-black/50" 
+        onClick={handleBackdropClick}
+      ></div>
       
       {/* Dialog */}
       <div className="relative w-[940px] h-[790px] flex flex-col justify-center items-center p-[98.5px_74px] bg-black/10 shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[50px] rounded-[15px] z-50 isolate">
-        {/* Close button */}
+        {/* Close button - Enhanced with better positioning and hover effects */}
         <button 
-          className="absolute top-[35px] right-[35px] text-white cursor-pointer flex items-center justify-center w-[30px] h-[30px] bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-          onClick={onClose}
+          className="absolute top-[35px] right-[35px] text-white cursor-pointer flex items-center justify-center w-[30px] h-[30px] transition-all duration-200 hover:bg-white/10 hover:text-[#D78DE5] rounded-full z-[100]"
+          onClick={handleClose}
+          onMouseDown={(e) => e.stopPropagation()}
           aria-label="Close dialog"
+          type="button"
         >
-          <X className="w-[15px] h-[15px]" />
+          <X className="w-[20px] h-[20px]" />
         </button>
         
         {/* Background glow effects */}
@@ -187,37 +285,37 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
         
         {/* Content container */}
         <div className="flex flex-col justify-center items-center gap-[40px] w-[792px] h-[613px] z-[2]">
-          {/* Header section with titles */}
-          <div className="flex flex-col items-center gap-[25px] w-[792px] h-[100px]">
-            <div className="flex flex-row justify-between items-start gap-[35px] w-[792px] h-[100px]">
-              {/* Left side - Request */}
-              <div className="flex flex-col items-start gap-[15px] w-[300px] h-[100px]">
-                <h3 className="w-[300px] h-[60px] font-bold text-[25px] leading-[120%] text-white">
+          {/* Header section */}
+          <div className="flex flex-col items-center gap-[25px] w-[792px] h-[150px]">
+            <div className="flex flex-row justify-between items-center w-[792px] h-[150px]">
+              {/* Left side */}
+              <div className="flex flex-col items-start justify-between w-[300px] h-full">
+                <h3 className="w-[300px] font-[700] text-[25px] leading-[120%] text-white">
                   {data.requestTitle}
                 </h3>
-                <p className="w-[300px] h-[19px] text-[16px] leading-[120%] text-white">
+                <p className="w-[300px] text-[16px] font-[400] leading-[120%] text-white">
                   What you'll provide
                 </p>
               </div>
-              
+
               {/* Center - Logo */}
-              <div className="w-[100px] h-[100px]">
+              <div className="flex items-center justify-center w-[200px] h-[200px]">
                 <StarLogo />
               </div>
-              
-              {/* Right side - Offer */}
-              <div className="flex flex-col items-center gap-[15px] w-[300px] h-[100px]">
-                <h3 className="w-[300px] h-[60px] font-bold text-[25px] leading-[120%] text-right text-white">
+
+              {/* Right side */}
+              <div className="flex flex-col items-end justify-between w-[300px] h-full">
+                <h3 className="w-[300px] font-[700] text-[25px] leading-[120%] text-right text-white">
                   {data.offerTitle}
                 </h3>
-                <p className="w-[300px] h-[19px] text-[16px] leading-[120%] text-right text-white">
+                <p className="w-[300px] text-[16px] font-[400] leading-[120%] text-right text-white">
                   What you'll get in return
                 </p>
               </div>
             </div>
           </div>
           
-          {/* Trade assessment section */}
+          {/* Trade assessment */}
           <div className="flex flex-col items-center gap-[15px] w-[300px] h-[83px]">
             <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
               <div
@@ -251,23 +349,22 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
               </div>
               <div className="absolute top-[2px] left-[2px] right-[2px] bottom-[2px] bg-white opacity-35 z-[1] rounded-[30px]"></div>
             </div>
-            
-            {/* Trade assessment text */}
+
             <div className="flex flex-col items-center gap-[5px] w-[110px] h-[48px]">
-              <h4 className="w-[110px] h-[24px] font-bold text-[20px] leading-[120%] text-center text-white">
+              <h4 className="font-[700] text-[20px] text-center text-white">
                 Good trade
               </h4>
-              <p className="w-[81px] h-[19px] text-[16px] leading-[120%] text-center text-white">
+              <p className="text-[16px] font-[400] text-center text-white">
                 {evaluation.tradeScore} out of 10
               </p>
             </div>
           </div>
           
           {/* Assessment metrics */}
-          <div className="flex flex-col items-end gap-[15px] w-[457px] h-[90px]">
+          <div className="flex flex-col items-end gap-[15px] w-[457px]">
             {/* Task complexity */}
-            <div className="flex flex-row items-end gap-[20px] w-[442px] h-[20px]">
-              <span className="w-[122px] h-[19px] text-[16px] leading-[120%] text-right text-white">
+            <div className="flex items-center gap-[20px] w-full">
+              <span className="w-[140px] text-[16px] text-right text-white">
                 Task complexity
               </span>
 
@@ -316,10 +413,10 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
                 </div>
               </div>
             </div>
-            
+
             {/* Time commitment */}
-            <div className="flex flex-row items-end gap-[20px] w-[457px] h-[20px]">
-              <span className="w-[137px] h-[19px] text-[16px] leading-[120%] text-right text-white">
+            <div className="flex items-center gap-[20px] w-full">
+              <span className="w-[140px] text-[16px] text-right text-white">
                 Time commitment
               </span>
 
@@ -369,10 +466,10 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
                 </div>
               </div>
             </div>
-            
+
             {/* Skill level */}
-            <div className="flex flex-row items-end gap-[20px] w-[390px] h-[20px]">
-              <span className="w-[70px] h-[19px] text-[16px] leading-[120%] text-right text-white">
+            <div className="flex items-center gap-[20px] w-full">
+              <span className="w-[140px] text-[16px] text-right text-white">
                 Skill level
               </span>
 
@@ -440,15 +537,19 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
           </div>
           
           {/* Action buttons */}
-          <div className="flex flex-row justify-center items-center gap-[40px] w-[792px] h-[70px] relative isolate">
+          <div className="flex flex-row justify-center items-center gap-[40px] w-[792px] h-[70px] relative isolate mb-[35px]">
             <span className="absolute w-[116px] h-[24px] left-[168px] top-[23px] font-medium text-[20px] leading-[120%] text-white z-0">
               Reject trade
             </span>
             
             {/* Reject button */}
             <button 
-              className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[1] cursor-pointer"
-              onClick={() => setShowRejectDialog(true)}
+              className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[1] cursor-pointer hover:scale-105 transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowRejectDialog(true);
+              }}
+              type="button"
             >
               <div className="absolute left-0 right-0 top-0 bottom-0 bg-[#0038FF] rounded-[100px] z-0"></div>
               <X className="w-[25px] h-[25px] text-white z-[1]" />
@@ -456,8 +557,12 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
             
             {/* Confirm button */}
             <button 
-              className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[2] cursor-pointer"
-              onClick={() => setShowConfirmDialog(true)}
+              className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[2] cursor-pointer hover:scale-105 transition-transform"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowConfirmDialog(true);
+              }}
+              type="button"
             >
               <div className="absolute left-0 right-0 top-0 bottom-0 bg-[#0038FF] rounded-[100px] z-0"></div>
               <Check className="w-[35px] h-[25px] text-white rounded-[2px] z-[1]" />
@@ -479,22 +584,14 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
       <ConfirmDialog 
         isOpen={showConfirmDialog}
         onClose={() => setShowConfirmDialog(false)}
-        onConfirm={() => {
-          setShowConfirmDialog(false);
-          onClose();
-          // Here you would handle the trade confirmation
-        }}
+        onConfirm={handleConfirmComplete}
       />
       
       {/* Reject Dialog */}
       <RejectDialog
         isOpen={showRejectDialog}
         onClose={() => setShowRejectDialog(false)}
-        onReject={() => {
-          setShowRejectDialog(false);
-          onClose();
-          // Here you would handle the trade rejection
-        }}
+        onReject={handleRejectComplete}
       />
 
       {/* Add keyframes for animations */}

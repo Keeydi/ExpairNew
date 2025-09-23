@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import TradeDetail, User
 from .models import GenSkill, UserInterest
 from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
@@ -255,3 +255,199 @@ class UserCredentialBulkSerializer(serializers.Serializer):
         if len(value) > 20:  # Reasonable limit
             raise serializers.ValidationError("Cannot add more than 20 credentials at once.")
         return value
+
+class TradeDetailSerializer(serializers.ModelSerializer):
+    # Include user information
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_full_name = serializers.SerializerMethodField(read_only=True)
+    
+    # Include trade request information
+    trade_request_name = serializers.CharField(source='trade_request.reqname', read_only=True)
+    
+    # For file uploads
+    contextpic = serializers.ImageField(required=False, allow_null=True)
+    contextpic_url = serializers.SerializerMethodField(read_only=True)
+    
+    # XP breakdown fields
+    xp_breakdown = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = TradeDetail
+        fields = [
+            'trade_request',
+            'user',
+            'user_name',
+            'user_full_name',
+            'trade_request_name',
+            'skillprof',
+            'modedel',
+            'reqtype',
+            'contextpic',
+            'contextpic_url',
+            'reqbio',
+            'total_xp',
+            'xp_breakdown',
+            'created_at'
+        ]
+        read_only_fields = ['created_at', 'user_name', 'user_full_name', 'trade_request_name', 'contextpic_url', 'xp_breakdown']
+    
+    def get_user_full_name(self, obj):
+        """Return user's full name or username as fallback"""
+        if obj.user:
+            full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+            return full_name or obj.user.username
+        return ""
+    
+    def get_contextpic_url(self, obj):
+        """Return absolute URL for context picture"""
+        if obj.contextpic and hasattr(obj.contextpic, 'url'):
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.contextpic.url)
+            return obj.contextpic.url
+        return None
+    
+    def get_xp_breakdown(self, obj):
+        """Return XP breakdown for this trade detail"""
+        xp_mapping = {
+            # Skill Proficiency XP
+            TradeDetail.SkillProficiency.BEGINNER: 50,
+            TradeDetail.SkillProficiency.INTERMEDIATE: 100,
+            TradeDetail.SkillProficiency.ADVANCED: 150,
+            TradeDetail.SkillProficiency.CERTIFIED: 200,
+            
+            # Mode of Delivery XP
+            TradeDetail.ModeDelivery.ONSITE: 100,
+            TradeDetail.ModeDelivery.ONLINE: 75,
+            TradeDetail.ModeDelivery.HYBRID: 150,
+            
+            # Request Type XP
+            TradeDetail.RequestType.OUTPUT: 100,
+            TradeDetail.RequestType.SERVICE: 150,
+            TradeDetail.RequestType.PROJECT: 300,
+        }
+        
+        skill_xp = xp_mapping.get(obj.skillprof, 0)
+        delivery_xp = xp_mapping.get(obj.modedel, 0)
+        request_xp = xp_mapping.get(obj.reqtype, 0)
+        
+        return {
+            "skill_proficiency": {
+                "choice": obj.skillprof,
+                "display_name": dict(TradeDetail.SkillProficiency.choices).get(obj.skillprof, ""),
+                "xp": skill_xp
+            },
+            "delivery_mode": {
+                "choice": obj.modedel,
+                "display_name": dict(TradeDetail.ModeDelivery.choices).get(obj.modedel, ""),
+                "xp": delivery_xp
+            },
+            "request_type": {
+                "choice": obj.reqtype,
+                "display_name": dict(TradeDetail.RequestType.choices).get(obj.reqtype, ""),
+                "xp": request_xp
+            },
+            "total_xp": obj.total_xp or (skill_xp + delivery_xp + request_xp)
+        }
+    
+    def validate_contextpic(self, value):
+        """Validate uploaded image"""
+        if value:
+            # Check file size (limit to 10MB)
+            if value.size > 10 * 1024 * 1024:
+                raise serializers.ValidationError("Image file too large (max 10MB)")
+            
+            # Check file type
+            if not value.content_type.startswith('image/'):
+                raise serializers.ValidationError("File must be an image")
+        
+        return value
+    
+    def validate_reqbio(self, value):
+        """Validate request bio length"""
+        if value and len(value) > 150:
+            raise serializers.ValidationError("Request description must be 150 characters or less")
+        return value
+        
+    def validate(self, data):
+        """Custom validation for the entire object"""
+        # Ensure skill proficiency is valid
+        if 'skillprof' in data:
+            if data['skillprof'] not in [choice[0] for choice in TradeDetail.SkillProficiency.choices]:
+                raise serializers.ValidationError("Invalid skill proficiency level")
+        
+        # Ensure delivery mode is valid
+        if 'modedel' in data:
+            if data['modedel'] not in [choice[0] for choice in TradeDetail.ModeDelivery.choices]:
+                raise serializers.ValidationError("Invalid delivery mode")
+        
+        # Ensure request type is valid
+        if 'reqtype' in data:
+            if data['reqtype'] not in [choice[0] for choice in TradeDetail.RequestType.choices]:
+                raise serializers.ValidationError("Invalid request type")
+        
+        return data
+    
+    def create(self, validated_data):
+        """Override create to calculate and set total_xp"""
+        # Calculate XP based on choices
+        xp_mapping = {
+            # Skill Proficiency XP
+            TradeDetail.SkillProficiency.BEGINNER: 50,
+            TradeDetail.SkillProficiency.INTERMEDIATE: 100,
+            TradeDetail.SkillProficiency.ADVANCED: 150,
+            TradeDetail.SkillProficiency.CERTIFIED: 200,
+            
+            # Mode of Delivery XP
+            TradeDetail.ModeDelivery.ONSITE: 100,
+            TradeDetail.ModeDelivery.ONLINE: 75,
+            TradeDetail.ModeDelivery.HYBRID: 150,
+            
+            # Request Type XP
+            TradeDetail.RequestType.OUTPUT: 100,
+            TradeDetail.RequestType.SERVICE: 150,
+            TradeDetail.RequestType.PROJECT: 300,
+        }
+        
+        skill_xp = xp_mapping.get(validated_data.get('skillprof'), 0)
+        delivery_xp = xp_mapping.get(validated_data.get('modedel'), 0)
+        request_xp = xp_mapping.get(validated_data.get('reqtype'), 0)
+        
+        validated_data['total_xp'] = skill_xp + delivery_xp + request_xp
+        
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Override update to recalculate total_xp if choices change"""
+        # If any XP-affecting fields are being updated, recalculate XP
+        if any(field in validated_data for field in ['skillprof', 'modedel', 'reqtype']):
+            xp_mapping = {
+                # Skill Proficiency XP
+                TradeDetail.SkillProficiency.BEGINNER: 50,
+                TradeDetail.SkillProficiency.INTERMEDIATE: 100,
+                TradeDetail.SkillProficiency.ADVANCED: 150,
+                TradeDetail.SkillProficiency.CERTIFIED: 200,
+                
+                # Mode of Delivery XP
+                TradeDetail.ModeDelivery.ONSITE: 100,
+                TradeDetail.ModeDelivery.ONLINE: 75,
+                TradeDetail.ModeDelivery.HYBRID: 150,
+                
+                # Request Type XP
+                TradeDetail.RequestType.OUTPUT: 100,
+                TradeDetail.RequestType.SERVICE: 150,
+                TradeDetail.RequestType.PROJECT: 300,
+            }
+            
+            # Use updated values or fall back to existing values
+            skillprof = validated_data.get('skillprof', instance.skillprof)
+            modedel = validated_data.get('modedel', instance.modedel)
+            reqtype = validated_data.get('reqtype', instance.reqtype)
+            
+            skill_xp = xp_mapping.get(skillprof, 0)
+            delivery_xp = xp_mapping.get(modedel, 0)
+            request_xp = xp_mapping.get(reqtype, 0)
+            
+            validated_data['total_xp'] = skill_xp + delivery_xp + request_xp
+        
+        return super().update(instance, validated_data)
