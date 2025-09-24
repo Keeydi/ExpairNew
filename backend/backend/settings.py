@@ -190,3 +190,5 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'expaircs@gmail.com' 
 EMAIL_HOST_PASSWORD = 'qjfy dmyf vmff xkpa' 
 DEFAULT_FROM_EMAIL = 'expaircs@gmail.com'
+
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']

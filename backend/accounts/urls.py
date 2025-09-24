@@ -1,9 +1,10 @@
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
 from .views import add_user_interests, user_interests
+from django.contrib import admin
 
 urlpatterns = [
     path('register/', views.register_user, name='register_user'),
@@ -58,7 +59,6 @@ urlpatterns = [
     
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/', views.reset_password, name='reset_password'),
-
 ]
 
 

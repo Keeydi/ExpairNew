@@ -180,6 +180,7 @@ class UserCredential(models.Model):
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
+        db_column='specskills_id'
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

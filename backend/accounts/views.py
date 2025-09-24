@@ -1,5 +1,6 @@
 import json
 import datetime
+import os
 from datetime import date
 
 from rest_framework import status
@@ -11,13 +12,14 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone as django_timezone
 from django.utils.timezone import localdate
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import (
     Evaluation, GenSkill, UserInterest, User, VerificationStatus, UserCredential,
@@ -29,6 +31,11 @@ from .serializers import (
     UserSerializer, GenSkillSerializer, UserInterestBulkSerializer
 )
 
+# Add this line to your code to print the expected path
+print(f"DEBUG: Expected template path: {os.path.join(settings.BASE_DIR, 'accounts', 'templates', 'emails', 'password_reset_email.html')}")
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
 def forgot_password(request):
     """
     Handles a forgot password request by creating a token and sending a reset email.
