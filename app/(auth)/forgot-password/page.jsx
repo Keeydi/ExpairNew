@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
 
       // API call to your Django backend
       const response = await fetch(
-        "http://127.0.0.1:8000/api/forgot-password/",
+        "http://127.0.0.1:8000/forgot-password/",
         {
           method: "POST",
           headers: {

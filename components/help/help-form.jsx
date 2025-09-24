@@ -1,211 +1,269 @@
 "use client";
 
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
-import { Upload, ChevronDown } from "lucide-react";
-import { useState, Fragment } from "react";
-import { Listbox } from "@headlessui/react";
-import { Icon } from "@iconify/react";
+import { useState } from "react";
+import { CheckCircle, X } from "lucide-react";
 
-export function HelpForm() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");  
-  const [category, setCategory] = useState("");
-  const [text, setText] = useState("");
-  const [photo, setPhoto] = useState(null);
-
-
-  const options = [
-    {
-      label: "🔧 Technical Issues",
-      items: [
-        "I can’t log into my account",
-        "I didn’t receive a verification email",
-        "I’m having trouble uploading a certificate or ID",
-        "I’m experiencing bugs or glitches on the platform",
-        "I can’t connect my social media accounts",
-      ],
-    },
-    {
-      label: "👥 User or Trade Concerns",
-      items: [
-        "My trade partner isn’t responding",
-        "My partner uploaded invalid or inappropriate proof",
-        "I suspect my partner is a scammer",
-        "I want to report a user",
-        "I want to dispute a rating or feedback",
-      ],
-    },
-    {
-      label: "💬 Account & Settings",
-      items: [
-        "I want to change my password",
-        "I want to delete or deactivate my account",
-        "I want to edit my profile or skills list",
-        "I can’t update my availability or location",
-      ],
-    },
-    {
-      label: "📄 Platform Use & Guidelines",
-      items: [
-        "I don’t understand how trades work",
-        "I need help using the trade system",
-        "I want to know how Expair’s fairness system works",
-        "I have suggestions to improve Expair",
-      ],
-    },
-    {
-      label: "💸 Privacy & Security",
-      items: [
-        "I’m concerned about my data privacy",
-        "I want to unlink a connected account",
-        "I want to know how my data is used",
-      ],
-    },
-  ];
-
-  const maxChars = 500;
-
-  const isFormValid =
-    name.trim() !== "" &&
-    email.trim() !== "" &&
-    category.trim() !== "" &&
-    text.trim() !== "";
-
+/**
+ * A dialog to inform the user that their help request has been submitted successfully.
+ * @param {object} props
+ * @param {boolean} props.isOpen - Controls the visibility of the dialog.
+ * @param {function} props.onClose - Function to call when the dialog should be closed.
+ */
+function HelpSubmitDialog({ isOpen, onClose }) {
+  if (!isOpen) return null;
 
   return (
-    <div
-      id="contact"
-      className="max-w-3xl mx-auto pt-[50px] text-white px-4 sm:px-6"
-    >
-      <h2 className="text-[22px] sm:text-[25px] font-semibold mb-[30px] text-center">
-        Create a ticket
-      </h2>
+    <div className="fixed inset-0 flex items-center justify-center z-[60]">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      ></div>
 
-      <form className="space-y-[30px] flex flex-col">
-        {/* Name Input */}
-        <div>
-          <p className="text-white font-normal mb-[15px]">Your name *</p>
-          <Input
-            placeholder="John Doe"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full max-w-[450px] h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] placeholder-[#413663] placeholder:text-[16px] text-white"
-          />
-        </div>
+      {/* Dialog */}
+      <div
+        className="relative w-[618px] h-[274px] flex flex-col items-center justify-center p-[50px]
+          bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 isolate"
+      >
+        {/* Close button */}
+        <button
+          className="absolute top-[26px] right-[26px] text-white cursor-pointer hover:text-gray-300"
+          onClick={onClose}
+          aria-label="Close dialog"
+          type="button"
+        >
+          <X className="w-[15px] h-[15px]" />
+        </button>
 
-        {/* Email Input */}
-        <div>
-          <p className="text-white font-normal mb-[15px]">Your email *</p>
-          <Input
-            type="email"
-            placeholder="youremail@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full max-w-[450px] h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] placeholder-[#413663] placeholder:text-[16px] text-white"
-          />
-        </div>
+        <div className="flex flex-col items-center gap-[16px] w-[470px]">
+          {/* Success Icon */}
+          <CheckCircle className="w-[60px] h-[60px] text-[#00E5A1]" />
 
-        {/* Select Dropdown */}
-        <div>
-          <p className="text-white font-normal mb-[15px]">
-            What's your problem, concern, or suggestion? *
+          {/* Title */}
+          <h2 className="text-[25px] font-semibold text-white text-center">
+            Ticket sent into the stars!
+          </h2>
+          <p className="text-white/80 text-center">
+            Our team will get to you soon.
           </p>
-          <div className="w-full max-w-[450px]">
-            <Listbox value={category} onChange={setCategory}>
-              <div className="relative">
-                <Listbox.Button
-                  className={`w-full h-[50px] rounded-[15px] border border-white/40 bg-[#120A2A] text-left pl-4 pr-10 flex items-center justify-between ${
-                    category ? "text-white" : "text-[#413663]"
-                  } text-[16px]`}
-                >
-                  {category || "Select category"}
-                  <ChevronDown className="h-6 w-6 absolute right-4 text-white" />
-                </Listbox.Button>
-                <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-[15px] bg-[#120A2A] text-white shadow-lg border border-white/20">
-                  {options.map((group, idx) => (
-                    <Fragment key={idx}>
-                      <div className="px-4 pt-2 pb-1 text-xs text-white/60 font-semibold">
-                        {group.label}
-                      </div>
-                      {group.items.map((item, itemIdx) => (
-                        <Listbox.Option
-                          key={itemIdx}
-                          value={item}
-                          className={({ active }) =>
-                            `cursor-pointer select-none px-4 py-2 text-sm ${
-                              active ? "bg-[#1c1238]" : ""
-                            }`
-                          }
-                        >
-                          {item}
-                        </Listbox.Option>
-                      ))}
-                    </Fragment>
-                  ))}
-                </Listbox.Options>
-              </div>
-            </Listbox>
-          </div>
-        </div>
 
-        {/* Photo upload */}
-        <label className="text-white font-normal mb-[15px]">
-          Upload a photo for context
-        </label>
-        <div className="relative">
-          <input
-            type="file"
-            id="photo-upload"
-            className="hidden"
-            onChange={(e) => setPhoto(e.target.files[0])}
-          />
-          <label
-            htmlFor="photo-upload"
-            className="w-full max-w-[450px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] flex justify-between items-center cursor-pointer"
+          {/* Action button */}
+          <button
+            onClick={onClose}
+            className="w-[258px] h-[40px] bg-[#0038FF] rounded-[15px] text-white text-[16px] shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors"
+            type="button"
           >
-            <span className="text-[16px] text-[#413663]">
-              {photo ? photo.name : "Upload photo"}
-            </span>
-            <Icon
-              icon="material-symbols:upload"
-              className="text-white w-[24px] h-[24px]"
-            />
-          </label>
+            Close
+          </button>
         </div>
-
-        {/* Textarea with Counter */}
-        <div>
-          <p className="text-white font-normal mb-[15px]">
-            Describe the ticket in detail *
-          </p>
-          <div className="relative w-full max-w-[656px]">
-            <Textarea
-              placeholder="Example: I am submitting a report concerning a potential scam incident..."
-              rows={6}
-              maxLength={maxChars}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="w-full h-[180px] bg-[#120A2A] border border-white/40 rounded-[15px] text-white placeholder-[#413663] placeholder:text-[16px] p-3"
-            />
-            <span className="absolute bottom-2 right-3 text-xs text-gray-400">
-              {text.length}/{maxChars}
-            </span>
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <div className="flex justify-center mb-[195px] w-full">
-          <Button
-            type="submit"
-            disabled={!isFormValid}
-            className="font-normal w-[240px] h-[50px] px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] text-white text-sm sm:text-[16px] hover:bg-[#1a4dff] transition rounded-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Submit
-          </Button>
-        </div>
-      </form>
+      </div>
     </div>
+  );
+}
+
+/**
+ * An integrated Help Form component that includes a success dialog.
+ * This component manages the form's state, handles submission, and
+ * displays a pop-up window upon success. It now sends the data to a backend.
+ */
+export function HelpForm() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [error, setError] = useState("");
+
+  // A placeholder for your actual form validation logic
+  const isFormValid = name && email && subject && message;
+
+  // Function to handle the form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+
+    // Create a FormData object to handle the file upload and text fields
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("email", email);
+    formData.append("subject", subject);
+    formData.append("message", message);
+    if (photo) {
+      formData.append("photo", photo);
+    }
+
+    try {
+      // Send the data to the backend API endpoint
+      const response = await fetch("/api/send-help-request", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        // After successful submission, show the success dialog
+        setShowSuccessDialog(true);
+        // Reset form fields
+        setName("");
+        setEmail("");
+        setSubject("");
+        setMessage("");
+        setPhoto(null);
+      } else {
+        const errorText = await response.text();
+        console.error("Server response was not JSON:", errorText);
+        try {
+          // Attempt to parse as JSON if it's not a complete HTML page
+          const errorData = JSON.parse(errorText);
+          setError(errorData.error || "Failed to submit help request.");
+        } catch {
+          // If it's not JSON, display a generic error and log the response
+          setError("An unexpected server error occurred. Please check the console for details.");
+        }
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again later.");
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setShowSuccessDialog(false);
+  };
+
+  return (
+    <>
+      <div className="flex justify-center w-full px-4 sm:px-0 mb-20">
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-[500px] flex flex-col items-center justify-center p-6 bg-[#070014] rounded-[15px] border border-white/20 shadow-lg"
+        >
+          {error && <div className="text-red-500 mb-4">{error}</div>}
+          <div className="w-full flex flex-col mb-[20px]">
+            {/* Name Field */}
+            <label htmlFor="name" className="text-white font-normal mb-2">
+              Your name<span className="text-red-500 ml-1">*</span>
+            </label>
+            <input
+              type="text"
+              id="name"
+              placeholder="e.g. John Doe"
+              className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] text-white/80 placeholder:text-white/40 focus:outline-none focus:border-white"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="w-full flex flex-col mb-[20px]">
+            {/* Email Field */}
+            <label htmlFor="email" className="text-white font-normal mb-2">
+              Your email address<span className="text-red-500 ml-1">*</span>
+            </label>
+            <input
+              type="email"
+              id="email"
+              placeholder="name@example.com"
+              className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] text-white/80 placeholder:text-white/40 focus:outline-none focus:border-white"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="w-full flex flex-col mb-[20px]">
+            {/* Subject Field */}
+            <label htmlFor="subject" className="text-white font-normal mb-2">
+              Subject<span className="text-red-500 ml-1">*</span>
+            </label>
+            <input
+              type="text"
+              id="subject"
+              placeholder="e.g. Can't log in"
+              className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] text-white/80 placeholder:text-white/40 focus:outline-none focus:border-white"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="w-full flex flex-col mb-[20px]">
+            {/* Message Field */}
+            <label htmlFor="message" className="text-white font-normal mb-2">
+              Your message<span className="text-red-500 ml-1">*</span>
+            </label>
+            <textarea
+              id="message"
+              placeholder="Tell us what you're experiencing."
+              rows="4"
+              className="w-full bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] text-white/80 placeholder:text-white/40 focus:outline-none focus:border-white"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              required
+            ></textarea>
+          </div>
+
+          <div className="w-full flex flex-col mb-[20px]">
+            {/* Photo upload */}
+            <label className="text-white font-normal mb-2">
+              Upload a photo for more context
+            </label>
+            <div className="relative">
+              <input
+                type="file"
+                id="photo-upload"
+                className="hidden"
+                accept="image/*"
+                onChange={(e) => setPhoto(e.target.files[0])}
+              />
+              <label
+                htmlFor="photo-upload"
+                className="w-full max-w-[450px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] flex justify-between items-center cursor-pointer"
+              >
+                <span
+                  className={`text-[16px] flex-1 min-w-0 truncate ${
+                    photo ? "text-white" : "text-[#413663]"
+                  }`}
+                >
+                  {photo ? photo.name : "Upload photo"}
+                </span>
+                {/* Replaced Icon with inline SVG */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-[24px] h-[24px] text-white"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" x2="12" y1="3" y2="15"></line>
+                </svg>
+              </label>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-center mb-10 w-full">
+            <button
+              type="submit"
+              disabled={!isFormValid || isSubmitting}
+              className="font-normal w-[240px] h-[50px] px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] text-white text-sm sm:text-[16px] hover:bg-[#1a4dff] transition rounded-[15px] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Submitting..." : "Submit"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <HelpSubmitDialog isOpen={showSuccessDialog} onClose={handleCloseDialog} />
+    </>
   );
 }

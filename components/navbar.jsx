@@ -34,8 +34,13 @@ export default function Navbar() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   const bellRef = useRef(null);
 
-  const DEFAULT_AVATAR = "/defaultavatar.png";
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
+  // Directly derive the avatar URL from the session object.
+  // This is the single source of truth and will cause a re-render
+  // whenever the session updates.
+  const profileImage =
+    session?.user?.profilePic ||
+    session?.user?.image ||
+    "/assets/defaultavatar.png";
 
   // Build dynamic profile links
   const profileSlug =
@@ -44,24 +49,11 @@ export default function Navbar() {
   const profileHref = `/home/profile/${profileSlug}`;
   const settingsHref = `/home/profile/${profileSlug}/settings`;
 
-  useEffect(() => {
-    // Check if the profilePic is available in the session, else fallback to Google image
-    const sessionAvatar = session?.user?.profilePic || session?.user?.image;
-    setAvatarUrl(sessionAvatar || DEFAULT_AVATAR);
-  }, [session?.user?.profilePic, session?.user?.image]);
-
-  /*useEffect(() => {
-  console.log('Full session object:', session);
-  console.log('Session user:', session?.user);
-  console.log('ProfilePic from session:', session?.user?.profilePic);
-  console.log('Image from session:', session?.user?.image);
-}, [session]);*/
-
-  // Close notification dialog when clicking outside
+  // Your existing useEffect hooks and functions are fine
+  // The old useEffect for setting avatarUrl is now removed
   useEffect(() => {
     function handleClickOutside(event) {
       if (bellRef.current && !bellRef.current.contains(event.target)) {
-        // Check if the click is on the notification portal
         const notificationPortal = document.querySelector(
           "[data-notification-portal]"
         );
@@ -71,14 +63,12 @@ export default function Navbar() {
         setNotificationOpen(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  // Handle notification toggle
   const toggleNotification = () => {
     if (!notificationOpen && bellRef.current) {
       setBellRect(bellRef.current.getBoundingClientRect());
@@ -86,14 +76,12 @@ export default function Navbar() {
     setNotificationOpen(!notificationOpen);
   };
 
-  // Function to handle when all notifications are read
   const handleAllNotificationsRead = () => {
     setHasUnreadNotifications(false);
   };
 
   const handleLogout = async () => {
     try {
-      // If you keep refresh in the NextAuth session (you do):
       const refresh = session?.refresh;
       if (refresh) {
         await fetch(
@@ -115,7 +103,7 @@ export default function Navbar() {
         );
       }
     } finally {
-      await signOut({ redirect: true, callbackUrl: "/signin" });
+      await signOut({ redirect: true, callbackUrl: "/" });
     }
   };
 
@@ -202,7 +190,8 @@ export default function Navbar() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-full border border-white focus:outline-none focus:ring-2 focus:ring-[#6DDFFF]">
-                <ProfileAvatar src={avatarUrl} size={25} />
+                {/* Use the new profileImage variable here */}
+                <ProfileAvatar src={profileImage} size={25} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

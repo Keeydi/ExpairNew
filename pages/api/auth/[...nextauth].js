@@ -1,193 +1,114 @@
 import NextAuth from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-export default NextAuth({
+const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
+// Helper: decode JWT exp (ms) without verifying
+function decodeJwtExp(token) {
+  try {
+    const [, payload] = token.split(".");
+    const json = JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
+    if (json && typeof json.exp === "number") return json.exp * 1000;
+  } catch {}
+  return null;
+}
+
+export default NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   session: {
-  strategy: "jwt",
-  maxAge: 60 * 60 * 24,  // 24 hours, adjust as needed
+    strategy: "jwt",
+    // Set a long maxAge by default. The `session` callback below
+    // will override this for non-remember-me logins.
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  
   debug: process.env.NODE_ENV === "development",
 
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
+    
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: {},
-        password: {},
+        identifier: { label: "Username/Email", type: "text" },
+        password: { label: "Password", type: "password" },
+        // Add a new credential for the remember me flag
+        rememberMe: { label: "Remember Me", type: "checkbox" }
       },
       async authorize(credentials) {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/accounts/login/`, {
+        const res = await fetch(`${BACKEND_URL}/api/accounts/login/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(credentials),
+          body: JSON.stringify({
+            identifier: credentials.identifier,
+            password: credentials.password,
+          }),
         });
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Login failed");
 
-        if (!res.ok) throw new Error(data.detail || "Login failed");
-
+        // Return the user data along with the `rememberMe` flag
         return {
-          id: data.user.id,
-          username: data.user.username,
-          email: data.user.email,
-          image: data.user.image,
-          accessToken: data.access,
-          refreshToken: data.refresh,
-          accessTokenExpires: Date.parse(data.expires),
+          id: String(data.user_id || data.id),
+          access: data.access,
+          refresh: data.refresh,
+          username: data.username,
+          email: data.email,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          image: data.image,
+          rememberMe: credentials.rememberMe, // Pass the flag from the request
         };
       },
     }),
   ],
 
   callbacks: {
-  async signIn({ user, account, profile }) {
-  console.log("=== SIGNIN CALLBACK ===");
-  console.log("Account provider:", account?.provider);
-  console.log("Profile data:", profile);
-
-  if (account?.provider === "google") {
-    try {
-      console.log("Making request to Django google-login endpoint...");
-      
-      const res = await fetch(`${BACKEND_URL}/api/accounts/google-login/`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify({
-          email: profile?.email,
-          name: profile?.name,
-          image: profile?.picture,
-        }),
-      });
-
-      console.log("Response status:", res.status);
-      console.log("Response headers:", Object.fromEntries(res.headers.entries()));
-
-      // Check if response is JSON
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await res.text();
-        console.error("Non-JSON response:", textResponse.substring(0, 500));
-        return false;
+    async jwt({ token, user, account }) {
+      // Pass the rememberMe flag to the token
+      if (user?.rememberMe !== undefined) {
+        token.rememberMe = user.rememberMe;
       }
 
-      const data = await res.json();
-      console.log("Response data:", data);
-
-      if (!res.ok) {
-        console.error("Google login failed:", res.status, data);
-        return false;
+      if (user && account) {
+        token.id = user.id;
+        token.access = user.access;
+        token.refresh = user.refresh;
+        token.username = user.username;
+        token.first_name = user.first_name;
+        token.last_name = user.last_name;
+        token.email = user.email;
+        if (user.image) token.image = user.image;
       }
-
-      if (data?.is_new) {
-        // New user: redirect to onboarding
-        console.log("New user detected, blocking signin for onboarding");
-        return false;
-      } else {
-        // Existing user: store tokens in user object for JWT callback
-        user.access = data.access;
-        user.refresh = data.refresh;
-        user.id = data.user_id;
-        user.username = data.username;
-        user.first_name = data.first_name;
-        user.last_name = data.last_name;
-        user.email = data.email;
-        if (data.image) user.image = data.image;
-        
-        console.log("Existing user, proceeding with signin");
-        return true;
-      }
-    } catch (e) {
-      console.error("Google login request failed:", e);
-      return false;
-    }
-  }
-
-  return true; // Default for other login methods
-},
-
-async jwt({ token, user, account }) {
-  console.log("=== JWT CALLBACK DETAILED ===");
-  console.log("Has user:", !!user);
-  console.log("Account provider:", account?.provider);
-  console.log("User keys:", user ? Object.keys(user) : "no user");
-  console.log("User.access:", !!user?.access);
-
-  // Initial sign in - user object is available
-  if (user && account) {
-    console.log("Processing initial sign in");
-
-    token.id = user.id;
-    token.isNewUser = user.isNewUser;
-
-    // Consolidated logic for both credentials and google providers
-    if (account.provider === "google" || account.provider === "credentials") {
-      token.access = user.access; // From your backend (for both credentials and google)
-      token.refresh = user.refresh; // From your backend (for both credentials and google)
-      token.username = user.username;
-      token.first_name = user.first_name;
-      token.last_name = user.last_name;
-      token.email = user.email;
-      if (user.image) token.image = user.image;
-    }
-
-    console.log("JWT token after initial sign in - has access token:", !!token.access);
-  }
-
-  // Token refresh logic (for both Google and credentials login)
-  if (token.access) {
-    const accessExpiry = decodeJwtExp(token.access);
-    const now = Date.now();
-
-    if (accessExpiry && accessExpiry < now + 300000) {
-      console.log("Access token expired, attempting refresh...");
-
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/accounts/token/refresh/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ refresh: token.refresh }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          console.log("Token refresh successful");
-          token.access = data.access;
-          
-          // Django rotates refresh tokens, so update it
-          if (data.refresh) {
-            token.refresh = data.refresh;
-          }
-        } else {
-          console.error("Token refresh failed:", res.status);
-          // Clear tokens to force re-authentication
-          delete token.access;
-          delete token.refresh;
-          return null; // This will end the session
-        }
-      } catch (error) {
-        console.error("Refresh request failed:", error);
-        delete token.access;
-        delete token.refresh;
-        return null;
-      }
-    }
-  }
-
-  return token; // Return the updated token with the new values
-},
+      return token;
+    },
 
     async session({ session, token }) {
-      session.user = token.user;
-      session.accessToken = token.accessToken;
-      session.refreshToken = token.refreshToken;
+      // Define a standard session expiration (e.g., 2 hours)
+      const DEFAULT_SESSION_MAX_AGE = 2 * 60 * 60;
+
+      // Use the rememberMe flag from the token to set a longer expiry
+      if (token.rememberMe) {
+        const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60;
+        session.expires = new Date(Date.now() + THIRTY_DAYS_IN_SECONDS * 1000).toISOString();
+      } else {
+        session.expires = new Date(Date.now() + DEFAULT_SESSION_MAX_AGE * 1000).toISOString();
+      }
+      
+      if (token) {
+        session.access = token.access;
+        session.refresh = token.refresh;
+        session.user.id = token.id;
+        session.user.username = token.username;
+        session.user.first_name = token.first_name;
+        session.user.last_name = token.last_name;
+        session.user.email = token.email;
+        session.user.image = token.image;
+      }
       return session;
     },
   },

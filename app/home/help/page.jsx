@@ -5,8 +5,36 @@ import { HelpCategoryCard } from "../../../components/help/category-card";
 import { HelpForm } from "../../../components/help/help-form";
 import HelpLayout from "../../../components/help/helplayout";
 import Link from "next/link";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 export default function HelpLanding() {
+  const [status, setStatus] = useState("idle"); // 'idle', 'loading', 'success', 'error'
+  const [message, setMessage] = useState("");
+
+  const isHomeUser = usePathname().startsWith("/home");
+
+  const handleSubmit = async (formData) => {
+    setStatus("loading");
+    setMessage("");
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, isHomeUser }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to submit ticket");
+      }
+      setStatus("success");
+      setMessage(result.message);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error.message);
+    }
+  };
+
   return (
     <HelpLayout>
       {/* Cards */}
@@ -73,7 +101,14 @@ export default function HelpLanding() {
       </div>
 
       {/* Help Form */}
-      <HelpForm id="help-form"/>
+      <div id="contact-form" className="w-full max-w-[500px] mx-auto">
+        <h2 className="text-2xl font-bold mb-4">Contact Support</h2>
+        <p className="text-white/70 mb-8">
+          We're here to help! Fill out the form below and we'll get back to you
+          as soon as possible.
+        </p>
+        <HelpForm onSubmit={handleSubmit} status={status} message={message} />
+      </div>
     </HelpLayout>
   );
 }

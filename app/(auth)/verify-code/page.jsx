@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "../../../components/ui/input";
 import { Button } from "../../../components/ui/button";
 import { useMutation } from "@tanstack/react-query";
@@ -35,8 +35,6 @@ export default function VerifyCodePage() {
   };
 
   useEffect(() => {
-    // You could fetch this from local storage or a store if you wanted to display the email
-    // For now, we'll just set the state to show the success message
     setEmailSent(true);
   }, []);
 

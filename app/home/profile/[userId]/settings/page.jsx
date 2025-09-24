@@ -36,7 +36,7 @@ const resolveAccountsBase = (raw) => {
 const backendUrl = "http://localhost:8000";
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
 
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [profilePicUrl, setProfilePicUrl] = useState("");
   const [file, setFile] = useState(null);
   const fileInputRef = useRef(null);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -104,6 +105,8 @@ export default function SettingsPage() {
 
   const DEFAULT_AVATAR = "/assets/defaultavatar.png";
   const [previewUrl, setPreviewUrl] = useState(DEFAULT_AVATAR);
+
+  const [userProfile, setUserProfile] = useState({});
 
   if (status === "loading" || !session) {
     return (
@@ -351,6 +354,7 @@ export default function SettingsPage() {
     if (!f) return;
     setFile(f);
     setSaved(false);
+    setShowDisclaimer(true);
   };
 
   const handleSave = async () => {
@@ -461,6 +465,10 @@ export default function SettingsPage() {
       }
 
       const updated = await res.json();
+
+      // Add this line to force a session refresh
+      await update();
+
       const newUsername = String(updated.username ?? username);
       const newEmailAdd = String(updated.emailAdd ?? updated.email ?? emailAdd);
       const newBio = String(updated.bio ?? bio);
@@ -542,15 +550,14 @@ export default function SettingsPage() {
     setEditLinks(false);
     setSaved(false);
     setError("");
+    setShowDisclaimer(false);
   };
 
   const menuItems = [
     { key: "profile", label: "Profile" },
     { key: "privacy", label: "Privacy & Security" },
   ];
-
   const [coords, setCoords] = useState(null);
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -568,6 +575,7 @@ export default function SettingsPage() {
 
       const res = await fetch(url);
       const data = await res.json();
+
       if (data.features) {
         setSuggestions(data.features);
       }
@@ -581,15 +589,8 @@ export default function SettingsPage() {
     console.log("Selected place:", place); // Debugging
     setSearchQuery(place.place_name); // Set the location to the text field
     const [longitude, latitude] = place.center;
-    setViewport({
-      latitude,
-      longitude,
-      zoom: 14,
-    });
-    setMarker({
-      latitude,
-      longitude,
-    });
+    setViewport({ latitude, longitude, zoom: 14, });
+    setMarker({ latitude, longitude, });
     setSuggestions([]); // Clear suggestions
     setIsUserInteracted(true); // User interacted with the location
     setErrorMessage(""); // Clear error if location is valid
@@ -601,13 +602,11 @@ export default function SettingsPage() {
       setErrorMessage("Please enter a location to search.");
       return;
     }
-
     try {
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         searchQuery
       )}.json?access_token=${token}`;
-
       const res = await fetch(url);
       const data = await res.json();
 
@@ -638,13 +637,11 @@ export default function SettingsPage() {
       latitude: newMarker.latitude,
       longitude: newMarker.longitude,
     }));
-
     try {
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newMarker.longitude},${newMarker.latitude}.json?access_token=${token}`;
       const res = await fetch(url);
       const data = await res.json();
-
       if (data.features && data.features.length > 0) {
         setSearchQuery(data.features[0].place_name); // Update searchQuery with place name
         setIsUserInteracted(true); // User interacted with the map
@@ -679,7 +676,6 @@ export default function SettingsPage() {
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?limit=1&access_token=${token}`;
       const res = await fetch(url);
       const data = await res.json();
-
       if (data.features && data.features.length > 0) {
         const placeName = data.features[0].place_name;
         setLocation(placeName); // save to backend value
@@ -698,29 +694,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <div
-      className={`${inter.className} min-h-screen bg-[#050015] text-white py-10 px-4`}
-    >
+    <div className={`${inter.className} min-h-screen bg-[#050015] text-white py-10 px-4`} >
       <div className="max-w-[940px] mx-auto flex gap-10">
         {/* Left Sidebar */}
         <aside className="w-[220px] flex-shrink-0">
-          <Link
-            href={`/home/profile/${userId ?? ""}`}
-            className="flex items-center gap-2 mb-6 text-white/70 hover:text-white"
-          >
+          <Link href={`/home/profile/${userId ?? ""}`} className="flex items-center gap-2 mb-6 text-white/70 hover:text-white" >
             <ChevronLeft className="w-5 h-5" /> Back to Profile
           </Link>
           <nav className="flex flex-col gap-2">
             {menuItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key)}
-                className={`text-left px-4 py-2 rounded-[8px] transition ${
-                  activeTab === item.key
-                    ? "bg-[#120A2A] text-white"
-                    : "text-white/70 hover:bg-[#1A0F3E]"
-                }`}
-              >
+              <button key={item.key} onClick={() => setActiveTab(item.key)} className={`text-left px-4 py-2 rounded-[8px] transition ${ activeTab === item.key ? "bg-[#120A2A] text-white" : "text-white/70 hover:bg-[#1A0F3E]" }`} >
                 {item.label}
               </button>
             ))}
@@ -737,8 +720,7 @@ export default function SettingsPage() {
             <>
               {loading && (
                 <div className="flex items-center gap-2 text-white/70 mb-4">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Loading your
-                  settings…
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading your settings…
                 </div>
               )}
               {!loading && error && (
@@ -778,274 +760,294 @@ export default function SettingsPage() {
                 <p className="mt-2 text-s text-white/40">
                   JPG or PNG up to 5MB. Square images work best.
                 </p>
+                {showDisclaimer && (
+                    <p className="mt-2 text-sm text-yellow-300">
+                        Disclaimer: Your profile picture may not reflect instantly, and may require you to relog in.
+                    </p>
+                )}
               </section>
 
-              {/* Username */}
+              {/* Account Details */}
               <section className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-white/70">Username</p>
-                  <Pencil
-                    className="w-4 h-4 text-white/60 cursor-pointer"
-                    onClick={() => setEditUsername(!editUsername)}
-                  />
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl font-medium">Account Details</h2>
+                  {editUsername ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditUsername(false)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditUsername(true)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
-                {editUsername ? (
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => {
-                      setUsername(e.target.value);
-                      setSaved(false);
-                    }}
-                    className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                  />
-                ) : (
-                  <p className="text-white/100">{username || "Not set"}</p>
-                )}
+
+                <div className="flex flex-col gap-4">
+                  {/* Username */}
+                  <div>
+                    <p className="mb-1 text-sm text-white/70">Username</p>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      disabled={!editUsername}
+                      className="w-full bg-[#120A2A] text-white rounded-[10px] px-4 py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition disabled:opacity-50"
+                    />
+                  </div>
+                  {/* Email Address */}
+                  <div>
+                    <p className="mb-1 text-sm text-white/70">Email Address</p>
+                    <input
+                      type="email"
+                      value={emailAdd}
+                      onChange={(e) => setEmailAdd(e.target.value)}
+                      disabled={!editUsername}
+                      className="w-full bg-[#120A2A] text-white rounded-[10px] px-4 py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition disabled:opacity-50"
+                    />
+                  </div>
+                  {/* Bio */}
+                  <div>
+                    <p className="mb-1 text-sm text-white/70">Bio</p>
+                    <textarea
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      className="w-full bg-[#120A2A] text-white rounded-[10px] px-4 py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition disabled:opacity-50 min-h-[100px]"
+                    />
+                  </div>
+                </div>
               </section>
 
               {/* Password */}
               <section className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-white/70">Password</p>
-                  <Pencil
-                    className="w-4 h-4 text-white/60 cursor-pointer"
-                    onClick={() => setEditPassword(!editPassword)}
-                  />
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl font-medium">Password</h2>
+                  {editPassword ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditPassword(false)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditPassword(true)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
-                {editPassword ? (
-                  <>
-                    {/* Password field with toggle */}
-                    <div className="relative mb-3">
+                <div className="flex flex-col gap-4">
+                  {/* New Password */}
+                  <div>
+                    <p className="mb-1 text-sm text-white/70">New Password</p>
+                    <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
                         value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          setSaved(false);
-                        }}
-                        className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                        placeholder="Enter new password"
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={!editPassword}
+                        className="w-full bg-[#120A2A] text-white rounded-[10px] px-4 py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition disabled:opacity-50"
                       />
                       <button
                         type="button"
-                        className="absolute inset-y-0 right-3 flex items-center text-white/60"
                         onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70"
+                        disabled={!editPassword}
                       >
-                        {showPassword ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
-
-                    {/* Confirm Password field with toggle */}
-                    <div className="relative mb-2">
+                  </div>
+                  {/* Confirm Password */}
+                  <div>
+                    <p className="mb-1 text-sm text-white/70">Confirm Password</p>
+                    <div className="relative">
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
-                        onChange={(e) => {
-                          setConfirmPassword(e.target.value);
-                          setSaved(false);
-                        }}
-                        className="w-full px-4 py-3 bg-[#120A2A] border border-white/40 rounded-[10px] text-white text-sm"
-                        placeholder="Confirm new password"
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        disabled={!editPassword}
+                        className="w-full bg-[#120A2A] text-white rounded-[10px] px-4 py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition disabled:opacity-50"
                       />
                       <button
                         type="button"
-                        className="absolute inset-y-0 right-3 flex items-center text-white/60"
-                        onClick={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70"
+                        disabled={!editPassword}
                       >
-                        {showConfirmPassword ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
+                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
-
-                    <ul className="text-xs text-white/60 space-y-1 mt-2">
-                      {passwordRules.map((rule, idx) => (
-                        <li
-                          key={idx}
-                          className={
-                            rule.test.test(password)
-                              ? "text-emerald-400"
-                              : "text-white/40"
-                          }
-                        >
-                          • {rule.label}
+                  </div>
+                  {/* Password Rules */}
+                  <div className="text-sm text-white/60 mt-1">
+                    <ul className="list-disc list-inside">
+                      {passwordRules.map((rule) => (
+                        <li key={rule.label} className={password && rule.test.test(password) ? "text-emerald-400" : ""}>
+                          {rule.label}
                         </li>
                       ))}
-                      {confirmPassword && confirmPassword !== password && (
-                        <li className="text-red-400">
-                          • Passwords do not match
-                        </li>
-                      )}
                     </ul>
-                  </>
-                ) : (
-                  <p className="text-white/100">••••••••</p>
-                )}
+                  </div>
+                </div>
               </section>
 
               {/* Location */}
               <section className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-white/70">Location</p>
-                  <Pencil
-                    className="w-4 h-4 text-white/60 cursor-pointer"
-                    onClick={() => setEditLocation(!editLocation)}
-                  />
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl font-medium">Location</h2>
+                  {editLocation ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditLocation(false)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditLocation(true)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
 
-                {editLocation ? (
-                  <div className="relative w-full">
-                    {/* Search bar */}
-                    <div className="relative w-full">
-                      <Search
-                        className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-                        size={18}
-                      />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => {
-                          setSearchQuery(e.target.value);
-                          fetchSuggestions(e.target.value);
-                          setSaved(false);
-                        }}
-                        placeholder="Search for your location here..."
-                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                        className="w-full h-[50px] sm:h-[57px] pl-12 pr-12 rounded-[12px] sm:rounded-[15px] border border-[rgba(255,255,255,0.4)] bg-[#120A2A] text-white text-[14px] sm:text-[16px] shadow focus:outline-none"
-                      />
-                      <MapPin
-                        onClick={handleSearch}
-                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer"
-                        size={20}
-                      />
-                    </div>
-
-                    {/* Dropdown suggestions */}
-                    {suggestions.length > 0 && (
-                      <ul className="absolute top-full left-0 right-0 mt-1 bg-[#120A2A] border border-[rgba(255,255,255,0.4)] rounded-[15px] shadow-lg overflow-hidden z-20">
-                        {suggestions.map((place) => (
-                          <li
-                            key={place.id}
-                            className="px-4 py-2 text-left text-white hover:bg-[#1a1a3d] cursor-pointer transition-colors"
-                            onClick={() => handleSelectSuggestion(place)}
-                          >
-                            {place.place_name}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {/* Mapbox map */}
-                    <div className="mt-4 h-64 w-full rounded-lg overflow-hidden">
-                      <Map
-                        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-                        initialViewState={viewport}
-                        viewState={viewport} // <-- bind viewport properly
-                        style={{ width: "100%", height: "100%" }}
-                        mapStyle="mapbox://styles/mapbox/streets-v11"
-                        onMove={(evt) => setViewport(evt.viewState)}
-                        onClick={(e) => {
-                          const lng = e.lngLat.lng;
-                          const lat = e.lngLat.lat;
-
-                          setMarker({ longitude: lng, latitude: lat });
-                          setViewport((prev) => ({
-                            ...prev,
-                            longitude: lng,
-                            latitude: lat,
-                            zoom: prev.zoom < 12 ? 12 : prev.zoom, // keep zoom reasonable
-                          }));
-
-                          reverseGeocode(lng, lat);
-                        }}
-                      >
-                        <Marker
-                          longitude={marker.longitude}
-                          latitude={marker.latitude}
-                          draggable
-                          onDragEnd={(e) => {
-                            const lng = e.lngLat.lng;
-                            const lat = e.lngLat.lat;
-
-                            setMarker({ longitude: lng, latitude: lat });
-                            setViewport((prev) => ({
-                              ...prev,
-                              longitude: lng,
-                              latitude: lat,
-                            }));
-
-                            reverseGeocode(lng, lat);
-                          }}
-                        />
-                      </Map>
-                    </div>
+                <div className="relative w-full">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        fetchSuggestions(e.target.value);
+                        setErrorMessage("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleSearch();
+                        }
+                      }}
+                      disabled={!editLocation}
+                      className="w-full pl-10 pr-4 bg-[#120A2A] text-white rounded-[10px] py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition disabled:opacity-50"
+                      placeholder="Search for a location"
+                    />
                   </div>
-                ) : (
-                  <p className="text-white/100">{location || "Not set"}</p>
+                  {editLocation && suggestions.length > 0 && (
+                    <ul className="absolute z-10 w-full bg-[#1A0F3E] border border-white/20 rounded-[10px] mt-1 shadow-lg">
+                      {suggestions.map((place) => (
+                        <li
+                          key={place.id}
+                          onClick={() => handleSelectSuggestion(place)}
+                          className="px-4 py-3 text-sm text-white cursor-pointer hover:bg-[#2A1856]"
+                        >
+                          {place.place_name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {errorMessage && (
+                    <p className="text-red-400 text-sm mt-2">{errorMessage}</p>
+                  )}
+                </div>
+                {editLocation && (
+                  <div className="w-full h-[250px] mt-4 rounded-[10px] overflow-hidden">
+                    <Map
+                      mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+                      {...viewport}
+                      onMove={(e) => setViewport(e.viewState)}
+                      mapStyle="mapbox://styles/mapbox/dark-v11"
+                      onDblClick={(e) => {
+                        const newMarker = {
+                          longitude: e.lngLat.lng,
+                          latitude: e.lngLat.lat,
+                        };
+                        handleMarkerChange(newMarker);
+                      }}
+                    >
+                      <Marker
+                        longitude={marker.longitude}
+                        latitude={marker.latitude}
+                        anchor="bottom"
+                      >
+                        <MapPin className="text-[#0038FF] w-6 h-6" />
+                      </Marker>
+                    </Map>
+                  </div>
                 )}
               </section>
 
               {/* Links */}
               <section className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-white/70">Links</p>
-                  <Pencil
-                    className="w-4 h-4 text-white/60 cursor-pointer"
-                    onClick={() => setEditLinks(!editLinks)}
-                  />
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-xl font-medium">Links</h2>
+                  {editLinks ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditLinks(false)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditLinks(true)}
+                      className="text-white/70 hover:text-white"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
 
                 {editLinks ? (
-                  <div className="flex-1 min-w-[200px] sm:min-w-[400px] text-left">
-                    <div className="max-h-[200px] sm:max-h-[310px] overflow-y-auto custom-scrollbar">
-                      {links.map((link, index) => (
-                        <div
-                          key={index}
-                          className="relative mb-[10px] sm:mb-[12px]"
+                  <div className="flex flex-col gap-3">
+                    {links.map((link, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={link}
+                          onChange={(e) => handleLinkChange(index, e.target.value)}
+                          className="flex-1 bg-[#120A2A] text-white rounded-[10px] px-4 py-3 border border-white/20 focus:outline-none focus:border-[#0038FF] transition"
+                          placeholder="https://yourwebsite.com"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLink(index)}
+                          className="text-red-400 hover:text-red-300 transition"
                         >
-                          <input
-                            type="url"
-                            value={link}
-                            onChange={(e) =>
-                              handleLinkChange(index, e.target.value)
-                            }
-                            placeholder="Link here"
-                            className="bg-[#120A2A] text-white border border-white/40 rounded-[10px] sm:rounded-[12px] w-full pr-8 sm:pr-10 h-[45px] sm:h-[50px] placeholder-[#413663] placeholder:text-[14px] sm:placeholder:text-[15px] px-4 py-3"
-                          />
-                          <X
-                            className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-white/70 cursor-pointer"
-                            onClick={() => handleRemoveLink(index)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-
+                          <X size={20} />
+                        </button>
+                      </div>
+                    ))}
                     <button
                       type="button"
                       onClick={handleAddLink}
-                      className="font-[400] text-[14px] sm:text-[15px] text-[#0038FF] hover:underline text-left mt-1"
+                      className="w-full bg-[#1A0F3E] text-white/70 py-3 rounded-[10px] hover:bg-[#2A1856] transition"
                     >
-                      + Add another link
+                      + Add a Link
                     </button>
                   </div>
                 ) : (
                   <div>
                     {links.length > 0 ? (
-                      <ul className="list-disc list-inside text-white/80">
-                        {links.map((raw, index) => {
-                          let href = raw?.trim() || "";
-                          if (href && !/^https?:\/\//i.test(href)) {
-                            href = "https://" + href;
-                          }
+                      <ul className="list-disc list-inside space-y-1">
+                        {links.map((href, index) => {
+                          const url = new URL(href);
                           return (
                             <li key={index}>
                               <a
