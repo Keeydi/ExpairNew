@@ -8,10 +8,34 @@ import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { Inter } from 'next/font/google';
 import PasswordResetSuccessDialog from '../../../components/auth/password-reset-success-dialog';
+import { useSearchParams } from 'next/navigation';
 
 const inter = Inter({ subsets: ['latin'] });
 
+// Client-side password validation function
+const validatePassword = (password) => {
+  const errors = [];
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters long.');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter.');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter.');
+  }
+  if (!/\d/.test(password)) {
+    errors.push('Password must contain at least one number.');
+  }
+  if (!/[!@#$%^&*]/.test(password)) {
+    errors.push('Password must contain at least one symbol (!@#$%^&*).');
+  }
+  return errors;
+};
+
 export default function ResetPasswordPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,26 +45,53 @@ export default function ResetPasswordPage() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!password || !repeatPassword) {
-        throw new Error('Please fill in all fields.');
-      }
-      if (password !== repeatPassword) {
-        throw new Error('Passwords do not match.');
+      // API call to your Django backend
+      const response = await fetch('http://127.0.0.1:8000/api/reset-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reset password.');
       }
 
-      // For demo purposes, we'll simulate a successful response
-      // In a real application, you would make an API call here
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return { success: true };
+      return response.json();
     },
     onSuccess: () => {
-      setErrorMessage('');
       setIsSuccessDialogOpen(true);
     },
     onError: (error) => {
+      console.warn('Error:', error.message);
       setErrorMessage(error.message);
     },
   });
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    // Client-side validation
+    const validationErrors = validatePassword(password);
+    if (validationErrors.length > 0) {
+      setErrorMessage(validationErrors.join(' '));
+      return;
+    }
+
+    if (!token) {
+      setErrorMessage('Invalid or missing token.');
+      return;
+    }
+    if (password !== repeatPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    mutation.mutate();
+  };
 
   return (
     <div
@@ -55,16 +106,12 @@ export default function ResetPasswordPage() {
         />
         <h1 className="font-bold text-[25px] mb-[20px]">Set a new password</h1>
         <p className="text-[16px] text-white/80 mb-[35px]">
-          Make sure your password is at least 8 characters with uppercase,
-          lowercase, number, and symbol.
+          Make sure your password is at least 8 characters with an uppercase,
+          lowercase, number, and symbol each.
         </p>
 
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setErrorMessage('');
-            mutation.mutate();
-          }}
+          onSubmit={onSubmit}
           className="w-full space-y-4 flex flex-col items-center"
         >
           {/* Password Field */}

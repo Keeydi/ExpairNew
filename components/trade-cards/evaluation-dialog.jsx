@@ -31,7 +31,7 @@ const StarLogo = () => (
   </svg>
 );
 
-export default function EvaluationDialog({ isOpen, onClose, tradeData }) {
+export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUpdate }) {
 
   const { data: session } = useSession();
 

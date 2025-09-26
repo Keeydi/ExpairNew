@@ -9,18 +9,22 @@ import os
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.conf import settings
-
+import json
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     profilePic = serializers.ImageField(required=False, allow_null=True)
     userVerifyId = serializers.FileField(required=False, allow_null=True)
+    links = serializers.JSONField(required=False)
 
     class Meta:
         model = User
         fields = [
             "first_name", "last_name", "bio",
-            "username", "email", "profilePic",
-            "userVerifyId",
+            "username", "email", "profilePic", 
+            'tot_XpPts',
+            "userVerifyId", 
+            "location",
+            "links",              
             "is_verified",
             "verification_status",
         ]
@@ -30,14 +34,52 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         if not f:
             return f
         ct = (getattr(f, "content_type", "") or "").lower()
-        # accept any image/* or a pdf
         if not (ct.startswith("image/") or ct == "application/pdf"):
             raise serializers.ValidationError("Only image files or PDF are allowed.")
         if getattr(f, "size", 0) > 15 * 1024 * 1024:
             raise serializers.ValidationError("File too large (max 15MB).")
         return f
+    
+    def validate_links(self, value):
+        import re
+        from urllib.parse import urlparse
+        import json
+
+        if not value:
+            return []
+
+        # If frontend sent JSON string, parse it
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except Exception:
+                value = [value]
+
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Links must be a list")
+
+        cleaned = []
+        for link in value:
+            if not link:
+                continue
+            s = str(link).strip()
+
+            # Add https:// if missing
+            if not re.match(r"^https?://", s, re.I):
+                s = "https://" + s
+
+            parsed = urlparse(s)
+            if not parsed.netloc:
+                raise serializers.ValidationError(f"Invalid link: {link}")
+            cleaned.append(s)
+
+        return cleaned
 
     def update(self, instance, validated_data):
+        if "links" in validated_data:
+            print("[DEBUG] validated_data['links'] =", validated_data["links"])
+        
+        print("[DEBUG update] validated_data keys:", validated_data.keys())
         # --- handle profilePic manually ---
         new_pic = validated_data.pop("profilePic", None)
         if new_pic:
@@ -47,7 +89,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             instance.profilePic = saved_path  # store string path in CharField
 
         # --- handle userVerifyId like before ---
-        new_file = validated_data.get("userVerifyId", None)
+        new_file = validated_data.pop("userVerifyId", None)
         if new_file:
             old = getattr(instance, "userVerifyId", None)
             if old:
@@ -58,9 +100,14 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             instance.userVerifyId = new_file
             instance.verification_status = VerificationStatus.PENDING
             instance.is_verified = False
+        
+        # --- handle links ---
+        if "links" in validated_data:
+            links = validated_data["links"] or []
+            instance.links = links  # ✅ store as JSON string in DB
 
         # apply the rest of the fields
-        for f in ("first_name", "last_name", "bio", "username", "email"):
+        for f in ("first_name", "last_name", "bio", "username", "email", "location"):
             if f in validated_data:
                 setattr(instance, f, validated_data[f])
 
@@ -145,49 +192,38 @@ class UserSkillBulkSerializer(serializers.Serializer):
         return data
     
 class UserCredentialSerializer(serializers.ModelSerializer):
-    # Include related field names for easier frontend consumption
     genskills_name = serializers.CharField(source='genskills_id.genCateg', read_only=True)
     specskills_name = serializers.CharField(source='specskills_id.specName', read_only=True)
-    
-    # Add skills field that returns an array
+
     skills = serializers.SerializerMethodField()
-    
-    # Map field names to match frontend expectations
-    title = serializers.CharField(source='credential_title', read_only=True)
-    org = serializers.CharField(source='issuer', read_only=True)
-    issueDate = serializers.DateField(source='issue_date', read_only=True)
-    expiryDate = serializers.DateField(source='expiry_date', read_only=True)
-    id = serializers.CharField(source='cred_id', read_only=True)
-    url = serializers.URLField(source='cred_url', read_only=True)
 
     class Meta:
         model = UserCredential
         fields = [
             'usercred_id',
-            'credential_title', 
-            'issuer', 
-            'issue_date', 
+            'user',
+            'credential_title',
+            'issuer',
+            'issue_date',
             'expiry_date',
-            'cred_id', 
+            'cred_id',
             'cred_url',
             'genskills_id',
             'specskills_id',
             'genskills_name',
             'specskills_name',
-            'title',     
-            'org',      
-            'issueDate',  
-            'expiryDate', 
-            'id',        
-            'url',        
-            'skills',     
-            'created_at'
+            'skills',
+            'created_at',
         ]
+        read_only_fields = ['user_id']
+
+    def get_specskills_names(self, obj):
+        return [s.specName for s in obj.specskills.all()]
 
     def get_skills(self, obj):
         """Return skills as an array for frontend compatibility"""
         skills = []
-        if hasattr(obj, 'specskills_id') and obj.specskills_id:
+        if obj.specskills_id and obj.specskills_id.specName:
             skills.append(obj.specskills_id.specName)
         return skills
 
@@ -202,7 +238,7 @@ class UserCredentialSerializer(serializers.ModelSerializer):
         """Ensure expiry date is after issue date if provided"""
         issue_date = data.get('issue_date')
         expiry_date = data.get('expiry_date')
-        
+
         if issue_date and expiry_date and expiry_date <= issue_date:
             raise serializers.ValidationError(
                 "Expiry date must be after the issue date."

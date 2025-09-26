@@ -5,64 +5,85 @@ import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-
 import Link from "next/link";
 import Image from "next/image";
 import { Inter } from "next/font/google";
 import { Icon } from "@iconify/react";
 import clsx from "clsx";
-import {ChevronDownIcon,
+import {
+  ChevronDownIcon,
   ChevronUpIcon,
   PencilIcon,
   Star,
   Heart,
   Flag,
 } from "lucide-react";
+import AnimatedLevelBar from "../../../../components/ui/animated-level-bar";
+import ProfileAvatar from "../../../../components/avatar";
 
 // ===== XP / Level  based on CUMULATIVE THRESHOLDS =====
 const LVL_CAPS = [
-  50, 75, 100, 125, 150,
-  175, 200, 230, 260, 300,
-  350, 400, 460, 520, 600, 700, 800, 900, 1000, 1100,
-  1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200, 3500,
-  3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000,
-  8500, 9000, 9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300,
-  15000, 15800, 16600, 17500, 18400, 19300, 20300, 21300, 22300, 23300,
-  24300, 25400, 26500, 27700, 28900, 30100, 31300, 32600, 33900, 35200,
-  36500, 37900, 39300, 40700, 42100, 43600, 45100, 46600, 48100, 49600,
-  51100, 52700, 54300, 55900, 57500, 59200, 60900, 62600, 64300, 66000,
-  67700, 69500, 71300, 73100, 74900, 76700, 78500, 80300, 82100, 85000
+  50, 75, 100, 125, 150, 175, 200, 230, 260, 300, 350, 400, 460, 520, 600, 700,
+  800, 900, 1000, 1100, 1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200,
+  3500, 3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000,
+  9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300, 15000, 15800, 16600,
+  17500, 18400, 19300, 20300, 21300, 22300, 23300, 24300, 25400, 26500, 27700,
+  28900, 30100, 31300, 32600, 33900, 35200, 36500, 37900, 39300, 40700, 42100,
+  43600, 45100, 46600, 48100, 49600, 51100, 52700, 54300, 55900, 57500, 59200,
+  60900, 62600, 64300, 66000, 67700, 69500, 71300, 73100, 74900, 76700, 78500,
+  80300, 82100, 85000,
 ];
 
-const clampLevel = (lvl) => Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
+const clampLevel = (lvl) =>
+  Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
 
 // Width of the current level band (XP range inside this level)
-const getLevelWidth = (lvl) => {
-  const idx = clampLevel(lvl) - 1;
-  const prev = idx === 0 ? 0 : LVL_CAPS[idx - 1];
-  return LVL_CAPS[idx] - prev;
-};
+const getLevelWidth = (lvl) => LVL_CAPS[clampLevel(lvl) - 1] || 1;
 
 // Derive level + in-level progress from lifetime total XP (tot_xppts)
 // Inclusive boundary: exact cap stays on the same level
+// Derive level + in-level progress from lifetime total XP (tot_xppts)
 const deriveFromTotalXp = (totalXp) => {
   const t = Math.max(0, Number(totalXp) || 0);
-  let idx = LVL_CAPS.findIndex((cap) => t <= cap);
-  if (idx === -1) idx = LVL_CAPS.length - 1; // clamp to 100
-  const level = idx + 1;
-  const prevCap = idx === 0 ? 0 : LVL_CAPS[idx - 1];
-  const currCap = LVL_CAPS[idx];
-  const xpInLevel = Math.max(0, t - prevCap);
-  const levelWidth = currCap - prevCap;
-  return { level, xpInLevel, levelWidth, prevCap, currCap };
+
+  let cumulative = 0;
+  let level = 1;
+
+  for (let i = 0; i < LVL_CAPS.length; i++) {
+    if (t < cumulative + LVL_CAPS[i]) {
+      // Still inside this level
+      const xpInLevel = t - cumulative;
+      const levelWidth = LVL_CAPS[i];
+      return {
+        level: i + 1,
+        xpInLevel,
+        levelWidth,
+        prevCap: cumulative,
+        currCap: cumulative + LVL_CAPS[i],
+      };
+    }
+    cumulative += LVL_CAPS[i];
+  }
+
+  // If XP exceeds all caps, clamp to max level
+  const lastLevel = LVL_CAPS.length;
+  return {
+    level: lastLevel,
+    xpInLevel: LVL_CAPS[lastLevel - 1],
+    levelWidth: LVL_CAPS[lastLevel - 1],
+    prevCap: cumulative - LVL_CAPS[lastLevel - 1],
+    currCap: cumulative,
+  };
 };
 
 // Helper function to format month input value to readable format
-const formatMonthYear = (monthValue) => {
-  if (!monthValue) return '';
-  const [year, month] = monthValue.split('-');
-  const date = new Date(year, month - 1);
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const formatMonthYear = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+  }); // e.g., "January 2024"
 };
 
 const safeFixed = (val, digits = 1) => {
@@ -79,13 +100,13 @@ const inter = Inter({ subsets: ["latin"] });
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { data: session, status} = useSession();
+  const { data: session, status } = useSession();
   console.log("Session data:", session);
   console.log("=== ADDED DEBUG ===");
   console.log("Access token present:", !!session?.access);
 
   const params = useParams();
-  
+
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true); // To handle loading state
 
@@ -97,30 +118,27 @@ export default function ProfilePage() {
     const raw = params?.userId;
     return Array.isArray(raw) ? raw[0] : raw || null;
   }, [params]);
-  
 
-    // For Basic Information editing
+  // For Basic Information editing
   const [basicInfoEditing, setBasicInfoEditing] = useState(false);
   const [editableFirstName, setEditableFirstName] = useState("");
-  const [editableLastName,  setEditableLastName]  = useState("");
-  const [editableBio,       setEditableBio]       = useState("");
+  const [editableLastName, setEditableLastName] = useState("");
+  const [editableBio, setEditableBio] = useState("");
 
   const [basicInfoSaving, setBasicInfoSaving] = useState(false);
-  const [basicInfoError,  setBasicInfoError]  = useState(null);
-
+  const [basicInfoError, setBasicInfoError] = useState(null);
 
   const [user, setUser] = useState({
     firstname: "",
     lastname: "",
     username: "",
     joined: "",
-    rating: 0,   
+    rating: 0,
     reviews: 0,
     level: 1,
     xpPoints: 0,
     tot_xppts: 0,
-      
-});
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -134,14 +152,14 @@ export default function ProfilePage() {
   const RAW_ORIGIN = RAW.replace(/\/api\/accounts\/?$/, "");
 
   const toAbsolute = (u) => {
-  if (!u) return null;
-  try {
-    // If u is already absolute, URL(u) keeps it; if it's relative, it resolves vs RAW_ORIGIN
-    return new URL(u, RAW_ORIGIN).href;
-  } catch {
-    return u;
-  }
-};
+    if (!u) return null;
+    try {
+      // If u is already absolute, URL(u) keeps it; if it's relative, it resolves vs RAW_ORIGIN
+      return new URL(u, RAW_ORIGIN).href;
+    } catch {
+      return u;
+    }
+  };
 
   useEffect(() => {
     console.log("=== USEEFFECT RUNNING ===");
@@ -163,13 +181,12 @@ export default function ProfilePage() {
     console.log("Session status:", status);
     console.log("Full session object:", JSON.stringify(session, null, 2));
 
-      const slugStr = String(slug).toLowerCase();
-      const myName =
-        String(
-          session?.username ||
-          session?.user?.username || // fallback if NextAuth keeps it under user
-          ""
-        ).toLowerCase();
+    const slugStr = String(slug).toLowerCase();
+    const myName = String(
+      session?.username ||
+        session?.user?.username || // fallback if NextAuth keeps it under user
+        ""
+    ).toLowerCase();
 
     const isNumeric = /^\d+$/.test(String(slug));
     const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
@@ -180,145 +197,172 @@ export default function ProfilePage() {
     }
 
     // if I'm viewing my own username, rewrite to /me
-    if (status === "authenticated" && myName && slugStr !== "me" && slugStr === myName) {
+    if (
+      status === "authenticated" &&
+      myName &&
+      slugStr !== "me" &&
+      slugStr === myName
+    ) {
       router.replace("/home/profile/me");
       return;
     }
 
-  let cancelled = false;
+    let cancelled = false;
 
-  (async () => {
-    try {
-      setError(null);
-      
-      let url;
-      if (slug === "me") {
-        url = `${API_BASE}/me/`;
-      } else if (isNumeric) {
-        url = `${API_BASE}/users/${slug}/`;
-      } else {
-        url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
-      }
+    (async () => {
+      try {
+        setError(null);
 
-      
+        let url;
+        if (slug === "me") {
+          url = `${API_BASE}/me/`;
+        } else if (isNumeric) {
+          url = `${API_BASE}/users/${slug}/`;
+        } else {
+          url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+        }
 
-      console.log("[profile] Making request to:", url);
+        console.log("[profile] Making request to:", url);
 
-      const headers = { 
-        Accept: "application/json",
-        'Content-Type': 'application/json'
-      };
-      
-      // Only add auth header if we have a token
-      if (session?.access) {
-        headers.Authorization = `Bearer ${session.access}`;
-        console.log("[profile] Authorization header set");
-      } else {
-        console.log("[profile] No access token available");
-      }
-      
-      // Make the request and log everything
-      const res = await fetch(url, {
-        method: 'GET',
-        headers,
-        credentials: "include",
-      });
-      
-      console.log("[profile] Response received:", res.status);
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("[profile] Request failed:", res.status, errorText);
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
-      }
-      
-      const data = await res.json();
-      console.log("[profile] Data received:", data);
-      
-      if (cancelled) return;
+        const headers = {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        };
 
-      // Map the user data
-      console.log("[profile] Mapping user data from:", data);
-      
-      setUser((prev) => ({
-        ...prev,
-        firstname: data.first_name || data.firstname || "",
-        lastname:  data.last_name  || data.lastname  || "",
-        username:  data.username   || "",
-        id: Number(data.user_id ?? data.id ?? (isNumeric ? slug : null)) || null,
-        profilePic: data.profilePic || null,
-        joined: data.created_at
-          ? new Date(data.created_at).toLocaleString(undefined, { month: "long", year: "numeric" })
-          : "",
-        rating: Number(data.avgStars ?? data.rating) || 0,
-        reviews: Number(data.ratingCount ?? data.reviews) || 0,
-        bio: data.bio || "",
-        is_verified: Boolean(data.is_verified),
-        verification_status: data.verification_status ?? null,
-        userVerifyId: data.userVerifyId || null,
-        
-        // XP calculation
-        ...(() => {
-          const totalXp = Number(data.tot_XpPts ?? data.tot_xppts ?? data.totalXp ?? 0);
-          const d = deriveFromTotalXp(totalXp);
-          return { 
-            tot_xppts: totalXp, 
-            level: d.level, 
-            xpPoints: d.xpInLevel, 
-            _lvlWidth: d.levelWidth 
-          };
-        })(),
-      }));
+        // Only add auth header if we have a token
+        if (session?.access) {
+          headers.Authorization = `Bearer ${session.access}`;
+          console.log("[profile] Authorization header set");
+        } else {
+          console.log("[profile] No access token available");
+        }
 
-      console.log("[profile] User state updated successfully");
+        // Make the request and log everything
+        const res = await fetch(url, {
+          method: "GET",
+          headers,
+          credentials: "include",
+        });
 
-      // Load interests and skills
-      const userId = isNumeric ? String(slug) : String(data.user_id ?? data.id ?? "");
-      if (userId) {
-        console.log("[profile] Loading interests and skills for user:", userId);
-        
-        const [iRes, sRes] = await Promise.all([
-          fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
-          fetch(`${API_BASE}/users/${userId}/skills/`,    { headers }),
-        ]);
-        
-        console.log("[profile] Interests response:", iRes.status);
-        console.log("[profile] Skills response:", sRes.status);
-        
-        if (iRes.ok && sRes.ok) {
-          const [iJson, sJson] = await Promise.all([iRes.json(), sRes.json()]);
-          
-          if (cancelled) return;
+        console.log("[profile] Response received:", res.status);
 
-          console.log("[profile] Interests data:", iJson);
-          console.log("[profile] Skills data:", sJson);
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("[profile] Request failed:", res.status, errorText);
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
 
-          const interests = Array.isArray(iJson?.interests) ? iJson.interests : [];
-          setUserInterests(interests);
-          setOriginalUserInterests(interests);
-          
-          if (sJson?.skill_groups && typeof sJson.skill_groups === 'object') {
-            const skillGroupsArray = Object.entries(sJson.skill_groups).map(([category, skills]) => ({
-              category,
-              skills: Array.isArray(skills) ? skills : []
-            }));
-            setSelectedSkillGroups(skillGroupsArray);
-            setOriginalSkillGroups(skillGroupsArray);
-          } else {
-            setSelectedSkillGroups([]);
-            setOriginalSkillGroups([]);
+        const data = await res.json();
+        console.log("[profile] Data received:", data);
+
+        if (cancelled) return;
+
+        // Map the user data
+        console.log("[profile] Mapping user data from:", data);
+
+        setUser((prev) => ({
+          ...prev,
+          firstname: data.first_name || data.firstname || "",
+          lastname: data.last_name || data.lastname || "",
+          username: data.username || "",
+          id:
+            Number(data.user_id ?? data.id ?? (isNumeric ? slug : null)) ||
+            null,
+          profilePic: data.profilePic || null,
+          joined: data.created_at
+            ? new Date(data.created_at).toLocaleString(undefined, {
+                month: "long",
+                year: "numeric",
+              })
+            : "",
+          rating: Number(data.avgStars ?? data.rating) || 0,
+          reviews: Number(data.ratingCount ?? data.reviews) || 0,
+          bio: data.bio || "",
+          is_verified: Boolean(data.is_verified),
+          verification_status: data.verification_status ?? null,
+          userVerifyId: data.userVerifyId || null,
+
+          // XP calculation
+          ...(() => {
+            const totalXp = Number(
+              data.tot_XpPts ?? data.tot_xppts ?? data.totalXp ?? 0
+            );
+            const d = deriveFromTotalXp(totalXp);
+            return {
+              tot_xppts: totalXp,
+              level: d.level,
+              xpPoints: d.xpInLevel,
+              _lvlWidth: d.levelWidth,
+            };
+          })(),
+        }));
+
+        setUserInterests(data.interests || []);
+        setOriginalUserInterests(data.interests || []);
+
+        console.log("[profile] User state updated successfully");
+
+        // Load interests and skills
+        const userId = isNumeric
+          ? String(slug)
+          : String(data.user_id ?? data.id ?? "");
+        if (userId) {
+          console.log(
+            "[profile] Loading interests and skills for user:",
+            userId
+          );
+
+          const [iRes, sRes] = await Promise.all([
+            fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
+            fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
+          ]);
+
+          console.log("[profile] Interests response:", iRes.status);
+          console.log("[profile] Skills response:", sRes.status);
+
+          if (iRes.ok && sRes.ok) {
+            const [iJson, sJson] = await Promise.all([
+              iRes.json(),
+              sRes.json(),
+            ]);
+
+            if (cancelled) return;
+
+            console.log("[profile] Interests data:", iJson);
+            console.log("[profile] Skills data:", sJson);
+
+            const interests = Array.isArray(iJson?.interests)
+              ? iJson.interests
+              : [];
+            setUserInterests(data.interests || []);
+            setOriginalUserInterests(data.interests || []);
+
+            if (sJson?.skill_groups && typeof sJson.skill_groups === "object") {
+              const skillGroupsArray = Object.entries(sJson.skill_groups).map(
+                ([category, skills]) => ({
+                  category,
+                  skills: Array.isArray(skills) ? skills : [],
+                })
+              );
+              setSelectedSkillGroups(skillGroupsArray);
+              setOriginalSkillGroups(skillGroupsArray);
+            } else {
+              setSelectedSkillGroups([]);
+              setOriginalSkillGroups([]);
+            }
           }
         }
+      } catch (e) {
+        console.error("[profile] Load error:", e);
+        console.error("[profile] Error stack:", e.stack);
+        setError(`Failed to load profile: ${e.message}`);
       }
-    } catch (e) {
-      console.error("[profile] Load error:", e);
-      console.error("[profile] Error stack:", e.stack);
-      setError(`Failed to load profile: ${e.message}`);
-    }
-  })();
+    })();
 
-  return () => { cancelled = true; };
-}, [slug, session?.access, status]);
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, session?.access, status]);
 
   useEffect(() => {
     if (!user) return;
@@ -330,121 +374,67 @@ export default function ProfilePage() {
     }
   }, [user, basicInfoEditing]);
 
-   // Fetch credentials from the API
+  // Fetch credentials from the API
   useEffect(() => {
-  // Only fetch if we have a user ID
-  if (!user?.id) return;
+    // Only fetch if we have a user ID
+    if (!user?.id) return;
 
-  const fetchCredentials = async () => {
-    setCredentialsLoading(true);
-    setCredentialsError(null);
-    
-    try {
-      const headers = { 
-        Accept: "application/json",
-        'Content-Type': 'application/json'
-      };
-      
-      // Add auth header if available
-      if (session?.access) {
-        headers.Authorization = `Bearer ${session.access}`;
+    const fetchCredentials = async () => {
+      setCredentialsLoading(true);
+      setCredentialsError(null);
+
+      try {
+        const headers = {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        };
+
+        // Add auth header if available
+        if (session?.access) {
+          headers.Authorization = `Bearer ${session.access}`;
+        }
+
+        // Fix: Use user.id instead of user object, and use consistent API_BASE
+        const response = await fetch(
+          `${API_BASE}/users/${user.id}/credentials/`,
+          {
+            method: "GET",
+            headers,
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Failed to fetch credentials (${response.status}): ${errorText}`
+          );
+        }
+
+        const data = await response.json();
+        console.log("[credentials] Data received:", data);
+
+        // Handle different possible response structures
+        const credentials = data.credentials || data.results || data || [];
+        setUserCredentials(Array.isArray(credentials) ? credentials : []);
+      } catch (error) {
+        console.error("[credentials] Fetch error:", error);
+        setCredentialsError(error.message || "Failed to load credentials");
+        setUserCredentials([]); // Reset to empty array on error
+      } finally {
+        setCredentialsLoading(false);
       }
+    };
 
-      // Fix: Use user.id instead of user object, and use consistent API_BASE
-      const response = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
-        method: 'GET',
-        headers,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch credentials (${response.status}): ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log("[credentials] Data received:", data);
-
-      // Handle different possible response structures
-      const credentials = data.credentials || data.results || data || [];
-      setUserCredentials(Array.isArray(credentials) ? credentials : []);
-
-    } catch (error) {
-      console.error("[credentials] Fetch error:", error);
-      setCredentialsError(error.message || "Failed to load credentials");
-      setUserCredentials([]); // Reset to empty array on error
-    } finally {
-      setCredentialsLoading(false);
-    }
-  };
-
-  fetchCredentials();
-}, [user?.id, session?.access]);
-
+    fetchCredentials();
+  }, [user?.id, session?.access]);
 
   const [showAllCreds, setShowAllCreds] = useState(false);
-  const [reviews, setReviews] = useState([
-    {
-      requester: "David Chen",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "May 12",
-      requestTitle: "Corporate Training",
-      offerTitle: "Gardening",
-      rating: 5.0,
-      reviewDescription:
-        "John was patient and clear in his corporate training sessions. He adapted well to my learning pace and made the experience enjoyable. I learned a lot thanks to his help.",
-      likes: 42,
-    },
-    {
-      requester: "Sarah Kim",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "June 10",
-      requestTitle: "Personal Training",
-      offerTitle: "Graphic Design",
-      rating: 4.5,
-      reviewDescription:
-        "John was a dedicated personal trainer who tailored workouts to my needs. He was punctual, encouraging, and professional throughout our sessions. I highly recommend him for anyone looking to improve their fitness.",
-      likes: 34,
-    },
-    {
-      requester: "Michael Lee",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "June 2",
-      requestTitle: "Illustration",
-      offerTitle: "Web Development",
-      rating: 4.0,
-      reviewDescription:
-        "John provided excellent illustration work for my website graphics. He was responsive to feedback and delivered quality designs on time. It was a pleasure collaborating with him.",
-      likes: 21,
-    },
-    {
-      requester: "Priya Patel",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "May 20",
-      requestTitle: "Tutoring",
-      offerTitle: "Language Instruction",
-      rating: 3.5,
-      reviewDescription:
-        "John helped me with tutoring sessions and was very organized. There were a few small misunderstandings initially, but he was quick to address them. Overall, a reliable trade partner.",
-      likes: 15,
-    },
-    {
-      requester: "Mark Thompson",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "April 15",
-      requestTitle: "Event Planning",
-      offerTitle: "Handyman Services",
-      rating: 4.2,
-      reviewDescription:
-        "John was very helpful setting up for my event and offered useful handyman services on site. He was punctual and easy to communicate with. I’d gladly trade with him again.",
-      likes: 18,
-    },
-  ]);
 
-  const handleDeleteReview = (reviewToDelete) => {
-    // Filter out the review to be deleted and update the state
-    setReviews(reviews.filter((review) => review !== reviewToDelete));
-  };
+
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState(null);
 
   const toggleCategory = (index) => {
     setExpanded((prev) => {
@@ -457,15 +447,78 @@ export default function ProfilePage() {
   // Determine if viewing own profile
   const isOwnProfile = true;
 
-  // Mock data for review ratings to match a 4.3 average for 25 reviews
-  const reviewRatings = {
-    5: 12,
-    4: 10,
-    3: 2,
-    2: 1,
-    1: 0,
-    0: 0,
+  const reviewRatings = useMemo(() => {
+  const ratings = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, 0: 0 };
+  reviews.forEach(review => {
+    const roundedRating = Math.floor(review.rating);
+    if (ratings.hasOwnProperty(roundedRating)) {
+      ratings[roundedRating]++;
+    }
+  });
+  return ratings;
+}, [reviews]);
+
+useEffect(() => {
+  if (!user?.id) return;
+
+  const fetchReviews = async () => {
+    setReviewsLoading(true);
+    setReviewsError(null);
+
+    try {
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+      }
+
+      const response = await fetch(
+        `${API_BASE}/users/${user.id}/reviews/`, // You'll need to create this endpoint
+        {
+          method: "GET",
+          headers,
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch reviews (${response.status})`);
+      }
+
+      const data = await response.json();
+      console.log("[reviews] Data received:", data);
+
+      // Transform the backend data to match your frontend format
+      const transformedReviews = (data.reviews || []).map(review => ({
+        requester: `${review.reviewer_first_name} ${review.reviewer_last_name}`.trim() || review.reviewer_username,
+        tradePartner: `${user.firstname} ${user.lastname}`.trim() || user.username,
+        tradeCompletionDate: new Date(review.completed_at).toLocaleDateString("en-US", { 
+          month: "short", 
+          day: "numeric" 
+        }),
+        requestTitle: review.request_title,
+        offerTitle: review.offer_title,
+        rating: review.rating,
+        reviewDescription: review.review_description,
+        likes: review.likes_count || 0,
+        trade_id: review.trade_id,
+      }));
+
+      setReviews(transformedReviews);
+    } catch (error) {
+      console.error("[reviews] Fetch error:", error);
+      setReviewsError(error.message || "Failed to load reviews");
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
   };
+
+  fetchReviews();
+}, [user?.id, session?.access]);
 
   // Function to render stars based on a rating, now using filled and outlined stars
   const renderStars = (rating) => {
@@ -650,16 +703,20 @@ export default function ProfilePage() {
   const [idPreviewUrl, setIdPreviewUrl] = useState(null); // local preview URL for images
 
   useEffect(() => {
-  if (!user) return;
-  const s = (
-    user.verification_status
-      ? user.verification_status
-      : (user.is_verified ? "VERIFIED" : (user.userVerifyId ? "PENDING" : "UNVERIFIED"))
-  ).toLowerCase();
-  setVerificationStatus(s);
+    if (!user) return;
+    const s = (
+      user.verification_status
+        ? user.verification_status
+        : user.is_verified
+        ? "VERIFIED"
+        : user.userVerifyId
+        ? "PENDING"
+        : "UNVERIFIED"
+    ).toLowerCase();
+    setVerificationStatus(s);
   }, [user?.verification_status, user?.is_verified, user?.userVerifyId]);
 
- // call this when input changes
+  // call this when input changes
   const handleIdFileChange = (file) => {
     if (!file) {
       setIdFile(null);
@@ -677,64 +734,69 @@ export default function ProfilePage() {
       setIdPreviewUrl(null);
     }
   };
-  
+
   async function handleSubmitVerification() {
-  try {
-    if (!idFile) {
-      alert("Please choose a file first.");
-      return;
+    try {
+      if (!idFile) {
+        alert("Please choose a file first.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("userVerifyId", idFile);
+      if (user?.id) fd.append("user_id", String(user.id)); // works even without auth cookie
+
+      const headers = { Accept: "application/json" };
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+      }
+
+      const res = await fetch(`${API_BASE}/me/`, {
+        method: "PATCH",
+        credentials: "include",
+        headers, // DO NOT set Content-Type when sending FormData
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Upload failed (${res.status}): ${txt.slice(0, 120)}`);
+      }
+
+      const updated = await res.json();
+      // reflect backend response in local state
+      setUser((prev) => ({
+        ...prev,
+        userVerifyId: updated.userVerifyId || prev.userVerifyId || null,
+        is_verified: Boolean(updated.is_verified),
+        verification_status:
+          updated.verification_status ?? prev?.verification_status ?? null,
+      }));
+
+      // frontend UX: immediately show "pending"
+      setVerificationStatus("pending");
+
+      setVerificationStatus(
+        (
+          updated.verification_status ||
+          (updated.is_verified
+            ? "VERIFIED"
+            : updated.userVerifyId
+            ? "PENDING"
+            : "UNVERIFIED")
+        ).toLowerCase()
+      );
+
+      setShowVerificationPopup(false);
+      setIdFile(null);
+      setIdPreviewUrl(null);
+    } catch (e) {
+      console.error("[verify upload] error", e);
+      alert(e.message || "Upload failed.");
     }
-    const fd = new FormData();
-    fd.append("userVerifyId", idFile);
-    if (user?.id) fd.append("user_id", String(user.id)); // works even without auth cookie
-
-    const headers = { Accept: "application/json" };
-    if (session?.access) {
-      headers.Authorization = `Bearer ${session.access}`;
-    }
-
-    const res = await fetch(`${API_BASE}/me/`, {
-      method: "PATCH",
-      credentials: "include",
-      headers, // DO NOT set Content-Type when sending FormData
-      body: fd,
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Upload failed (${res.status}): ${txt.slice(0, 120)}`);
-    }
-
-    const updated = await res.json();
-    // reflect backend response in local state
-    setUser(prev => ({
-      ...prev,
-      userVerifyId: updated.userVerifyId || prev.userVerifyId || null,
-      is_verified: Boolean(updated.is_verified),
-      verification_status: updated.verification_status ?? prev?.verification_status ?? null,
-    }));
-
-    // frontend UX: immediately show "pending"
-    setVerificationStatus("pending");
-
-    setVerificationStatus(
-      (updated.verification_status ||
-        (updated.is_verified ? "VERIFIED" : (updated.userVerifyId ? "PENDING" : "UNVERIFIED"))
-      ).toLowerCase()
-    );
-
-    setShowVerificationPopup(false);
-    setIdFile(null);
-    setIdPreviewUrl(null);
-  } catch (e) {
-    console.error("[verify upload] error", e);
-    alert(e.message || "Upload failed.");
   }
-}
-
 
   // ----------------------------
-  // Skills Editing 
+  // Skills Editing
   // ----------------------------
 
   const [skillsEditing, setSkillsEditing] = useState(false);
@@ -754,27 +816,31 @@ export default function ProfilePage() {
   const getSkillsDifferences = () => {
     const currentSkillsFlat = new Set();
     const originalSkillsFlat = new Set();
-    
+
     // Flatten current skills into a Set of "category|skill" strings
-    selectedSkillGroups.forEach(group => {
-      group.skills.forEach(skill => {
+    selectedSkillGroups.forEach((group) => {
+      group.skills.forEach((skill) => {
         currentSkillsFlat.add(`${group.category}|${skill}`);
       });
     });
-    
+
     // Flatten original skills
-    originalSkillGroups.forEach(group => {
-      group.skills.forEach(skill => {
+    originalSkillGroups.forEach((group) => {
+      group.skills.forEach((skill) => {
         originalSkillsFlat.add(`${group.category}|${skill}`);
       });
     });
-    
+
     // Find skills to add (in current but not in original)
-    const skillsToAdd = [...currentSkillsFlat].filter(skill => !originalSkillsFlat.has(skill));
-    
+    const skillsToAdd = [...currentSkillsFlat].filter(
+      (skill) => !originalSkillsFlat.has(skill)
+    );
+
     // Find skills to remove (in original but not in current)
-    const skillsToRemove = [...originalSkillsFlat].filter(skill => !currentSkillsFlat.has(skill));
-    
+    const skillsToRemove = [...originalSkillsFlat].filter(
+      (skill) => !currentSkillsFlat.has(skill)
+    );
+
     return { skillsToAdd, skillsToRemove };
   };
 
@@ -783,15 +849,16 @@ export default function ProfilePage() {
     try {
       const headers = { Accept: "application/json" };
       if (session?.access) headers.Authorization = `Bearer ${session.access}`;
-      
+
       const res = await fetch(`${API_BASE}/skills/general/`, { headers });
-      if (!res.ok) throw new Error(`Failed to fetch general skills: ${res.status}`);
-      
+      if (!res.ok)
+        throw new Error(`Failed to fetch general skills: ${res.status}`);
+
       const generalSkills = await res.json();
-      const skill = generalSkills.find(s => s.genCateg === categoryName);
+      const skill = generalSkills.find((s) => s.genCateg === categoryName);
       return skill ? skill.genSkills_id : null;
     } catch (e) {
-      console.error('[getGeneralSkillId] error', e);
+      console.error("[getGeneralSkillId] error", e);
       throw e;
     }
   };
@@ -800,34 +867,41 @@ export default function ProfilePage() {
   const getSpecificSkillIds = async (categoryName, skillNames) => {
     try {
       const genSkillId = await getGeneralSkillId(categoryName);
-      if (!genSkillId) throw new Error(`General skill not found: ${categoryName}`);
-      
+      if (!genSkillId)
+        throw new Error(`General skill not found: ${categoryName}`);
+
       const headers = { Accept: "application/json" };
       if (session?.access) headers.Authorization = `Bearer ${session.access}`;
-      
-      const res = await fetch(`${API_BASE}/skills/specific/?genskills_id=${genSkillId}`, { headers });
-      if (!res.ok) throw new Error(`Failed to fetch specific skills: ${res.status}`);
-      
+
+      const res = await fetch(
+        `${API_BASE}/skills/specific/?genskills_id=${genSkillId}`,
+        { headers }
+      );
+      if (!res.ok)
+        throw new Error(`Failed to fetch specific skills: ${res.status}`);
+
       const specificSkills = await res.json();
       const skillIds = [];
-      
-      skillNames.forEach(skillName => {
-        const skill = specificSkills.find(s => s.specName === skillName);
+
+      skillNames.forEach((skillName) => {
+        const skill = specificSkills.find((s) => s.specName === skillName);
         if (skill) {
           skillIds.push(skill.specSkills_id);
         } else {
-          console.warn(`Specific skill not found: ${skillName} in ${categoryName}`);
+          console.warn(
+            `Specific skill not found: ${skillName} in ${categoryName}`
+          );
         }
       });
-      
+
       return skillIds;
     } catch (e) {
-      console.error('[getSpecificSkillIds] error', e);
+      console.error("[getSpecificSkillIds] error", e);
       throw e;
     }
   };
 
-    // add/remove category (removes whole group)
+  // add/remove category (removes whole group)
   const removeSkillCategory = (category) => {
     setSelectedSkillGroups((prev) =>
       prev.filter((g) => g.category !== category)
@@ -886,129 +960,130 @@ export default function ProfilePage() {
     setShowAddSkillForm(false);
   };
 
-
   // Main save function
-const handleSaveSkills = async () => {
-  if (!user?.id) {
-    setSkillsError("User ID not found");
-    return;
-  }
-
-  setSkillsSaving(true);
-  setSkillsError(null);
-  
-  try {
-    const { skillsToAdd, skillsToRemove } = getSkillsDifferences();
-    
-    const headers = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    };
-    if (session?.access) {
-      headers.Authorization = `Bearer ${session.access}`;
+  const handleSaveSkills = async () => {
+    if (!user?.id) {
+      setSkillsError("User ID not found");
+      return;
     }
 
-    // Remove skills first
-    if (skillsToRemove.length > 0) {
-      // Group skills to remove by category
-      const removeByCategory = {};
-      
-      for (const skillStr of skillsToRemove) {
-        const [category, skillName] = skillStr.split('|');
-        if (!removeByCategory[category]) {
-          removeByCategory[category] = [];
-        }
-        removeByCategory[category].push(skillName);
+    setSkillsSaving(true);
+    setSkillsError(null);
+
+    try {
+      const { skillsToAdd, skillsToRemove } = getSkillsDifferences();
+
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
       }
-      
-      // Get skill IDs and remove them
-      for (const [category, skillNames] of Object.entries(removeByCategory)) {
-        try {
-          const skillIds = await getSpecificSkillIds(category, skillNames);
-          
-          if (skillIds.length > 0) {
-            const deleteRes = await fetch(`${API_BASE}/users/${user.id}/skills/`, {
-              method: 'DELETE',
-              headers,
-              body: JSON.stringify({
-                specskills_ids: skillIds
-              })
-            });
-            
-            if (!deleteRes.ok) {
-              const errorText = await deleteRes.text();
-              throw new Error(`Failed to delete skills: ${errorText}`);
+
+      // Remove skills first
+      if (skillsToRemove.length > 0) {
+        // Group skills to remove by category
+        const removeByCategory = {};
+
+        for (const skillStr of skillsToRemove) {
+          const [category, skillName] = skillStr.split("|");
+          if (!removeByCategory[category]) {
+            removeByCategory[category] = [];
+          }
+          removeByCategory[category].push(skillName);
+        }
+
+        // Get skill IDs and remove them
+        for (const [category, skillNames] of Object.entries(removeByCategory)) {
+          try {
+            const skillIds = await getSpecificSkillIds(category, skillNames);
+
+            if (skillIds.length > 0) {
+              const deleteRes = await fetch(
+                `${API_BASE}/users/${user.id}/skills/`,
+                {
+                  method: "DELETE",
+                  headers,
+                  body: JSON.stringify({
+                    specskills_ids: skillIds,
+                  }),
+                }
+              );
+
+              if (!deleteRes.ok) {
+                const errorText = await deleteRes.text();
+                throw new Error(`Failed to delete skills: ${errorText}`);
+              }
             }
+          } catch (e) {
+            console.error(`Error removing skills from ${category}:`, e);
+            throw e;
           }
-        } catch (e) {
-          console.error(`Error removing skills from ${category}:`, e);
-          throw e;
         }
       }
-    }
 
-    // Add new skills
-    if (skillsToAdd.length > 0) {
-      // Group skills to add by category
-      const addByCategory = {};
-      
-      for (const skillStr of skillsToAdd) {
-        const [category, skillName] = skillStr.split('|');
-        if (!addByCategory[category]) {
-          addByCategory[category] = [];
-        }
-        addByCategory[category].push(skillName);
-      }
-      
-      // Build the payload for adding skills
-      const items = [];
-      
-      for (const [category, skillNames] of Object.entries(addByCategory)) {
-        try {
-          const genSkillId = await getGeneralSkillId(category);
-          if (genSkillId) {
-            items.push({
-              genskills_id: genSkillId,
-              spec_names: skillNames
-            });
+      // Add new skills
+      if (skillsToAdd.length > 0) {
+        // Group skills to add by category
+        const addByCategory = {};
+
+        for (const skillStr of skillsToAdd) {
+          const [category, skillName] = skillStr.split("|");
+          if (!addByCategory[category]) {
+            addByCategory[category] = [];
           }
-        } catch (e) {
-          console.error(`Error preparing skills for ${category}:`, e);
-          throw e;
+          addByCategory[category].push(skillName);
         }
-      }
-      
-      if (items.length > 0) {
-        const addRes = await fetch(`${API_BASE}/skills/user/`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            user_id: user.id,
-            items: items
-          })
-        });
-        
-        if (!addRes.ok) {
-          const errorText = await addRes.text();
-          throw new Error(`Failed to add skills: ${errorText}`);
-        }
-      }
-    }
 
-    // Update original skills to current state (successful save)
-    setOriginalSkillGroups([...selectedSkillGroups]);
-    setSkillsEditing(false);
-    setShowAddSkillForm(false);
-    
-    console.log('Skills saved successfully');
-    
-  } catch (e) {
-    console.error('[handleSaveSkills] error', e);
-    setSkillsError(e.message || "Failed to save skills");
-  } finally {
-    setSkillsSaving(false);
-  }
-};
+        // Build the payload for adding skills
+        const items = [];
+
+        for (const [category, skillNames] of Object.entries(addByCategory)) {
+          try {
+            const genSkillId = await getGeneralSkillId(category);
+            if (genSkillId) {
+              items.push({
+                genskills_id: genSkillId,
+                spec_names: skillNames,
+              });
+            }
+          } catch (e) {
+            console.error(`Error preparing skills for ${category}:`, e);
+            throw e;
+          }
+        }
+
+        if (items.length > 0) {
+          const addRes = await fetch(`${API_BASE}/skills/user/`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              user_id: user.id,
+              items: items,
+            }),
+          });
+
+          if (!addRes.ok) {
+            const errorText = await addRes.text();
+            throw new Error(`Failed to add skills: ${errorText}`);
+          }
+        }
+      }
+
+      // Update original skills to current state (successful save)
+      setOriginalSkillGroups([...selectedSkillGroups]);
+      setSkillsEditing(false);
+      setShowAddSkillForm(false);
+
+      console.log("Skills saved successfully");
+    } catch (e) {
+      console.error("[handleSaveSkills] error", e);
+      setSkillsError(e.message || "Failed to save skills");
+    } finally {
+      setSkillsSaving(false);
+    }
+  };
 
   // Cancel function to revert changes
   const handleCancelSkills = () => {
@@ -1023,20 +1098,20 @@ const handleSaveSkills = async () => {
   // Check if there are unsaved changes
   const hasUnsavedSkillsChanges = () => {
     if (selectedSkillGroups.length !== originalSkillGroups.length) return true;
-    
+
     const { skillsToAdd, skillsToRemove } = getSkillsDifferences();
     return skillsToAdd.length > 0 || skillsToRemove.length > 0;
   };
 
   // ----------------------------
-  // Interests Editing 
+  // Interests Editing
   // ----------------------------
 
   // Interests editing state
   const [interestsEditing, setInterestsEditing] = useState(false);
   const [interestsSaving, setInterestsSaving] = useState(false);
   const [interestsError, setInterestsError] = useState(null);
-  
+
   // Track original interests for comparison and cancel functionality
   const [originalUserInterests, setOriginalUserInterests] = useState([]);
   const [userInterests, setUserInterests] = useState([]);
@@ -1047,36 +1122,41 @@ const handleSaveSkills = async () => {
 
   // Helper function to find differences between original and current interests
   const getInterestsDifferences = () => {
-  const currentSet = new Set(userInterests);
-  const originalSet = new Set(originalUserInterests);
-  
-  // Find interests to add (in current but not in original)
-  const interestsToAdd = userInterests.filter(interest => !originalSet.has(interest));
-  
-  // Find interests to remove (in original but not in current)
-  const interestsToRemove = originalUserInterests.filter(interest => !currentSet.has(interest));
-  
-  return { interestsToAdd, interestsToRemove };
-};
+    const currentSet = new Set(userInterests);
+    const originalSet = new Set(originalUserInterests);
+
+    // Find interests to add (in current but not in original)
+    const interestsToAdd = userInterests.filter(
+      (interest) => !originalSet.has(interest)
+    );
+
+    // Find interests to remove (in original but not in current)
+    const interestsToRemove = originalUserInterests.filter(
+      (interest) => !currentSet.has(interest)
+    );
+
+    return { interestsToAdd, interestsToRemove };
+  };
 
   // Function to get general skill ID from category name
   const getGeneralSkillIdForInterest = async (categoryName) => {
     try {
       const headers = { Accept: "application/json" };
       if (session?.access) headers.Authorization = `Bearer ${session.access}`;
-      
+
       const res = await fetch(`${API_BASE}/skills/general/`, { headers });
-      if (!res.ok) throw new Error(`Failed to fetch general skills: ${res.status}`);
-      
+      if (!res.ok)
+        throw new Error(`Failed to fetch general skills: ${res.status}`);
+
       const generalSkills = await res.json();
-      const skill = generalSkills.find(s => s.genCateg === categoryName);
+      const skill = generalSkills.find((s) => s.genCateg === categoryName);
       return skill ? skill.genSkills_id : null;
     } catch (e) {
-      console.error('[getGeneralSkillIdForInterest] error', e);
+      console.error("[getGeneralSkillIdForInterest] error", e);
       throw e;
     }
   };
-  
+
   // Interests add/remove
   const removeInterest = (interest) => {
     setUserInterests((prev) => prev.filter((i) => i !== interest));
@@ -1089,6 +1169,7 @@ const handleSaveSkills = async () => {
   };
 
   // Main save function for interests (updated to use combined endpoint)
+  // Main save function for interests
   const handleSaveInterests = async () => {
     if (!user?.id) {
       setInterestsError("User ID not found");
@@ -1097,10 +1178,10 @@ const handleSaveSkills = async () => {
 
     setInterestsSaving(true);
     setInterestsError(null);
-    
+
     try {
       const { interestsToAdd, interestsToRemove } = getInterestsDifferences();
-      
+
       const headers = {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -1109,11 +1190,10 @@ const handleSaveSkills = async () => {
         headers.Authorization = `Bearer ${session.access}`;
       }
 
-      // Remove interests first (using the same endpoint with DELETE method)
+      // Remove interests first
       if (interestsToRemove.length > 0) {
-        // Get general skill IDs for interests to remove
         const removeGenSkillIds = [];
-        
+
         for (const interest of interestsToRemove) {
           try {
             const genSkillId = await getGeneralSkillIdForInterest(interest);
@@ -1121,54 +1201,60 @@ const handleSaveSkills = async () => {
               removeGenSkillIds.push(genSkillId);
             }
           } catch (e) {
-            console.error(`Error getting ID for interest to remove ${interest}:`, e);
+            console.error(
+              `Error getting ID for interest to remove ${interest}:`,
+              e
+            );
           }
         }
-        
+
         if (removeGenSkillIds.length > 0) {
-          const deleteRes = await fetch(`${API_BASE}/users/${user.id}/interests/`, {
-            method: 'DELETE',
-            headers,
-            body: JSON.stringify({
-              genSkills_ids: removeGenSkillIds
-            })
-          });
-          
-          if (!deleteRes.ok) {
-            const errorText = await deleteRes.text();
+          const removeRes = await fetch(
+            `${API_BASE}/users/${user.id}/interests/`,
+            {
+              method: "DELETE",
+              headers,
+              body: JSON.stringify({ genSkills_ids: removeGenSkillIds }),
+            }
+          );
+
+          if (!removeRes.ok) {
+            const errorText = await removeRes.text();
             throw new Error(`Failed to remove interests: ${errorText}`);
           }
         }
       }
 
-      // Add new interests (using the same endpoint with POST method)
+      // Add new interests
       if (interestsToAdd.length > 0) {
-        // Get general skill IDs for the new interests
         const addGenSkillIds = [];
-        
+
         for (const interest of interestsToAdd) {
           try {
             const genSkillId = await getGeneralSkillIdForInterest(interest);
             if (genSkillId) {
               addGenSkillIds.push(genSkillId);
             } else {
-              console.warn(`General skill ID not found for interest: ${interest}`);
+              console.warn(
+                `General skill ID not found for interest: ${interest}`
+              );
             }
           } catch (e) {
             console.error(`Error getting ID for interest ${interest}:`, e);
             throw e;
           }
         }
-        
+
         if (addGenSkillIds.length > 0) {
-          const addRes = await fetch(`${API_BASE}/users/${user.id}/interests/`, {
-            method: 'POST',
+          const addRes = await fetch(`${API_BASE}/users/add_interests/`, {
+            method: "POST",
             headers,
             body: JSON.stringify({
-              genSkills_ids: addGenSkillIds
-            })
+              user_id: user.id,
+              genSkills_ids: addGenSkillIds,
+            }),
           });
-          
+
           if (!addRes.ok) {
             const errorText = await addRes.text();
             throw new Error(`Failed to add interests: ${errorText}`);
@@ -1180,11 +1266,10 @@ const handleSaveSkills = async () => {
       setOriginalUserInterests([...userInterests]);
       setInterestsEditing(false);
       setShowAddInterestForm(false);
-      
-      console.log('Interests saved successfully');
-      
+
+      console.log("Interests saved successfully");
     } catch (e) {
-      console.error('[handleSaveInterests] error', e);
+      console.error("[handleSaveInterests] error", e);
       setInterestsError(e.message || "Failed to save interests");
     } finally {
       setInterestsSaving(false);
@@ -1199,10 +1284,9 @@ const handleSaveSkills = async () => {
   };
 
   const hasUnsavedInterestChanges = () => {
-  const { interestsToAdd, interestsToRemove } = getInterestsDifferences();
-  return interestsToAdd.length > 0 || interestsToRemove.length > 0;
-};
-
+    const { interestsToAdd, interestsToRemove } = getInterestsDifferences();
+    return interestsToAdd.length > 0 || interestsToRemove.length > 0;
+  };
 
   // ----------------------------
   // existing memoized reviews etc
@@ -1228,7 +1312,7 @@ const handleSaveSkills = async () => {
   };
 
   // ----------------------------
-  // credentials Editing 
+  // credentials Editing
   // ----------------------------
   const [userCredentials, setUserCredentials] = useState([]);
 
@@ -1253,431 +1337,453 @@ const handleSaveSkills = async () => {
   };
 
   const EditCredentialsPage = ({ credentialsToEdit, onCancel, onSave }) => {
-  // Main Categories and Subcategories data
-  const mainCategories = [
-    "Creative & Design",
-    "Technical & IT",
-    "Business & Management",
-    "Communication & Interpersonal",
-    "Health & Wellness",
-    "Education & Training",
-    "Home & Lifestyle",
-    "Handiwork & Maintenance",
-    "Digital & Social Media",
-    "Language & Translation",
-    "Financial & Accounting",
-    "Sports & Fitness",
-    "Arts & Performance",
-    "Culture & Diversity",
-    "Research & Critical Thinking",
-  ];
+    // Main Categories and Subcategories data
+    const mainCategories = [
+      "Creative & Design",
+      "Technical & IT",
+      "Business & Management",
+      "Communication & Interpersonal",
+      "Health & Wellness",
+      "Education & Training",
+      "Home & Lifestyle",
+      "Handiwork & Maintenance",
+      "Digital & Social Media",
+      "Language & Translation",
+      "Financial & Accounting",
+      "Sports & Fitness",
+      "Arts & Performance",
+      "Culture & Diversity",
+      "Research & Critical Thinking",
+    ];
 
-  const subcategories = {
-    "Creative & Design": [
-      "Graphic Design",
-      "Photography",
-      "Video Editing",
-      "Illustration",
-      "Animation",
-    ],
-    "Technical & IT": [
-      "Web Development",
-      "Software Development",
-      "IT Support",
-      "Network Administration",
-      "Cybersecurity",
-    ],
-    "Business & Management": [
-      "Project Management",
-      "Business Consulting",
-      "Human Resources",
-      "Operations Management",
-      "Marketing Strategy",
-    ],
-    "Communication & Interpersonal": [
-      "Customer Service",
-      "Public Relations",
-      "Copywriting",
-      "Translation",
-      "Social Media Management",
-    ],
-    "Health & Wellness": [
-      "Nutrition Coaching",
-      "Personal Training",
-      "Mental Health Counseling",
-      "Yoga Instruction",
-      "Physical Therapy",
-    ],
-    "Education & Training": [
-      "Tutoring",
-      "Language Instruction",
-      "Corporate Training",
-      "Curriculum Development",
-      "Test Preparation",
-    ],
-    "Home & Lifestyle": [
-      "Interior Decorating",
-      "Cleaning Services",
-      "Gardening",
-      "Event Planning",
-      "Personal Assistance",
-    ],
-    "Handiwork & Maintenance": [
-      "Furniture Assembly",
-      "Sewing & Alterations",
-      "Handyman Services",
-      "Painting & Decorating",
-      "Crafting",
-    ],
-    "Digital & Social Media": [
-      "Social Media Management",
-      "Content Creation",
-      "SEO",
-      "Digital Advertising",
-      "Email Marketing",
-    ],
-    "Language & Translation": [
-      "Translation",
-      "Interpretation",
-      "Language Tutoring",
-      "Transcription",
-      "Localization",
-    ],
-    "Financial & Accounting": [
-      "Bookkeeping",
-      "Tax Preparation",
-      "Financial Planning",
-      "Payroll Services",
-      "Auditing",
-    ],
-    "Sports & Fitness": [
-      "Personal Training",
-      "Group Fitness Instruction",
-      "Sports Coaching",
-      "Nutrition for Athletes",
-      "Physical Therapy",
-    ],
-    "Arts & Performance": [
-      "Music Lessons",
-      "Dance Instruction",
-      "Acting Coaching",
-      "Visual Arts",
-      "Creative Writing",
-    ],
-    "Culture & Diversity": [
-      "Diversity Training",
-      "Cultural Consulting",
-      "Language & Cultural Exchange",
-      "Community Outreach",
-      "Inclusion Workshops",
-    ],
-    "Research & Critical Thinking": [
-      "Market Research",
-      "Data Analysis",
-      "Academic Research",
-      "Competitive Analysis",
-      "Strategic Planning",
-    ],
-  };
-
-  const defaultCredential = {
-    title: "",
-    org: "",
-    issueDate: "",
-    expiryDate: "",
-    id: "",
-    url: "",
-    skills: [],
-    skillCategory: "",
-  };
-
-  // Initialize state with the credentials data passed as a prop, adding a skillCategory field
-  const [formData, setFormData] = useState(() => 
-  Array.isArray(credentialsToEdit) && credentialsToEdit ? 
-    credentialsToEdit.map((cred) => ({
-      // Map backend fields to frontend fields
-      title: cred.credential_title || "",
-      org: cred.issuer || "",
-      issueDate: cred.issue_date || "",
-      expiryDate: cred.expiry_date || "",
-      id: cred.cred_id || "",
-      url: cred.cred_url || "",
-      skills: cred.skills || [],
-      skillCategory: "",
-      usercred_id: cred.usercred_id, // Keep the backend ID for updates
-    })) : [defaultCredential]
-);
-
-
-
-  // Helper function to update a specific field of a specific credential
-  const handleChange = (index, field, value) => {
-    const newFormData = [...formData];
-    newFormData[index] = { ...newFormData[index], [field]: value };
-    setFormData(newFormData);
-  };
-
-  // Handle changes for the main skill category dropdown
-  const handleCategoryChange = (index, value) => {
-    const newFormData = [...formData];
-    newFormData[index] = { ...newFormData[index], skillCategory: value };
-    setFormData(newFormData);
-  };
-
-  // Handle changes for the associated skills dropdown
-  const handleSkillDropdownChange = (index, value) => {
-    const newFormData = [...formData];
-    // Check if the skill is not already in the array before adding
-    if (value && !newFormData[index].skills.includes(value)) {
-      newFormData[index].skills.push(value);
-      setFormData(newFormData);
-    }
-  };
-
-  // Function to remove a skill from the tags
-  const handleRemoveSkill = (credentialIndex, skillToRemove) => {
-    const newFormData = [...formData];
-    const newSkills = newFormData[credentialIndex].skills.filter(
-      (skill) => skill !== skillToRemove
-    );
-    newFormData[credentialIndex] = {
-      ...newFormData[credentialIndex],
-      skills: newSkills,
+    const subcategories = {
+      "Creative & Design": [
+        "Graphic Design",
+        "Photography",
+        "Video Editing",
+        "Illustration",
+        "Animation",
+      ],
+      "Technical & IT": [
+        "Web Development",
+        "Software Development",
+        "IT Support",
+        "Network Administration",
+        "Cybersecurity",
+      ],
+      "Business & Management": [
+        "Project Management",
+        "Business Consulting",
+        "Human Resources",
+        "Operations Management",
+        "Marketing Strategy",
+      ],
+      "Communication & Interpersonal": [
+        "Customer Service",
+        "Public Relations",
+        "Copywriting",
+        "Translation",
+        "Social Media Management",
+      ],
+      "Health & Wellness": [
+        "Nutrition Coaching",
+        "Personal Training",
+        "Mental Health Counseling",
+        "Yoga Instruction",
+        "Physical Therapy",
+      ],
+      "Education & Training": [
+        "Tutoring",
+        "Language Instruction",
+        "Corporate Training",
+        "Curriculum Development",
+        "Test Preparation",
+      ],
+      "Home & Lifestyle": [
+        "Interior Decorating",
+        "Cleaning Services",
+        "Gardening",
+        "Event Planning",
+        "Personal Assistance",
+      ],
+      "Handiwork & Maintenance": [
+        "Furniture Assembly",
+        "Sewing & Alterations",
+        "Handyman Services",
+        "Painting & Decorating",
+        "Crafting",
+      ],
+      "Digital & Social Media": [
+        "Social Media Management",
+        "Content Creation",
+        "SEO",
+        "Digital Advertising",
+        "Email Marketing",
+      ],
+      "Language & Translation": [
+        "Translation",
+        "Interpretation",
+        "Language Tutoring",
+        "Transcription",
+        "Localization",
+      ],
+      "Financial & Accounting": [
+        "Bookkeeping",
+        "Tax Preparation",
+        "Financial Planning",
+        "Payroll Services",
+        "Auditing",
+      ],
+      "Sports & Fitness": [
+        "Personal Training",
+        "Group Fitness Instruction",
+        "Sports Coaching",
+        "Nutrition for Athletes",
+        "Physical Therapy",
+      ],
+      "Arts & Performance": [
+        "Music Lessons",
+        "Dance Instruction",
+        "Acting Coaching",
+        "Visual Arts",
+        "Creative Writing",
+      ],
+      "Culture & Diversity": [
+        "Diversity Training",
+        "Cultural Consulting",
+        "Language & Cultural Exchange",
+        "Community Outreach",
+        "Inclusion Workshops",
+      ],
+      "Research & Critical Thinking": [
+        "Market Research",
+        "Data Analysis",
+        "Academic Research",
+        "Competitive Analysis",
+        "Strategic Planning",
+      ],
     };
-    setFormData(newFormData);
-  };
 
-  // Function to add a new empty credential
-  const addCredential = () => {
-    setFormData([...formData, defaultCredential]);
-  };
+    const defaultCredential = {
+      title: "",
+      org: "",
+      issueDate: "",
+      expiryDate: "",
+      id: "",
+      url: "",
+      skills: [],
+      skillCategory: "",
+    };
 
-  // --- Trade Again modal state ---
-  const [showRepeatModal, setShowRepeatModal] = useState(false);
-  const [repeatReview, setRepeatReview] = useState(null);
+    // Initialize state with the credentials data passed as a prop, adding a skillCategory field
+    const [formData, setFormData] = useState(() =>
+      Array.isArray(credentialsToEdit) && credentialsToEdit
+        ? credentialsToEdit.map((cred) => ({
+            // Map backend fields to frontend fields
+            title: cred.credential_title || "",
+            org: cred.issuer || "",
+            issueDate: cred.issue_date || "",
+            expiryDate: cred.expiry_date || "",
+            id: cred.cred_id || "",
+            url: cred.cred_url || "",
+            skills: cred.skills || [],
+            skillCategory: "",
+            usercred_id: cred.usercred_id, // Keep the backend ID for updates
+          }))
+        : [defaultCredential]
+    );
 
-  const openRepeatModal = (review) => {
-    setRepeatReview(review);
-    setShowRepeatModal(true);
-  };
-  const closeRepeatModal = () => {
-    setShowRepeatModal(false);
-    setRepeatReview(null);
-  };
-  const confirmRepeatTrade = () => {
-    // placeholder; backend integration later
-    alert(`Trade request sent to ${repeatReview?.requester || "user"}.`);
-    closeRepeatModal();
-  };
+    // Helper function to update a specific field of a specific credential
+    const handleChange = (index, field, value) => {
+      const newFormData = [...formData];
+      newFormData[index] = { ...newFormData[index], [field]: value };
+      setFormData(newFormData);
+    };
 
-  return (
-    <div className="flex flex-col gap-[25px]">
-      <h4 className="text-[22px] font-semibold">
-        Edit Credentials
-        {formData.length > 1 && ` (${formData.length} items)`}
-      </h4>
+    // Handle changes for the main skill category dropdown
+    const handleCategoryChange = (index, value) => {
+      const newFormData = [...formData];
+      newFormData[index] = { ...newFormData[index], skillCategory: value };
+      setFormData(newFormData);
+    };
 
-      <div className="flex flex-col gap-8">
-        {formData.map((cred, index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-5 p-6 border border-white/20 rounded-[15px]"
-          >
-            {formData.length > 1 && (
-              <h5 className="text-lg font-semibold text-white/70">
-                Credential {index + 1}
-              </h5>
-            )}
+    // Handle changes for the associated skills dropdown
+    const handleSkillDropdownChange = (index, value) => {
+      const newFormData = [...formData];
+      // Check if the skill is not already in the array before adding
+      if (value && !newFormData[index].skills.includes(value)) {
+        newFormData[index].skills.push(value);
+        setFormData(newFormData);
+      }
+    };
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left Column - Name, Issuing Org, Issue Date, Expiry Date */}
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={cred.title}
-                    onChange={(e) =>
-                      handleChange(index, "title", e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., Adobe Certified Expert"
-                  />
+    // Function to remove a skill from the tags
+    const handleRemoveSkill = (credentialIndex, skillToRemove) => {
+      const newFormData = [...formData];
+      const newSkills = newFormData[credentialIndex].skills.filter(
+        (skill) => skill !== skillToRemove
+      );
+      newFormData[credentialIndex] = {
+        ...newFormData[credentialIndex],
+        skills: newSkills,
+      };
+      setFormData(newFormData);
+    };
+
+    // Function to add a new empty credential
+    const addCredential = () => {
+      setFormData([...formData, defaultCredential]);
+    };
+
+    // --- Trade Again modal state ---
+    const [showRepeatModal, setShowRepeatModal] = useState(false);
+    const [repeatReview, setRepeatReview] = useState(null);
+
+    const openRepeatModal = (review) => {
+      setRepeatReview(review);
+      setShowRepeatModal(true);
+    };
+    const closeRepeatModal = () => {
+      setShowRepeatModal(false);
+      setRepeatReview(null);
+    };
+    const confirmRepeatTrade = () => {
+      // placeholder; backend integration later
+      alert(`Trade request sent to ${repeatReview?.requester || "user"}.`);
+      closeRepeatModal();
+    };
+
+    const handleSave = () => {
+      const validationErrors = validateCredentials(formData);
+
+      if (validationErrors.length > 0) {
+        // Display errors to user instead of sending to backend
+        alert(validationErrors.join("\n")); // Or use a proper error display component
+        return;
+      }
+
+      onSave(formData);
+    };
+
+    return (
+      <div className="flex flex-col gap-[25px]">
+        <h4 className="text-[22px] font-semibold">
+          Edit Credentials
+          {formData.length > 1 && ` (${formData.length} items)`}
+        </h4>
+
+        <div className="flex flex-col gap-8">
+          {formData.map((cred, index) => (
+            <div
+              key={index}
+              className="flex flex-col gap-5 p-6 border border-white/20 rounded-[15px]"
+            >
+              {formData.length > 1 && (
+                <h5 className="text-lg font-semibold text-white/70">
+                  Credential {index + 1}
+                </h5>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left Column - Name, Issuing Org, Issue Date, Expiry Date */}
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={cred.title}
+                      onChange={(e) =>
+                        handleChange(index, "title", e.target.value)
+                      }
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                      placeholder="e.g., Adobe Certified Expert"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Issuing Organization{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={cred.org}
+                      onChange={(e) =>
+                        handleChange(index, "org", e.target.value)
+                      }
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                      placeholder="e.g., Adobe Systems"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Issue Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={cred.issueDate || ""}
+                      onChange={(e) =>
+                        handleChange(index, "issueDate", e.target.value)
+                      }
+                      placeholder="Month Year"
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">Expiry Date</label>
+                    <input
+                      type="date"
+                      value={cred.expiryDate || ""}
+                      onChange={(e) =>
+                        handleChange(index, "expiryDate", e.target.value)
+                      }
+                      placeholder="Month Year"
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Issuing Organization <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={cred.org}
-                    onChange={(e) => handleChange(index, "org", e.target.value)}
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., Adobe Systems"
-                  />
-                </div>
+                {/* Right Column - Cred ID, Cred URL, Skill Category, Associated Skills */}
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Credential ID
+                    </label>
+                    <input
+                      type="text"
+                      value={cred.id}
+                      onChange={(e) =>
+                        handleChange(index, "id", e.target.value)
+                      }
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                      placeholder="e.g., ACE-123456789"
+                    />
+                  </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Issue Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="month" // Changed from type="date" to type="month"
-                    value={cred.issueDate ? cred.issueDate.slice(0, 7) : ""}
-                    onChange={(e) =>
-                      handleChange(index, "issueDate", e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                  />
-                </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Credential URL
+                    </label>
+                    <input
+                      type="url"
+                      value={cred.url}
+                      onChange={(e) =>
+                        handleChange(index, "url", e.target.value)
+                      }
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
+                      placeholder="e.g., https://www.adobe.com/cert..."
+                    />
+                  </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">Expiry Date</label>
-                  <input
-                    type="month" // Changed from type="date" to type="month"
-                    value={cred.expiryDate ? cred.expiryDate.slice(0, 7) : ""}
-                    onChange={(e) =>
-                      handleChange(index, "expiryDate", e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Right Column - Cred ID, Cred URL, Skill Category, Associated Skills */}
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">Credential ID</label>
-                  <input
-                    type="text"
-                    value={cred.id}
-                    onChange={(e) => handleChange(index, "id", e.target.value)}
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., ACE-123456789"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Credential URL
-                  </label>
-                  <input
-                    type="url"
-                    value={cred.url}
-                    onChange={(e) => handleChange(index, "url", e.target.value)}
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663]"
-                    placeholder="e.g., https://www.adobe.com/cert..."
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Skill Category
-                  </label>
-                  <select
-                    value={cred.skillCategory}
-                    onChange={(e) =>
-                      handleCategoryChange(index, e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                  >
-                    <option value="" disabled>
-                      Select category
-                    </option>
-                    {mainCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Skill Category
+                    </label>
+                    <select
+                      value={cred.skillCategory}
+                      onChange={(e) =>
+                        handleCategoryChange(index, e.target.value)
+                      }
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                    >
+                      <option value="" disabled>
+                        Select category
                       </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/50">
-                    Associated Skills
-                  </label>
-                  <select
-                    onChange={(e) =>
-                      handleSkillDropdownChange(index, e.target.value)
-                    }
-                    className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
-                    disabled={!cred.skillCategory}
-                    value=""
-                  >
-                    <option value="" disabled>
-                      Select subcategory
-                    </option>
-                    {cred.skillCategory &&
-                      subcategories[cred.skillCategory]?.map((skill) => (
-                        <option key={skill} value={skill}>
-                          {skill}
+                      {mainCategories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
                         </option>
                       ))}
-                  </select>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {(cred.skills || []).map((skill, skillIndex) => (
-                      <div
-                        key={skillIndex}
-                        className="inline-flex items-center gap-1.5 bg-white/10 text-white text-xs px-3 py-1 rounded-full cursor-default"
-                      >
-                        <span>{skill}</span>
-                        <button
-                          onClick={() => handleRemoveSkill(index, skill)}
-                          className="flex items-center justify-center w-4 h-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full"
-                          aria-label={`Remove ${skill}`}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-white/50">
+                      Associated Skills
+                    </label>
+                    <select
+                      onChange={(e) =>
+                        handleSkillDropdownChange(index, e.target.value)
+                      }
+                      className="bg-[#120A2A] text-white border-[1.5px] border-white/40 rounded-md p-2 placeholder-[#413663] text-sm"
+                      disabled={!cred.skillCategory}
+                      value=""
+                    >
+                      <option value="" disabled>
+                        Select subcategory
+                      </option>
+                      {cred.skillCategory &&
+                        subcategories[cred.skillCategory]?.map((skill) => (
+                          <option key={skill} value={skill}>
+                            {skill}
+                          </option>
+                        ))}
+                    </select>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {(cred.skills || []).map((skill, skillIndex) => (
+                        <div
+                          key={skillIndex}
+                          className="inline-flex items-center gap-1.5 bg-white/10 text-white text-xs px-3 py-1 rounded-full cursor-default"
                         >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-3 w-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                          <span>{skill}</span>
+                          <button
+                            onClick={() => handleRemoveSkill(index, skill)}
+                            className="flex items-center justify-center w-4 h-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full"
+                            aria-label={`Remove ${skill}`}
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-3 w-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <button
-        onClick={addCredential}
-        className="text-[#0038FF] hover:underline text-sm font-semibold mt-4 text-left"
-      >
-        + Add credential
-      </button>
+        <button
+          onClick={addCredential}
+          className="text-[#0038FF] hover:underline text-sm font-semibold mt-4 text-left"
+        >
+          + Add credential
+        </button>
 
-      <div className="flex justify-end gap-4 mt-6">
-        <Button
-          onClick={onCancel}
-          className="bg-white/10 text-white hover:bg-white/20"
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={() => onSave(formData)}
-          className="bg-[#0038FF] hover:bg-[#1a4dff] text-white shadow-[0px_0px_15px_#284CCC]"
-        >
-          Save Changes
-        </Button>
+        <div className="flex justify-end gap-4 mt-6">
+          <Button
+            onClick={onCancel}
+            className="bg-white/10 text-white hover:bg-white/20"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            className="bg-[#0038FF] hover:bg-[#1a4dff] text-white shadow-[0px_0px_15px_#284CCC]"
+          >
+            Save Changes
+          </Button>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   // Handler for editing all credentials
   const handleEditAllCredentials = () => {
@@ -1691,98 +1797,127 @@ const handleSaveSkills = async () => {
 
   // Handler for saving changes
   const handleSaveCredentials = async (updatedCredentials) => {
-  // helper: normalize <input type="month"> values like "2024-09" -> "2024-09-01"
-  const normalizeDate = (d) => {
-    if (!d) return null;
-    return /^\d{4}-\d{2}$/.test(d) ? `${d}-01` : d; // leave YYYY-MM-DD as-is
-  };
-
-  try {
-    setCredentialsLoading(true);
-    setCredentialsError(null);
-
-    const headers = { 
-      Accept: "application/json", 
-      "Content-Type": "application/json" 
+    // helper: normalize <input type="month"> values like "2024-09" -> "2024-09-01"
+    const normalizeDate = (d) => {
+      if (!d) return null;
+      return /^\d{4}-\d{2}$/.test(d) ? `${d}-01` : d; // leave YYYY-MM-DD as-is
     };
-    if (session?.access) {
-      headers.Authorization = `Bearer ${session.access}`;
-    }
 
-    // Process each credential
-    const credentialsArray = Array.isArray(updatedCredentials) ? updatedCredentials : [updatedCredentials];
-    
-    for (const cred of credentialsArray) {
-      // Build the payload with correct field mapping
-      const payload = {
-        user: user.id,  
-        credential_title: cred.title || "",
-        issuer: cred.org || "",
-        issue_date: normalizeDate(cred.issueDate),
-        expiry_date: normalizeDate(cred.expiryDate),
-        cred_id: cred.id || "",
-        cred_url: cred.url || "",
+    try {
+      setCredentialsLoading(true);
+      setCredentialsError(null);
+
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
       };
-
-      const isUpdate = cred.usercred_id; // Your backend uses 'usercred_id' as primary key
-      if (isUpdate) {
-        payload.usercred_id = isUpdate;
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
       }
 
-      const method = isUpdate ? "PUT" : "POST";
-      
-      console.log(`[credentials] ${method} request:`, payload);
+      // Process each credential
+      const credentialsArray = Array.isArray(updatedCredentials)
+        ? updatedCredentials
+        : [updatedCredentials];
 
-      const res = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
-        method,
-        headers,
+      for (const cred of credentialsArray) {
+        // Build the payload with correct field mapping
+        const payload = {
+          user: user.id,
+          credential_title: cred.title || "",
+          issuer: cred.org || "",
+          issue_date: normalizeDate(cred.issueDate),
+          expiry_date: normalizeDate(cred.expiryDate),
+          cred_id: cred.id || "",
+          cred_url: cred.url || "",
+        };
+
+        const isUpdate = cred.usercred_id; // Your backend uses 'usercred_id' as primary key
+        if (isUpdate) {
+          payload.usercred_id = isUpdate;
+        }
+
+        const method = isUpdate ? "PUT" : "POST";
+
+        console.log(`[credentials] ${method} request:`, payload);
+
+        const res = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
+          method,
+          headers,
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(
+            `[credentials] ${method} failed:`,
+            res.status,
+            errorText
+          );
+          throw new Error(
+            `Save ${method} failed (${res.status}): ${errorText.slice(0, 200)}`
+          );
+        }
+
+        const result = await res.json();
+        console.log(`[credentials] ${method} success:`, result);
+      }
+
+      // Re-fetch credentials to update UI with server state
+      const refetchHeaders = { Accept: "application/json" };
+      if (session?.access) {
+        refetchHeaders.Authorization = `Bearer ${session.access}`;
+      }
+
+      const refRes = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
+        method: "GET",
+        headers: refetchHeaders,
         credentials: "include",
-        body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error(`[credentials] ${method} failed:`, res.status, errorText);
-        throw new Error(`Save ${method} failed (${res.status}): ${errorText.slice(0, 200)}`);
+      if (!refRes.ok) {
+        const errorText = await refRes.text();
+        console.warn(
+          `[credentials] Refetch failed (${refRes.status}): ${errorText}`
+        );
+        // Don't throw here - the save might have worked, just the refetch failed
+      } else {
+        const refJson = await refRes.json();
+        const credentials =
+          refJson.credentials || refJson.results || refJson || [];
+        setUserCredentials(Array.isArray(credentials) ? credentials : []);
       }
 
-      const result = await res.json();
-      console.log(`[credentials] ${method} success:`, result);
+      // Close the editor
+      setEditingCredentials(null);
+    } catch (e) {
+      console.error("[credentials] save error:", e);
+      setCredentialsError(e.message || "Failed to save credentials");
+    } finally {
+      setCredentialsLoading(false);
     }
+  };
 
-    // Re-fetch credentials to update UI with server state
-    const refetchHeaders = { Accept: "application/json" };
-    if (session?.access) {
-      refetchHeaders.Authorization = `Bearer ${session.access}`;
-    }
+  const validateCredentials = (credentials) => {
+    const errors = [];
 
-    const refRes = await fetch(`${API_BASE}/users/${user.id}/credentials/`, {
-      method: "GET",
-      headers: refetchHeaders,
-      credentials: "include",
+    credentials.forEach((cred, index) => {
+      if (!cred.title?.trim()) {
+        errors.push(`Credential ${index + 1}: Name is required`);
+      }
+      if (!cred.org?.trim()) {
+        errors.push(
+          `Credential ${index + 1}: Issuing Organization is required`
+        );
+      }
+      if (!cred.issueDate) {
+        errors.push(`Credential ${index + 1}: Issue Date is required`);
+      }
     });
 
-    if (!refRes.ok) {
-      const errorText = await refRes.text();
-      console.warn(`[credentials] Refetch failed (${refRes.status}): ${errorText}`);
-      // Don't throw here - the save might have worked, just the refetch failed
-    } else {
-      const refJson = await refRes.json();
-      const credentials = refJson.credentials || refJson.results || refJson || [];
-      setUserCredentials(Array.isArray(credentials) ? credentials : []);
-    }
-
-    // Close the editor
-    setEditingCredentials(null);
-    
-  } catch (e) {
-    console.error("[credentials] save error:", e);
-    setCredentialsError(e.message || "Failed to save credentials");
-  } finally {
-    setCredentialsLoading(false);
-  }
-};
-
+    return errors;
+  };
 
   // Conditionally render the edit page or the profile page
   if (editingCredentials) {
@@ -1801,287 +1936,287 @@ const handleSaveSkills = async () => {
     );
   }
 
-// Inline helper for Trade Details to keep code clean
-const TradePill = ({ content }) => {
-  return (
-    <div
-      className={clsx(
-        "inline-flex items-center px-[15px] py-[10px] text-[13px] rounded-full border-2 text-white overflow-hidden"
-      )}
-    >
-      <span className="whitespace-nowrap">{content}</span>
-    </div>
-  );
-};
+  // Inline helper for Trade Details to keep code clean
+  const TradePill = ({ content }) => {
+    return (
+      <div
+        className={clsx(
+          "inline-flex items-center px-[15px] py-[10px] text-[13px] rounded-full border-2 text-white overflow-hidden"
+        )}
+      >
+        <span className="whitespace-nowrap">{content}</span>
+      </div>
+    );
+  };
 
-// Inline ReviewCard component with updated design
-const ReviewCard = ({ review }) => {
-  const {
-    requester,
-    tradePartner,
-    tradeCompletionDate,
-    requestTitle,
-    offerTitle,
-    rating,
-    reviewDescription,
-    likes,
-  } = review;
-  const [isLiked, setIsLiked] = useState(false);
+  // Inline ReviewCard component with updated design
+  const ReviewCard = ({ review }) => {
+    const {
+      requester,
+      tradePartner,
+      tradeCompletionDate,
+      requestTitle,
+      offerTitle,
+      rating,
+      reviewDescription,
+      likes,
+    } = review;
+    const [isLiked, setIsLiked] = useState(false);
 
-  // Function to render stars based on a rating
-  const renderStars = (rating) => {
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-    const stars = [];
+    // Function to render stars based on a rating
+    const renderStars = (rating) => {
+      const fullStars = Math.floor(rating);
+      const hasHalfStar = rating % 1 !== 0;
+      const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+      const stars = [];
 
-    // Full stars
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Star
-          key={`full-${i}`}
-          className="w-5 h-5 fill-[#906EFF] text-[#906EFF]"
-        />
-      );
-    }
-    // Half star
-    if (hasHalfStar) {
-      stars.push(
-        <div key="half" className="relative w-5 h-5">
-          <Star className="absolute w-5 h-5 text-gray-300 stroke-2" />
-          <div className="absolute top-0 left-0 overflow-hidden w-1/2">
-            <Star className="w-5 h-5 fill-[#906EFF] text-[#906EFF]" />
+      // Full stars
+      for (let i = 0; i < fullStars; i++) {
+        stars.push(
+          <Star
+            key={`full-${i}`}
+            className="w-5 h-5 fill-[#906EFF] text-[#906EFF]"
+          />
+        );
+      }
+      // Half star
+      if (hasHalfStar) {
+        stars.push(
+          <div key="half" className="relative w-5 h-5">
+            <Star className="absolute w-5 h-5 text-gray-300 stroke-2" />
+            <div className="absolute top-0 left-0 overflow-hidden w-1/2">
+              <Star className="w-5 h-5 fill-[#906EFF] text-[#906EFF]" />
+            </div>
           </div>
-        </div>
-      );
-    }
-    // Empty stars
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <Star key={`empty-${i}`} className="w-5 h-5 text-gray-300 stroke-2" />
-      );
-    }
-    return stars;
-  };
+        );
+      }
+      // Empty stars
+      for (let i = 0; i < emptyStars; i++) {
+        stars.push(
+          <Star key={`empty-${i}`} className="w-5 h-5 text-gray-300 stroke-2" />
+        );
+      }
+      return stars;
+    };
 
-  // Function to handle the report action
-  const handleReport = () => {
-    // In a real app, this would be a client-side navigation or a more complex interaction
-    console.log(`Navigating to help form for reporting review by ${requester}`);
-    window.location.href = "/help#help-form";
-  };
+    // Function to handle the report action
+    const handleReport = () => {
+      // In a real app, this would be a client-side navigation or a more complex interaction
+      console.log(
+        `Navigating to help form for reporting review by ${requester}`
+      );
+      window.location.href = "/help#help-form";
+    };
 
-  return (
-    <div
-      className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
-      style={{
-        background:
-          "radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)",
-      }}
-    >
-      <div className="flex justify-between items-start">
-        {/* User and Partner Avatars with 'X' separator, names, and date */}
-        <div className="flex items-start gap-[15px]">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              {/* Use the defaultavatar.png for the review cards */}
-              <Image
-                src="/assets/defaultavatar.png"
-                alt={`${tradePartner}'s avatar`}
-                width={35}
-                height={35}
-                className="rounded-full object-cover"
-              />
-              <Icon icon="ic:baseline-close" className="w-4 h-4 text-white" />
-              {/* Use the defaultavatar.png for the review cards */}
-              <Image
-                src="/assets/defaultavatar.png"
-                alt={`${requester}'s avatar`}
-                width={35}
-                height={35}
-                className="rounded-full object-cover"
-              />
-              <div className="flex flex-col justify-start">
-                <span className="font-semibold text-white text-base">{`${tradePartner} & ${requester}`}</span>
-                <span className="text-white/50 text-base">
-                  {tradeCompletionDate}
-                </span>
+    return (
+      <div
+        className="flex flex-col gap-[20px] rounded-[20px] border-[3px] border-[#284CCC]/80 p-[25px] relative transition-all duration-300 hover:scale-[1.01]"
+        style={{
+          background:
+            "radial-gradient(circle at top right, #3D2490 0%, #120A2A 69%)",
+        }}
+      >
+        <div className="flex justify-between items-start">
+          {/* User and Partner Avatars with 'X' separator, names, and date */}
+          <div className="flex items-start gap-[15px]">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                {/* Use the defaultavatar.png for the review cards */}
+                <Image
+                  src="/assets/defaultavatar.png"
+                  alt={`${tradePartner}'s avatar`}
+                  width={35}
+                  height={35}
+                  className="rounded-full object-cover"
+                />
+                <Icon icon="ic:baseline-close" className="w-4 h-4 text-white" />
+                {/* Use the defaultavatar.png for the review cards */}
+                <Image
+                  src="/assets/defaultavatar.png"
+                  alt={`${requester}'s avatar`}
+                  width={35}
+                  height={35}
+                  className="rounded-full object-cover"
+                />
+                <div className="flex flex-col justify-start">
+                  <span className="font-semibold text-white text-base">{`${tradePartner} & ${requester}`}</span>
+                  <span className="text-white/50 text-base">
+                    {tradeCompletionDate}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="relative flex items-center gap-5 text-white text-sm">
-          {/* Rating number on the left */}
-          <span className="text-lg">{safeFixed(user.rating, 1)}</span>
-          <div className="flex items-center gap-[5px]">
-            {renderStars(rating)}
+          <div className="relative flex items-center gap-5 text-white text-sm">
+            {/* Rating number on the left */}
+            <span className="text-lg">{safeFixed(user.rating, 1)}</span>
+            <div className="flex items-center gap-[5px]">
+              {renderStars(rating)}
+            </div>
+            <button
+              onClick={handleReport}
+              className="p-1 rounded-full hover:bg-white/10 transition"
+            >
+              <Flag className="w-5 h-5 cursor-pointer text-white/50" />
+            </button>
           </div>
-          <button
-            onClick={handleReport}
-            className="p-1 rounded-full hover:bg-white/10 transition"
-          >
-            <Flag className="w-5 h-5 cursor-pointer text-white/50" />
-          </button>
         </div>
-      </div>
 
-      {/* Trade Details and Review Text */}
-      <div className="flex flex-col md:flex-row gap-[25px] w-full">
-        {/* Trade Details Section */}
-        <div className="flex-1 flex flex-col gap-[25px]">
-          <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
-              Name requested
-            </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{requestTitle}</span>
+        {/* Trade Details and Review Text */}
+        <div className="flex flex-col md:flex-row gap-[25px] w-full">
+          {/* Trade Details Section */}
+          <div className="flex-1 flex flex-col gap-[25px]">
+            <div className="flex items-center gap-[15px] w-full">
+              <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+                Name requested
+              </h6>
+              <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#284CCC]/20 border-[#284CCC]/80 text-[#C1C9E1]">
+                <span className="whitespace-nowrap">{requestTitle}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-[15px] w-full">
+              <h6 className="text-white text-base text-white/50 whitespace-nowrap">
+                In exchange for
+              </h6>
+              <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
+                <span className="whitespace-nowrap">{offerTitle}</span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-[15px] w-full">
-            <h6 className="text-white text-base text-white/50 whitespace-nowrap">
-              In exchange for
-            </h6>
-            <div className="inline-flex items-center px-[15px] py-[8px] text-[13px] rounded-full border-2 text-white bg-[#3D2490]/20 border-[#3D2490]/80 text-[#C1C9E1]">
-              <span className="whitespace-nowrap">{offerTitle}</span>
-            </div>
+
+          {/* Review Text Section */}
+          <div className="flex-1 flex flex-col gap-2 md:text-right">
+            <p className="text-white text-base">{reviewDescription}</p>
           </div>
         </div>
 
-        {/* Review Text Section */}
-        <div className="flex-1 flex flex-col gap-2 md:text-right">
-          <p className="text-white text-base">{reviewDescription}</p>
+        <div className="flex justify-between items-center mt-2">
+          <div className="flex items-center gap-1.5 text-white text-sm">
+            <button
+              onClick={() => setIsLiked(!isLiked)}
+              className="transition-transform transform hover:scale-110"
+            >
+              <Heart
+                className={clsx(
+                  "w-5 h-5 transition-colors duration-300",
+                  isLiked ? "fill-[#906EFF] stroke-[#906EFF]" : "stroke-white"
+                )}
+              />
+            </button>
+            <span>{likes + (isLiked ? 1 : 0)}</span>
+          </div>
+          <div className="flex gap-4">
+            <Button
+              className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+              onClick={() => onTradeAgain?.(review)}
+            >
+              Trade again
+            </Button>
+
+            <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
+              View details
+            </Button>
+          </div>
         </div>
       </div>
+    );
+  };
 
-      <div className="flex justify-between items-center mt-2">
-        <div className="flex items-center gap-1.5 text-white text-sm">
-          <button
-            onClick={() => setIsLiked(!isLiked)}
-            className="transition-transform transform hover:scale-110"
-          >
-            <Heart
-              className={clsx(
-                "w-5 h-5 transition-colors duration-300",
-                isLiked ? "fill-[#906EFF] stroke-[#906EFF]" : "stroke-white"
-              )}
-            />
-          </button>
-          <span>{likes + (isLiked ? 1 : 0)}</span>
-        </div>
-        <div className="flex gap-4">
-          <Button
-            className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
-            onClick={() => onTradeAgain?.(review)}
-          >
-            Trade again
-          </Button>
-
-          <Button className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]">
-            View details
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const isDirty =
-  basicInfoEditing &&
-  (
-    (editableFirstName ?? "") !== (user.firstname ?? "") ||
-    (editableLastName  ?? "") !== (user.lastname  ?? "") ||
-    (editableBio       ?? "") !== (user.bio       ?? "")
-  );
+  const isDirty =
+    basicInfoEditing &&
+    ((editableFirstName ?? "") !== (user.firstname ?? "") ||
+      (editableLastName ?? "") !== (user.lastname ?? "") ||
+      (editableBio ?? "") !== (user.bio ?? ""));
 
   async function handleSaveBasicInfo() {
-  console.log("=== ENHANCED SAVE DEBUG ===");
-  console.log("Full session object:", JSON.stringify(session, null, 2));
-  console.log("Session.access exists:", !!session?.access);
-  console.log("Session.accessToken exists:", !!session?.accessToken);
-  console.log("Session.user.access exists:", !!session?.user?.access);
-  
-  setBasicInfoSaving(true);
-  setBasicInfoError(null);
-  
-  try {
-    const RAW = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
-    const API_BASE = RAW.includes("/api/accounts")
-      ? RAW.replace(/\/+$/, "")
-      : `${RAW.replace(/\/+$/, "")}/api/accounts`;
+    console.log("=== ENHANCED SAVE DEBUG ===");
+    console.log("Full session object:", JSON.stringify(session, null, 2));
+    console.log("Session.access exists:", !!session?.access);
+    console.log("Session.accessToken exists:", !!session?.accessToken);
+    console.log("Session.user.access exists:", !!session?.user?.access);
 
-    const body = {
-      first_name: editableFirstName ?? "",
-      last_name:  editableLastName ?? "",
-      bio:        editableBio ?? "",
-      user_id: user?.id ?? null,
-    };
+    setBasicInfoSaving(true);
+    setBasicInfoError(null);
 
-    const headers = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    };
+    try {
+      const RAW =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+      const API_BASE = RAW.includes("/api/accounts")
+        ? RAW.replace(/\/+$/, "")
+        : `${RAW.replace(/\/+$/, "")}/api/accounts`;
 
-    // Try multiple possible token locations
-    let token = null;
-    if (session?.access) {
-      token = session.access;
-      console.log("Using session.access token");
-    } else if (session?.accessToken) {
-      token = session.accessToken;
-      console.log("Using session.accessToken token");
-    } else if (session?.user?.access) {
-      token = session.user.access;
-      console.log("Using session.user.access token");
+      const body = {
+        first_name: editableFirstName ?? "",
+        last_name: editableLastName ?? "",
+        bio: editableBio ?? "",
+        user_id: user?.id ?? null,
+      };
+
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+
+      // Try multiple possible token locations
+      let token = null;
+      if (session?.access) {
+        token = session.access;
+        console.log("Using session.access token");
+      } else if (session?.accessToken) {
+        token = session.accessToken;
+        console.log("Using session.accessToken token");
+      } else if (session?.user?.access) {
+        token = session.user.access;
+        console.log("Using session.user.access token");
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+        console.log("Authorization header set with token");
+      } else {
+        console.log("No access token found, relying on cookies");
+      }
+
+      console.log("Making request to:", `${API_BASE}/me/`);
+      console.log("Request headers:", headers);
+      console.log("Request body:", body);
+
+      const res = await fetch(`${API_BASE}/me/`, {
+        method: "PATCH",
+        headers,
+        credentials: "include", // Always include cookies
+        body: JSON.stringify(body),
+      });
+
+      console.log("Response status:", res.status);
+      console.log("Response headers:", [...res.headers.entries()]);
+
+      if (!res.ok) {
+        const txt = await res.text();
+        console.log("Error response body:", txt);
+        throw new Error(`Save failed (${res.status}): ${txt.slice(0, 200)}`);
+      }
+
+      const updated = await res.json();
+      console.log("Success response:", updated);
+
+      setUser((prev) => ({
+        ...prev,
+        firstname: updated.first_name ?? editableFirstName ?? prev.firstname,
+        lastname: updated.last_name ?? editableLastName ?? prev.lastname,
+        bio: updated.bio ?? editableBio ?? prev.bio,
+      }));
+
+      setBasicInfoEditing(false);
+      console.log("Save completed successfully");
+    } catch (e) {
+      console.error("[basic info save] error", e);
+      setBasicInfoError(e.message || "Failed to save.");
+    } finally {
+      setBasicInfoSaving(false);
     }
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-      console.log("Authorization header set with token");
-    } else {
-      console.log("No access token found, relying on cookies");
-    }
-
-    console.log("Making request to:", `${API_BASE}/me/`);
-    console.log("Request headers:", headers);
-    console.log("Request body:", body);
-
-    const res = await fetch(`${API_BASE}/me/`, {
-      method: "PATCH",
-      headers,
-      credentials: "include", // Always include cookies
-      body: JSON.stringify(body),
-    });
-
-    console.log("Response status:", res.status);
-    console.log("Response headers:", [...res.headers.entries()]);
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.log("Error response body:", txt);
-      throw new Error(`Save failed (${res.status}): ${txt.slice(0, 200)}`);
-    }
-
-    const updated = await res.json();
-    console.log("Success response:", updated);
-
-    setUser(prev => ({
-      ...prev,
-      firstname: updated.first_name ?? editableFirstName ?? prev.firstname,
-      lastname:  updated.last_name  ?? editableLastName  ?? prev.lastname,
-      bio:       updated.bio        ?? editableBio       ?? prev.bio,
-    }));
-
-    setBasicInfoEditing(false);
-    console.log("Save completed successfully");
-    
-  } catch (e) {
-    console.error("[basic info save] error", e);
-    setBasicInfoError(e.message || "Failed to save.");
-  } finally {
-    setBasicInfoSaving(false);
   }
-}
 
   // Original Profile Page content
   return (
@@ -2095,20 +2230,18 @@ const isDirty =
       <div className="flex gap-[50px] relative">
         {/* Profile Picture */}
         <div className="w-[200px] h-[200px] relative flex-shrink-0">
-          <Image
-            src={toAbsolute(user?.profilePic) || "/assets/defaultavatar.png"}
+          <ProfileAvatar
+            src={user?.profilePic}
             alt={`${user?.firstname || ""} ${user?.lastname || ""}`}
-            width={200}
-            height={200}
+            size={200}
             className="rounded-full shadow-[0_0_50px_#906EFF99] object-cover"
-            
           />
         </div>
 
         {/* Right Section */}
         <div className="flex-1 flex flex-col">
           {/* Top Row: Name + Verified Badge */}
-          <div className="flex items-center gap-3 mb-[5px]">
+          <div className="flex items-center gap-6 mb-[5px]">
             {basicInfoEditing ? (
               <div className="flex gap-3">
                 <input
@@ -2128,13 +2261,13 @@ const isDirty =
               </div>
             ) : (
               <h3 className="text-[26px] font-semibold">
-                 {`${user.firstname} ${user.lastname}`.trim() || "—"}
+                {`${user.firstname} ${user.lastname}`.trim() || "—"}
               </h3>
             )}
-            {user.verified && (
+            {(user.is_verified || verificationStatus === "verified") && (
               <Icon
                 icon="mdi:check-decagram"
-                className="text-[#0038FF] w-6 h-6"
+                className="text-[#0038FF] w-[1.8em] h-[1.8em]" // scale with font size
               />
             )}
           </div>
@@ -2191,26 +2324,35 @@ const isDirty =
             </div>
 
             {/* Level Bar Section */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* LVL label (moved to the left, purple) */}
+              <span className="text-[16px] font-semibold text-purple-400">
+                LVL {user.level}
+              </span>
+
               {/* Track */}
               <div className="relative w-[220px] h-[20px] rounded-[32px] border-2 border-white overflow-hidden">
                 {/* Fill */}
                 <div
                   className="h-full rounded-[32px] transition-all duration-500"
-                style={{
-                  // percent = in-level XP / width of this level band
-                  width: `${(() => {
-                    const width = getLevelWidth(user.level || 1);
-                    const gained = Number(user.xpPoints) || 0;
-                    return Math.min((gained / (width || 1)) * 100, 100);
-                  })()}%`,
-                  minWidth: (Number(user.xpPoints) || 0) > 0 ? "6px" : "0",
-                  backgroundImage:
-                    "linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)",
-                }}
-              />
+                  style={{
+                    // percent = in-level XP / width of this level band
+                    width: `${(() => {
+                      const width = getLevelWidth(user.level || 1);
+                      const gained = Number(user.xpPoints) || 0;
+                      return Math.min((gained / (width || 1)) * 100, 100);
+                    })()}%`,
+                    minWidth: (Number(user.xpPoints) || 0) > 0 ? "6px" : "0",
+                    backgroundImage:
+                      "linear-gradient(90deg, #FB9696 0%, #D78DE5 25%, #7E59F8 50%, #284CCC 75%, #6DDFFF 100%)",
+                  }}
+                />
               </div>
-              <span className="text-[16px]">LVL {user.level}</span>
+
+              {/* XP progress (current / needed) */}
+              <span className="text-[16px] text-white/80">
+                {user.xpPoints}/{getLevelWidth(user.level || 1)}
+              </span>
             </div>
           </div>
 
@@ -2268,7 +2410,7 @@ const isDirty =
               {verificationStatus === "unverified" && (
                 <button
                   onClick={() => setShowVerificationPopup(true)}
-                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2"
+                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow flex items-center gap-2 shadow-[0px_0px_15px_#284CCC]"
                 >
                   <Icon icon="material-symbols:verified" className="w-4 h-4" />
                   <span>Get Verified</span>
@@ -2290,38 +2432,31 @@ const isDirty =
               {verificationStatus === "rejected" && (
                 <button
                   onClick={() => {
-                      // clear any previous selection & reopen the popup
-                      setIdFile(null);
-                      if (idPreviewUrl) {
-                        URL.revokeObjectURL(idPreviewUrl);
-                        setIdPreviewUrl(null);
-                      }
-                      setShowVerificationPopup(true);
+                    // clear any previous selection & reopen the popup
+                    setIdFile(null);
+                    if (idPreviewUrl) {
+                      URL.revokeObjectURL(idPreviewUrl);
+                      setIdPreviewUrl(null);
+                    }
+                    setShowVerificationPopup(true);
                   }}
-                  className="bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 shadow-[0px_0px_15px_#284CCC]"
+                  className="bg-red-600 hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2 shadow-[0px_0px_15px_red]"
                 >
-                  Resubmit ID
-                </button>
-              )}
-
-              {/* VERIFIED → Green badge */}
-              {verificationStatus === "verified" && (
-                <span className="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm rounded-[15px] px-5 py-2">
                   <Icon icon="material-symbols:verified" className="w-4 h-4" />
-                  <span>Verified</span>
-                </span>
+                  <span>Resubmit ID</span>
+                </button>
               )}
             </div>
           )}
         </div>
-      </div>          
+      </div>
 
       {/* ==== YOUR SKILLS ==== */}
       <div className="mt-[50px] flex flex-col gap-[25px]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-[15px]">
             <h5 className="text-lg font-semibold">Your Skills</h5>
-            
+
             {isOwnProfile && (
               <div className="flex items-center gap-3">
                 <button
@@ -2343,7 +2478,7 @@ const isDirty =
                     }
                   />
                 </button>
-                
+
                 {skillsEditing && (
                   <>
                     <Button
@@ -2351,8 +2486,8 @@ const isDirty =
                       disabled={skillsSaving || !hasUnsavedSkillsChanges()}
                       className={clsx(
                         "text-white text-sm rounded-[15px] px-4 py-2",
-                        skillsSaving 
-                          ? "bg-[#0038FF]/70" 
+                        skillsSaving
+                          ? "bg-[#0038FF]/70"
                           : hasUnsavedSkillsChanges()
                           ? "bg-[#0038FF] hover:bg-[#1a4dff]"
                           : "bg-white/20 cursor-not-allowed"
@@ -2374,94 +2509,96 @@ const isDirty =
           </div>
         </div>
 
-         {/* Error message */}
-          {skillsError && (
-            <div className="text-red-400 text-sm bg-red-900/20 border border-red-500/30 rounded-[10px] p-3">
-              {skillsError}
-            </div>
-          )}
+        {/* Error message */}
+        {skillsError && (
+          <div className="text-red-400 text-sm bg-red-900/20 border border-red-500/30 rounded-[10px] p-3">
+            {skillsError}
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-x-4 gap-y-[10px]">
-          {selectedSkillGroups && selectedSkillGroups.map((group, index) => (
-
-            <div key={group.category} className="relative">
-              <div
-                onClick={() => toggleCategory(index)}
-                className={clsx(
-                  "inline-flex items-center h-[30px] px-[15px] gap-2",
-                  "rounded-full border-2 transition-colors duration-300",
-                  expanded[index]
-                    ? "bg-white text-black"
-                    : "text-white border-white"
-                )}
-              >
-                <span className="text-[16px] leading-none">
-                  {group.category}
-                </span>
-
-                {skillsEditing && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeSkillCategory(group.category);
-                    }}
-                    className="ml-2 w-5 h-5 rounded-full inline-flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10"
-                    aria-label={`Remove ${group.category}`}
-                  >
-                    &times;
-                  </button>
-                )}
-
-                <Icon
-                  icon={expanded[index] ? "mdi:chevron-up" : "mdi:chevron-down"}
+          {selectedSkillGroups &&
+            selectedSkillGroups.map((group, index) => (
+              <div key={group.category} className="relative">
+                <div
+                  onClick={() => toggleCategory(index)}
                   className={clsx(
-                    "transition-transform",
-                    expanded[index] ? "text-black" : "text-white"
+                    "inline-flex items-center h-[30px] px-[15px] gap-2",
+                    "rounded-full border-2 transition-colors duration-300",
+                    expanded[index]
+                      ? "bg-white text-black"
+                      : "text-white border-white"
                   )}
-                  width={16}
-                />
-              </div>
+                >
+                  <span className="text-[16px] leading-none">
+                    {group.category}
+                  </span>
 
-              {expanded[index] && (
-                <div className="absolute left-0 mt-2 p-3 rounded-[15px] border border-white/20 bg-[#050015] z-10 flex flex-col gap-2 transition-all duration-300 w-[260px]">
-                  {group.skills.map((skill, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between px-[12px] py-[8px] text-[13px] rounded-full border-[1.5px] border-white/50 text-white/50"
+                  {skillsEditing && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSkillCategory(group.category);
+                      }}
+                      className="ml-2 w-5 h-5 rounded-full inline-flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10"
+                      aria-label={`Remove ${group.category}`}
                     >
-                      <span>{skill}</span>
-                      {skillsEditing && (
-                        <button
-                          onClick={() =>
-                            removeSpecificSkill(group.category, skill)
-                          }
-                          className="ml-2 w-6 h-6 rounded-full inline-flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10"
-                          aria-label={`Remove ${skill}`}
-                        >
-                          &times;
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                      &times;
+                    </button>
+                  )}
+
+                  <Icon
+                    icon={
+                      expanded[index] ? "mdi:chevron-up" : "mdi:chevron-down"
+                    }
+                    className={clsx(
+                      "transition-transform",
+                      expanded[index] ? "text-black" : "text-white"
+                    )}
+                    width={16}
+                  />
                 </div>
-              )}
-            </div>
-          ))}
+
+                {expanded[index] && (
+                  <div className="absolute left-0 mt-2 p-3 rounded-[15px] border border-white/20 bg-[#050015] z-10 flex flex-col gap-2 transition-all duration-300 w-[260px]">
+                    {group.skills.map((skill, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-[12px] py-[8px] text-[13px] rounded-full border-[1.5px] border-white/50 text-white/50"
+                      >
+                        <span>{skill}</span>
+                        {skillsEditing && (
+                          <button
+                            onClick={() =>
+                              removeSpecificSkill(group.category, skill)
+                            }
+                            className="ml-2 w-6 h-6 rounded-full inline-flex items-center justify-center text-white/80 hover:text-white bg-white/5 hover:bg-white/10"
+                            aria-label={`Remove ${skill}`}
+                          >
+                            &times;
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
 
           {/* + Add only visible in edit mode */}
-            {skillsEditing && (
-              <div className="flex items-center">
-                <button
-                  onClick={() => setShowAddSkillForm((v) => !v)}
-                  disabled={skillsSaving}
-                  className="inline-flex items-center h-[30px] px-[12px] text-[16px] gap-2 rounded-[15px] border-2 border-dashed border-white text-white disabled:opacity-50"
-                  aria-label="Add skill"
-                >
-                  + Add
-                </button>
-              </div>
-            )}
-          </div>
+          {skillsEditing && (
+            <div className="flex items-center">
+              <button
+                onClick={() => setShowAddSkillForm((v) => !v)}
+                disabled={skillsSaving}
+                className="inline-flex items-center h-[30px] px-[12px] text-[16px] gap-2 rounded-[15px] border-2 border-dashed border-white text-white disabled:opacity-50"
+                aria-label="Add skill"
+              >
+                + Add
+              </button>
+            </div>
+          )}
+        </div>
 
         {showAddSkillForm && skillsEditing && (
           <div className="mt-3 flex flex-col gap-3 bg-[#120A2A] p-4 rounded-[15px]">
@@ -2544,8 +2681,6 @@ const isDirty =
         )}
       </div>
 
-      
-
       {/* ==== YOUR INTERESTS ==== */}
       <div className="mt-[50px] flex flex-col gap-[25px]">
         <div className="flex items-center justify-between">
@@ -2573,7 +2708,7 @@ const isDirty =
                     }
                   />
                 </button>
-                
+
                 {interestsEditing && (
                   <>
                     <Button
@@ -2581,8 +2716,8 @@ const isDirty =
                       disabled={interestsSaving || !hasUnsavedInterestChanges()}
                       className={clsx(
                         "text-white text-sm rounded-[15px] px-4 py-2",
-                        interestsSaving 
-                          ? "bg-[#0038FF]/70" 
+                        interestsSaving
+                          ? "bg-[#0038FF]/70"
                           : hasUnsavedInterestChanges()
                           ? "bg-[#0038FF] hover:bg-[#1a4dff]"
                           : "bg-white/20 cursor-not-allowed"
@@ -2714,19 +2849,21 @@ const isDirty =
           )}
 
           {/* Empty state */}
-          {!credentialsLoading && !credentialsError && userCredentials.length === 0 && (
-            <div className="text-white/60 text-center py-8">
-              No credentials added yet.
-              {isOwnProfile && (
-                <button 
-                  onClick={handleEditAllCredentials}
-                  className="block mx-auto mt-2 text-[#0038FF] hover:underline"
-                >
-                  Add your first credential
-                </button>
-              )}
-            </div>
-          )}
+          {!credentialsLoading &&
+            !credentialsError &&
+            userCredentials.length === 0 && (
+              <div className="text-white/60 text-center py-8">
+                No credentials added yet.
+                {isOwnProfile && (
+                  <button
+                    onClick={handleEditAllCredentials}
+                    className="block mx-auto mt-2 text-[#0038FF] hover:underline"
+                  >
+                    Add your first credential
+                  </button>
+                )}
+              </div>
+            )}
 
           {/* The scrollable container for the credentials */}
           <div
@@ -2735,63 +2872,57 @@ const isDirty =
               !showAllCreds && "max-h-[420px] overflow-y-auto"
             )}
           >
-            {(userCredentials || []).length > 0 && (userCredentials || []).map((cred, index) => (
-              <div
-                key={index}
-                className="border border-white/20 rounded-[15px] p-[25px] flex flex-col justify-between relative"
-              >
-                {/* Pencil icon for editing a single credential */}
-                {isOwnProfile && (
-                  <button
-                    onClick={() => handleEditSingleCredential(cred)}
-                    className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
-                  >
-                    <PencilIcon className="w-4 h-4 cursor-pointer" />
-                  </button>
-                )}
-                {/* Group 1 */}
-                <div>
+            {(userCredentials || []).length > 0 &&
+              (userCredentials || []).map((cred, index) => (
+                <div
+                  key={index}
+                  className="border border-white/20 rounded-[15px] p-[25px] flex flex-col justify-between relative"
+                >
+                  {/* Pencil icon for editing a single credential */}
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => handleEditSingleCredential(cred)}
+                      className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                    >
+                      <PencilIcon className="w-4 h-4 cursor-pointer" />
+                    </button>
+                  )}
+                  {/* Group 1 */}
                   <h6 className="text-[20px] font-semibold mb-[5px]">
-                    {cred.title}
+                    {cred.credential_title}
                   </h6>
-                  <p className="text-[16px]">{cred.org}</p>
-                </div>
-
-                {/* Group 2 */}
-                <div className="mt-[15px] text-[16px] text-white/50 leading-[1.6]">
-                  Issued {formatMonthYear(cred.issueDate)} • {cred.expiryDate ? `Expires ${formatMonthYear(cred.expiryDate)}` : 'No expiry'}
-                  <br />
-                  ID: {cred.id}
-                </div>
-
-                {/* Group 3 */}
-                <div className="mt-[15px]">
-                  <a
-                    href={cred.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-[#0038FF] hover:underline transition-colors"
-                  >
-                    View credential
-                    <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
-                  </a>
-                </div>
-
-                {/* Group 4: Skills */}
-                {(cred.skills || []).length > 0 && (
-                <div className="mt-[20px]">
-                  <div className="text-white/50 text-[16px] mb-[10px]">
-                    Associated Skills
+                  <p className="text-[16px]">{cred.issuer}</p> {/* Group 2 */}
+                  <div className="mt-[15px] text-[16px] text-white/50 leading-[1.6]">
+                    Issued <span>{formatMonthYear(cred.issue_date)}</span> •{" "}
+                    {/* Changed from cred.issueDate */}
+                    {cred.expiry_date
+                      ? `Expires ${formatMonthYear(cred.expiry_date)}`
+                      : "No expiry"}
+                    <br />
+                    {cred.cred_id ? `ID: ${cred.cred_id}` : ""}
                   </div>
-                  <div className="flex flex-wrap gap-[10px]">
-                    {(cred.skills || []).map((skill, skillIndex) => (
-                      <TradePill key={skillIndex} content={skill} />
-                    ))}
+                  {/* Group 3 */}
+                  <div className="mt-[15px]">
+                    <a
+                      href={cred.cred_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[#0038FF] hover:underline transition-colors"
+                    >
+                      View credential
+                      <Icon icon="mdi:arrow-top-right" className="w-4 h-4" />
+                    </a>
                   </div>
+                  {/* Group 4: Skill */}
+                  {(cred.skills || []).length > 0 && (
+                    <div className="mt-[20px] flex items-center gap-[10px]">
+                      {(cred.skills || []).map((skill, skillIndex) => (
+                        <TradePill key={skillIndex} content={skill} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-              </div>
-            ))}
+              ))}
           </div>
           {/* Show More / Show Less Button */}
           {(userCredentials || []).length > 4 && (
@@ -2824,56 +2955,80 @@ const isDirty =
                 What others say
               </h5>
               <span className="text-[16px] text-white/50 mt-[5px]">
-                25 trades & reviews
+                {user.reviews} trades & reviews
               </span>
             </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowSortDropdown(!showSortDropdown)}
-                className="flex items-center text-white text-[16px] border border-white/20 rounded-[10px] h-[30px] px-3"
-              >
-                {sortOption}{" "}
-                <ChevronDownIcon className="ml-2 h-4 w-4 text-white" />
-              </button>
-              {showSortDropdown && (
-                <div className="absolute top-full right-0 mt-2 w-40 bg-[#120A2A] rounded-xl border border-white/20 shadow-lg py-1 z-10">
-                  {["Latest", "Highest Rating", "Lowest Rating"].map(
-                    (option) => (
-                      <button
-                        key={option}
-                        onClick={() => handleSortChange(option)}
-                        className={clsx(
-                          "block w-full text-left px-4 py-2 text-sm transition-colors",
-                          option === sortOption
-                            ? "text-[#906EFF] bg-white/10"
-                            : "text-white hover:bg-white/10"
-                        )}
-                      >
-                        {option}
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
+            {reviews.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className="flex items-center text-white text-[16px] border border-white/20 rounded-[10px] h-[30px] px-3"
+                >
+                  {sortOption}{" "}
+                  <ChevronDownIcon className="ml-2 h-4 w-4 text-white" />
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute top-full right-0 mt-2 w-40 bg-[#120A2A] rounded-xl border border-white/20 shadow-lg py-1 z-10">
+                    {["Latest", "Highest Rating", "Lowest Rating"].map(
+                      (option) => (
+                        <button
+                          key={option}
+                          onClick={() => handleSortChange(option)}
+                          className={clsx(
+                            "block w-full text-left px-4 py-2 text-sm transition-colors",
+                            option === sortOption
+                              ? "text-[#906EFF] bg-white/10"
+                              : "text-white hover:bg-white/10"
+                          )}
+                        >
+                          {option}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Rating Analytics */}
-          <div className="flex items-start gap-[50px]">
-            {/* Overall Rating Group - now at the top left */}
-            <div className="flex flex-col">
-              <div className="flex items-end gap-[10px]">
-                <span className="text-[40px] font-bold leading-none">
-                  {safeFixed(user.rating, 1)}
-                </span>
-                <span className="text-[16px] text-white/50 pb-2">
-                  ({Number(user.reviews) || 0})
-                </span>
-              </div>
-              <div className="flex items-center mt-[20px]">
-                {renderStars(user.rating)}
-              </div>
+          {/* Loading state */}
+          {reviewsLoading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-white/60">Loading reviews...</div>
             </div>
+          )}
+
+          {/* Error state */}
+          {reviewsError && !reviewsLoading && (
+            <div className="text-red-400 text-sm bg-red-900/20 border border-red-500/30 rounded-[10px] p-3">
+              {reviewsError}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!reviewsLoading && !reviewsError && reviews.length === 0 && (
+            <div className="text-white/60 text-center py-8">
+              No reviews yet.
+            </div>
+          )}
+
+          {/* Rating Analytics - only show if there are reviews */}
+          {reviews.length > 0 && (
+            <div className="flex items-start gap-[50px]">
+              {/* Overall Rating Group */}
+              <div className="flex flex-col">
+                <div className="flex items-end gap-[10px]">
+                  <span className="text-[40px] font-bold leading-none">
+                    {safeFixed(user.rating, 1)}
+                  </span>
+                  <span className="text-[16px] text-white/50 pb-2">
+                    ({Number(user.reviews) || 0})
+                  </span>
+                </div>
+                <div className="flex items-center mt-[20px]">
+                  {renderStars(user.rating)}
+                </div>
+              </div>
 
             {/* Rating Bars */}
             <div className="flex flex-col gap-[10px]">
@@ -2885,9 +3040,9 @@ const isDirty =
                     <div className="w-[270px] h-[15px] bg-white/20 rounded-full">
                       <div
                         style={{
-                          width: `${
+                          width: user.reviews > 0 ? `${
                             (reviewRatings[rating] / user.reviews) * 100
-                          }%`,
+                          }%` : '0%',
                         }}
                         className="h-full bg-[#906EFF] rounded-full"
                       />
@@ -2896,18 +3051,19 @@ const isDirty =
                 ))}
             </div>
           </div>
+        )}
 
-          {/* Reviews section using the new ReviewCard component */}
+        {/* Reviews section */}
+        {reviews.length > 0 && (
           <div className="mt-8 flex flex-col gap-6">
             {sortedReviews.map((review, index) => (
               <ReviewCard
                 key={index}
                 review={review}
-                onDelete={handleDeleteReview}
               />
             ))}
           </div>
-        </div>
+        )}
       </div>
 
       {/* === Verification Popup (improved UI) === */}
@@ -2947,7 +3103,8 @@ const isDirty =
                 type="file"
                 accept="image/*,application/pdf"
                 className="hidden"
-                onChange={(e) => handleIdFileChange(e.target.files?.[0] ?? null)
+                onChange={(e) =>
+                  handleIdFileChange(e.target.files?.[0] ?? null)
                 }
               />
 
@@ -3037,6 +3194,7 @@ const isDirty =
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

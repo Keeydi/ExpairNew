@@ -1,7 +1,38 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth.hashers import make_password
+from django.conf import settings
+from django.utils import timezone
+import binascii
+import os
 
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = self.generate_token()
+        if not self.expires_at:
+            # Set a 24-hour expiration time
+            self.expires_at = timezone.now() + timezone.timedelta(hours=24)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        return timezone.now() < self.expires_at
+
+    @staticmethod
+    def generate_token():
+        return binascii.hexlify(os.urandom(32)).decode()
+
+    def __str__(self):
+        return f"Token for {self.user.username}"
+
+    class Meta:
+        db_table = 'password_reset_token_tbl'
+        managed = True
 
 class VerificationStatus(models.TextChoices):
     UNVERIFIED = "UNVERIFIED", "Unverified"
@@ -172,6 +203,8 @@ class TradeRequest(models.Model):
     exchange = models.CharField(max_length=255, db_column="exchangename", null=True, blank=True)
     classified_category = models.CharField(max_length=100, db_column="classifiedcategory", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, db_column='created_at')
+    requester_rated = models.BooleanField(default=False, db_column='requester_rated')
+    responder_rated = models.BooleanField(default=False, db_column='responder_rated')
 
     class Meta:
         db_table = 'tradereq_tbl'
@@ -284,3 +317,51 @@ class TradeInterest(models.Model):
     def __str__(self):
         return f"Trade Interest for {self.trade_request.reqname} - {self.interested_user.username} - {self.status}"
 
+class TradeHistory(models.Model):
+    class ProofStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+    tradehis_id = models.AutoField(primary_key=True, db_column='tradehis_id')
+    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, db_column='tradereq_id')
+    completed_at = models.DateTimeField(db_column='completed_at', null=True, blank=True)
+
+    # Proof of completion fields
+    requester_proof = models.ImageField(upload_to='trade_proofs/requester/', null=True, blank=True, db_column='requester_proof')
+    responder_proof = models.ImageField(upload_to='trade_proofs/responder/', null=True, blank=True, db_column='responder_proof')
+    
+    # Proof status for both requester and responder
+    requester_proof_status = models.CharField(
+        max_length=20,
+        choices=ProofStatus.choices,
+        default=ProofStatus.PENDING,
+        db_column='requester_proof_status'
+    )
+    responder_proof_status = models.CharField(
+        max_length=20,
+        choices=ProofStatus.choices,
+        default=ProofStatus.PENDING,
+        db_column='responder_proof_status'
+    )
+
+    class Meta:
+        db_table = 'tradehis_tbl'  
+        managed = True  
+
+    def __str__(self):
+        return f"Trade History for TradeRequest {self.trade_request.id} - Completed: {self.completed_at}"
+    
+class ReputationSystem(models.Model):
+    repsys_id = models.AutoField(primary_key=True, db_column='repsys_id')
+    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, db_column='tradereq_id')
+    requester_starcount = models.IntegerField(null=True, blank=True, db_column='requester_starcount')
+    responder_starcount = models.IntegerField(null=True, blank=True, db_column='responder_starcount')
+    requester_rating_desc = models.CharField(max_length=500, null=True, blank=True, db_column='requester_rating_desc')
+    responder_rating_desc = models.CharField(max_length=500, null=True, blank=True, db_column='responder_rating_desc')
+    requester_rated_at = models.DateTimeField(null=True, blank=True, db_column='requester_rated_at')
+    responder_rated_at = models.DateTimeField(null=True, blank=True, db_column='responder_rated_at')
+
+    class Meta:
+        db_table = 'repsys_tbl'
+        managed = True

@@ -61,6 +61,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 
 ROOT_URLCONF = 'backend.urls'
@@ -162,7 +164,7 @@ from datetime import timedelta
 
 # JWT Configuration
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # 1 hour
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120),  # 2 hours
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # 7 days
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -180,3 +182,15 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+# Email settings for password reset functionality
+# Make sure you use your own email provider's settings here
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com' 
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'expaircs@gmail.com' 
+EMAIL_HOST_PASSWORD = 'qjfy dmyf vmff xkpa' 
+DEFAULT_FROM_EMAIL = 'expaircs@gmail.com'
+
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']

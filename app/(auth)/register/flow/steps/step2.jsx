@@ -9,66 +9,99 @@ import MapWrapper from "../../../../../components/map/map-wrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Default coordinates for Manila
+const DEFAULT_COORDS = { latitude: 14.5995, longitude: 120.9842 };
+
+// Helper function to validate coordinates
+const isValidCoordinate = (coord) => {
+  return typeof coord === 'number' && !isNaN(coord) && isFinite(coord);
+};
+
+const isValidMarker = (marker) => {
+  return marker && 
+         isValidCoordinate(marker.latitude) && 
+         isValidCoordinate(marker.longitude) &&
+         marker.latitude >= -90 && marker.latitude <= 90 &&
+         marker.longitude >= -180 && marker.longitude <= 180;
+};
+
 export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
   const [viewport, setViewport] = useState({
-    latitude: 14.5995, // Default: Manila
-    longitude: 120.9842,
+    latitude: DEFAULT_COORDS.latitude,
+    longitude: DEFAULT_COORDS.longitude,
     zoom: 14,
   });
 
   const [searchQuery, setSearchQuery] = useState(step2Data?.searchQuery || "");
-  const [marker, setMarker] = useState(step2Data?.marker || null);
   const [suggestions, setSuggestions] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isUserInteracted, setIsUserInteracted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [isUserInteracted, setIsUserInteracted] = useState(false); // Track user interaction
+  // Initialize marker with valid coordinates
+  const [marker, setMarker] = useState(() => {
+    if (step2Data?.marker && isValidMarker(step2Data.marker)) {
+      return step2Data.marker;
+    }
+    return DEFAULT_COORDS;
+  });
 
-  // Auto locate user
+  // Auto locate user with proper error handling
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          setViewport((prev) => ({ ...prev, latitude, longitude, zoom: 14 }));
-          setMarker({ latitude, longitude });
+          
+          if (isValidCoordinate(latitude) && isValidCoordinate(longitude)) {
+            const newCoords = { latitude, longitude };
+            
+            setViewport(prev => ({ 
+              ...prev, 
+              latitude, 
+              longitude, 
+              zoom: 14 
+            }));
+            setMarker(newCoords);
+          }
+          setIsLoading(false);
         },
         (error) => {
           console.error("Geolocation error:", error);
-          // Keep default location if user denies permission
-          if (!marker) {
-            setMarker({
-              latitude: 14.5995,
-              longitude: 120.9842,
-            });
-          }
+          setIsLoading(false);
+        },
+        {
+          timeout: 10000,
+          enableHighAccuracy: false
         }
       );
+    } else {
+      setIsLoading(false);
     }
   }, []);
 
-  // Form validation for Continue button
+  // Form validation
   const isFormValid = () => {
-    return searchQuery.trim() !== ""; // Ensure marker is selected and user interacted
+    return searchQuery.trim() !== "" && isValidMarker(marker);
   };
 
   const handlePrev = () => {
-    onPrev(step2Data); // Pass Step 2 data back to parent
+    onPrev({
+      searchQuery,
+      marker: isValidMarker(marker) ? marker : DEFAULT_COORDS
+    });
   };
 
   const handleContinue = () => {
-    if (!marker) {
-      setErrorMessage(
-        "Please select or search for your location before continuing."
-      );
+    if (!isValidMarker(marker)) {
+      setErrorMessage("Please select a valid location before continuing.");
       return;
     }
+    
     setErrorMessage("");
-    console.log("Selected location:", marker);
-
-    // Save to parent
     onDataSubmit({
-      searchQuery, // full address to store in DB
-      marker, // optional
+      searchQuery,
+      marker,
     });
     onNext();
   };
@@ -79,42 +112,50 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
       setSuggestions([]);
       return;
     }
+    
     try {
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (!token) return;
+
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         query
       )}.json?autocomplete=true&limit=5&access_token=${token}`;
 
       const res = await fetch(url);
+      if (!res.ok) return;
+      
       const data = await res.json();
       if (data.features) {
         setSuggestions(data.features);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Suggestion fetch error:", err);
     }
   };
 
-  // Select suggestion
+  // Select suggestion with validation
   const handleSelectSuggestion = (place) => {
-    console.log("Selected place:", place); // Debugging
-    setSearchQuery(place.place_name); // Set the location to the text field
+    if (!place?.center || place.center.length !== 2) return;
+
     const [longitude, latitude] = place.center;
+    
+    if (!isValidCoordinate(latitude) || !isValidCoordinate(longitude)) return;
+
+    setSearchQuery(place.place_name);
+    
+    const newCoords = { latitude, longitude };
     setViewport({
       latitude,
       longitude,
       zoom: 14,
     });
-    setMarker({
-      latitude,
-      longitude,
-    });
-    setSuggestions([]); // Clear suggestions
-    setIsUserInteracted(true); // User interacted with the location
-    setErrorMessage(""); // Clear error if location is valid
+    setMarker(newCoords);
+    setSuggestions([]);
+    setIsUserInteracted(true);
+    setErrorMessage("");
   };
 
-  // Manual search via Enter or icon
+  // Manual search with validation
   const handleSearch = async () => {
     if (!searchQuery) {
       setErrorMessage("Please enter a location to search.");
@@ -123,55 +164,106 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
 
     try {
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (!token) {
+        setErrorMessage("Map service unavailable.");
+        return;
+      }
+
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         searchQuery
       )}.json?access_token=${token}`;
 
       const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
       const data = await res.json();
 
       if (data.features && data.features.length > 0) {
         const [longitude, latitude] = data.features[0].center;
-        setViewport((prev) => ({
+        
+        if (!isValidCoordinate(latitude) || !isValidCoordinate(longitude)) {
+          setErrorMessage("Invalid location coordinates received.");
+          return;
+        }
+
+        const newCoords = { latitude, longitude };
+        setViewport(prev => ({
           ...prev,
           latitude,
           longitude,
           zoom: 14,
         }));
-        setMarker({ latitude, longitude });
-        setIsUserInteracted(true); // Mark that the user interacted with the location
+        setMarker(newCoords);
+        setIsUserInteracted(true);
         setErrorMessage("");
       } else {
         setErrorMessage("Location not found. Please try again.");
       }
     } catch (error) {
       console.error("Search error:", error);
+      setErrorMessage("Search failed. Please try again.");
     }
   };
 
+  // Handle marker changes - this is called by your DynamicMap
   const handleMarkerChange = async (newMarker) => {
-    console.log("New marker selected:", newMarker); // Debugging
-    setMarker(newMarker); // Update marker state
-    setViewport((prev) => ({
+    console.log("handleMarkerChange called with:", newMarker);
+    
+    if (!isValidMarker(newMarker)) {
+      console.warn("Invalid marker skipped:", newMarker);
+      return;
+    }
+
+    setMarker(newMarker);
+    setViewport(prev => ({
       ...prev,
       latitude: newMarker.latitude,
       longitude: newMarker.longitude,
     }));
 
+    // Reverse geocoding
     try {
       const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (!token) return;
+
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newMarker.longitude},${newMarker.latitude}.json?access_token=${token}`;
       const res = await fetch(url);
+      
+      if (!res.ok) return;
+      
       const data = await res.json();
-
       if (data.features && data.features.length > 0) {
-        setSearchQuery(data.features[0].place_name); // Update searchQuery with place name
-        setIsUserInteracted(true); // User interacted with the map
+        setSearchQuery(data.features[0].place_name);
+        setIsUserInteracted(true);
       }
     } catch (error) {
       console.error("Reverse geocoding failed:", error);
     }
   };
+
+  // Ensure we always have valid coordinates
+  const safeMarker = isValidMarker(marker) ? marker : DEFAULT_COORDS;
+  const safeViewport = {
+    latitude: isValidCoordinate(viewport.latitude) ? viewport.latitude : DEFAULT_COORDS.latitude,
+    longitude: isValidCoordinate(viewport.longitude) ? viewport.longitude : DEFAULT_COORDS.longitude,
+    zoom: viewport.zoom || 14
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-cover bg-center"
+           style={{ backgroundImage: "url('/assets/bg_register.png')" }}>
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading your location...</p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log("About to render MapWrapper with:", { safeViewport, safeMarker });
 
   return (
     <div
@@ -189,7 +281,7 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
             className="rounded-full mb-[30px]"
           />
           <h1 className="font-[600] text-[25px] text-center mb-[90px]">
-            Let’s get your account started.
+            Let's get your account started.
           </h1>
         </div>
 
@@ -236,18 +328,20 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
           )}
         </div>
 
-        {/* Map */}
+        {/* Map - Pass marker as coordinate object, not React component */}
         <div className="w-full max-w-[800px] h-[200px] sm:h-[288px] mx-auto rounded-[20px] sm:rounded-[30px] overflow-hidden">
           <MapWrapper
-            viewport={viewport}
+            viewport={safeViewport}
             onViewportChange={setViewport}
-            marker={marker}
+            marker={safeMarker} // Pass the coordinate object directly
             onMarkerChange={handleMarkerChange}
           />
         </div>
 
         <p className="text-xs sm:text-sm text-white/60 mt-10 mb-2 max-w-[800px] mx-auto">
-          <span className="text-[18px] font-bold text-white/60">Why do we ask for your location?</span>
+          <span className="text-[18px] font-bold text-white/60">
+            Why do we ask for your location?
+          </span>
           <br />
           We use your location to calibrate our matching algorithm—users who are
           closer to each other are matched more easily. Your exact location is{" "}
@@ -255,7 +349,7 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
           your profile.
         </p>
 
-        {/* Error Message (fixed height) */}
+        {/* Error Message */}
         <div className="h-[10px] mt-4">
           {errorMessage && (
             <p className="text-red-500 text-sm">{errorMessage}</p>
@@ -276,7 +370,7 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
           </Button>
         </div>
 
-
+        {/* Pagination */}
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft
             className="w-5 h-5 cursor-pointer text-gray-300 hover:text-white"
@@ -291,7 +385,7 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
             }`}
             onClick={() => {
               if (isFormValid()) {
-                onNext(); // Proceed to the next step only if the form is valid
+                handleContinue();
               }
             }}
           />

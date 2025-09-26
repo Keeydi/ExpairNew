@@ -14,6 +14,8 @@ interface ExploreCardProps {
   need: string;
   offer: string;
   deadline: string;
+  profilePicUrl?: string; // Add this prop for profile picture URL
+  userId?: number; // Optional: for linking to specific user profile
   onInterestedClick?: () => void;
 }
 
@@ -25,9 +27,20 @@ export default function ExploreCard({
   need,
   offer,
   deadline,
+  profilePicUrl,
+  userId,
   onInterestedClick,
 }: ExploreCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // Construct the profile link with user ID if available
+  const profileLink = userId ? `/profile/${userId}` : "/profile";
+
+  // Handle image error fallback
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   return (
     <div
@@ -40,14 +53,21 @@ export default function ExploreCard({
       {/* Top Row */}
       <div className="flex justify-between items-start w-full">
         <div className="flex gap-[10px]">
-          <Link href="/profile">
-            <Image
-              src="/assets/defaultavatar.png"
-              alt="Avatar"
-              width={25}
-              height={25}
-              className="rounded-full cursor-pointer"
-            />
+          <Link href={profileLink}>
+            <div className="relative w-[25px] h-[25px] rounded-full overflow-hidden cursor-pointer">
+              <Image
+                src={
+                  !imageError && profilePicUrl 
+                    ? profilePicUrl 
+                    : "/assets/defaultavatar.png"
+                }
+                alt={`${name}'s avatar`}
+                width={25}
+                height={25}
+                className="rounded-full object-cover"
+                onError={handleImageError}
+              />
+            </div>
           </Link>
 
           <div className="flex flex-col gap-[5px]">
