@@ -1112,6 +1112,7 @@ def get_home_active_trades(request):
                 "other_user": {
                     "id": other_user.id,
                     "name": f"{other_user.first_name} {other_user.last_name}".strip() or other_user.username,
+                    "username": other_user.username, 
                     "profilePic": profile_pic_url,
                     "level": other_user.level,
                     "rating": float(other_user.avgStars or 0)
@@ -1233,6 +1234,7 @@ def explore_feed(request):
             "deadline": tr.reqdeadline.isoformat() if tr.reqdeadline else "",
             "profilePicUrl": profile_pic_url,  # Add profile picture URL
             "userId": requester.id,  # Add user ID for profile linking
+            "username": requester.username, 
         }
         
         # Separate matched items (requester has skill viewer wants) from non-matched

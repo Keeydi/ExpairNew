@@ -106,53 +106,53 @@ export default function ActiveTradesPage() {
               }
 
               console.log(`=== TRADE DETAILS DEBUG FOR TRADE ${trade.tradereq_id} ===`);
-      console.log('Trade details response status:', tradeDetailsResponse.status);
-      console.log('Trade details response ok:', tradeDetailsResponse.ok);
-      
-      if (tradeDetailsResponse.ok) {
-        try {
-          const detailsData = await tradeDetailsResponse.json();
-          console.log('Full trade details response:', detailsData);
-          console.log('Session user ID:', session.user.id);
-          console.log('Available details array:', detailsData.details);
-          
-          if (detailsData.details && Array.isArray(detailsData.details)) {
-            console.log('Details array length:', detailsData.details.length);
-            detailsData.details.forEach((detail, index) => {
-              console.log(`Detail ${index}:`, {
-                user_id: detail.user_id,
-                user_name: detail.user_name,
-                skillprof: detail.skillprof,
-                modedel: detail.modedel,
-                reqtype: detail.reqtype,
-                reqbio: detail.reqbio
-              });
-            });
-            
-            // Find current user's trade detail
-            tradeDetails = detailsData.details.find(detail => detail.user_id === session.user.id);
-            console.log('Found current user trade details:', tradeDetails);
-            
-            // If current user details not found, maybe use partner's details for display
-            if (!tradeDetails && detailsData.details.length > 0) {
-              console.log('Current user details not found, using first available details');
-              tradeDetails = detailsData.details[0];
-            }
-          } else {
-            console.log('Details is not an array or is missing:', detailsData.details);
-          }
-        } catch (jsonError) {
-          console.log('Failed to parse trade details JSON:', jsonError);
-        }
-      } else {
-        console.log('Trade details response failed with status:', tradeDetailsResponse.status);
-        try {
-          const errorText = await tradeDetailsResponse.text();
-          console.log('Error response:', errorText);
-        } catch (textError) {
-          console.log('Could not read error response:', textError);
-        }
-      }  
+              console.log('Trade details response status:', tradeDetailsResponse.status);
+              console.log('Trade details response ok:', tradeDetailsResponse.ok);
+              
+              if (tradeDetailsResponse.ok) {
+                try {
+                  const detailsData = await tradeDetailsResponse.json();
+                  console.log('Full trade details response:', detailsData);
+                  console.log('Session user ID:', session.user.id);
+                  console.log('Available details array:', detailsData.details);
+                  
+                  if (detailsData.details && Array.isArray(detailsData.details)) {
+                    console.log('Details array length:', detailsData.details.length);
+                    detailsData.details.forEach((detail, index) => {
+                      console.log(`Detail ${index}:`, {
+                        user_id: detail.user_id,
+                        user_name: detail.user_name,
+                        skillprof: detail.skillprof,
+                        modedel: detail.modedel,
+                        reqtype: detail.reqtype,
+                        reqbio: detail.reqbio
+                      });
+                    });
+                    
+                    // Find current user's trade detail
+                    tradeDetails = detailsData.details.find(detail => detail.user_id === session.user.id);
+                    console.log('Found current user trade details:', tradeDetails);
+                    
+                    // If current user details not found, maybe use partner's details for display
+                    if (!tradeDetails && detailsData.details.length > 0) {
+                      console.log('Current user details not found, using first available details');
+                      tradeDetails = detailsData.details[0];
+                    }
+                  } else {
+                    console.log('Details is not an array or is missing:', detailsData.details);
+                  }
+                } catch (jsonError) {
+                  console.log('Failed to parse trade details JSON:', jsonError);
+                }
+              } else {
+                console.log('Trade details response failed with status:', tradeDetailsResponse.status);
+                try {
+                  const errorText = await tradeDetailsResponse.text();
+                  console.log('Error response:', errorText);
+                } catch (textError) {
+                  console.log('Could not read error response:', textError);
+                }
+              }  
 
               
               return {
@@ -160,6 +160,7 @@ export default function ActiveTradesPage() {
                 tradereq_id: trade.tradereq_id,
                 firstname: trade.other_user.name.split(' ')[0] || trade.other_user.name,
                 lastname: trade.other_user.name.split(' ').slice(1).join(' ') || '',
+                username: trade.other_user.username,
                 avatar: trade.other_user.profilePic || "/defaultavatar.png",
                 rating: trade.other_user.rating.toFixed(1),
                 reviews: "0",
@@ -741,16 +742,44 @@ export default function ActiveTradesPage() {
                     {/* Header */}
                     <div className="p-[25px] pb-[15px] flex justify-between items-start">
                       <div className="flex items-start gap-[10px]">
-                        <div className="w-[25px] h-[25px] rounded-full overflow-hidden">
-                          <Image
-                            src={trade.avatar}
-                            alt="Avatar"
-                            width={25}
-                            height={25}
-                          />
-                        </div>
+                        {/* Clickable Profile Picture */}
+                        {trade.username ? (
+                          <Link href={`/home/profile/${trade.username}`} className="flex-shrink-0">
+                            <div className="w-[25px] h-[25px] rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#284CCC] transition-all">
+                              <Image
+                                src={trade.avatar}
+                                alt="Avatar"
+                                width={25}
+                                height={25}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
+                              />
+                            </div>
+                          </Link>
+                        ) : (
+                          <div className="w-[25px] h-[25px] rounded-full overflow-hidden">
+                            <Image
+                              src={trade.avatar}
+                              alt="Avatar"
+                              width={25}
+                              height={25}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
+                            />
+                          </div>
+                        )}
+                        
                         <div>
-                          <h3 className="text-[16px] font-normal">{trade.firstname} {trade.lastname}</h3>
+                          {/* Clickable Name */}
+                          {trade.username ? (
+                            <Link href={`/home/profile/${trade.username}`} className="hover:text-[#284CCC] transition-colors">
+                              <span>{trade.firstname} {trade.lastname}</span>
+                            </Link>
+                          ) : (
+                            <span className="text-[16px] font-normal text-white">
+                              {trade.firstname} {trade.lastname}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="relative">
@@ -886,17 +915,45 @@ export default function ActiveTradesPage() {
                     {/* Top Row - Name and Menu */}
                     <div className="flex justify-between items-start w-full">
                       <div className="flex items-center gap-[10px]">
-                        <div className="w-[25px] h-[25px] rounded-full overflow-hidden">
-                          <Image
-                            src={trade.avatar}
-                            alt="Avatar"
-                            width={25}
-                            height={25}
-                          />
-                        </div>
-                        <span className="text-[16px] font-normal text-white">
-                          {trade.firstname} {trade.lastname}
-                        </span>
+                        {/* Clickable Profile Picture */}
+                        {trade.username ? (
+                          <Link href={`/home/profile/${trade.username}`} className="flex-shrink-0">
+                            <div className="w-[25px] h-[25px] rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#284CCC] transition-all">
+                              <Image
+                                src={trade.avatar}
+                                alt="Avatar"
+                                width={25}
+                                height={25}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
+                              />
+                            </div>
+                          </Link>
+                        ) : (
+                          <div className="w-[25px] h-[25px] rounded-full overflow-hidden">
+                            <Image
+                              src={trade.avatar}
+                              alt="Avatar"
+                              width={25}
+                              height={25}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Clickable Name */}
+                        {trade.username ? (
+                          <Link href={`/home/profile/${trade.username}`} className="hover:text-[#284CCC] transition-colors">
+                            <span>
+                              {trade.firstname} {trade.lastname}
+                            </span>
+                          </Link>
+                        ) : (
+                          <span className="text-[16px] font-normal text-white">
+                            {trade.firstname} {trade.lastname}
+                          </span>
+                        )}
                       </div>
                       <div className="relative">
                         <button

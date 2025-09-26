@@ -161,208 +161,250 @@ export default function ProfilePage() {
     }
   };
 
+  const isOwnProfile = useMemo(() => {
+  console.log("=== IS OWN PROFILE CHECK ===");
+  console.log("Current slug:", slug);
+  console.log("Session user ID:", session?.user?.user_id || session?.user?.id);
+  console.log("Session user username:", session?.user?.username || session?.username);
+  console.log("Loaded user ID:", user?.id);
+  console.log("Loaded user username:", user?.username);
+
+  // If viewing /me, it's always own profile
+  if (slug === "me") {
+    console.log("Viewing /me - own profile");
+    return true;
+  }
+
+  // If not authenticated, can't be own profile
+  if (!session?.user && !session?.access) {
+    console.log("Not authenticated - not own profile");
+    return false;
+  }
+
+  // Get current user info from session
+  const sessionUserId = session?.user?.user_id || session?.user?.id;
+  const sessionUsername = session?.user?.username || session?.username;
+
+  // Check if slug matches current user ID or username
+  const slugIsUserId = sessionUserId && String(sessionUserId) === String(slug);
+  const slugIsUsername = sessionUsername && sessionUsername.toLowerCase() === String(slug).toLowerCase();
+
+  // Also check if loaded user data matches session user
+  const loadedUserMatches = user?.id && sessionUserId && user.id === sessionUserId;
+
+  const result = slugIsUserId || slugIsUsername || loadedUserMatches;
+  console.log("Final isOwnProfile result:", result);
+  
+  return result;
+}, [slug, session, user?.id, user?.username]);
+
   useEffect(() => {
-    console.log("=== USEEFFECT RUNNING ===");
-    console.log("Slug:", slug);
-    console.log("Session:", session);
+  console.log("=== USEEFFECT RUNNING ===");
+  console.log("Slug:", slug);
+  console.log("Session:", session);
 
-    if (!slug) return;
-    if (status === "loading") return; // Wait for session to load
+  if (!slug) return;
+  if (status === "loading") return; // Wait for session to load
 
-    // Only require authentication for "me" endpoint
-    if (slug === "me" && !session?.access) {
-      console.error("[profile] NO ACCESS TOKEN for /me endpoint");
-      setError("Authentication required");
-      return;
-    }
+  // Only require authentication for "me" endpoint
+  if (slug === "me" && !session?.access) {
+    console.error("[profile] NO ACCESS TOKEN for /me endpoint");
+    setError("Authentication required");
+    setLoading(false);
+    return;
+  }
 
-    console.log("=== PROFILE LOAD START ===");
-    console.log("Slug:", slug);
-    console.log("Session status:", status);
-    console.log("Full session object:", JSON.stringify(session, null, 2));
+  console.log("=== PROFILE LOAD START ===");
+  console.log("Slug:", slug);
+  console.log("Session status:", status);
+  console.log("Full session object:", JSON.stringify(session, null, 2));
 
-    const slugStr = String(slug).toLowerCase();
-    const myName = String(
-      session?.username ||
-        session?.user?.username || // fallback if NextAuth keeps it under user
-        ""
-    ).toLowerCase();
+  const slugStr = String(slug).toLowerCase();
+  const sessionUsername = String(
+    session?.username || session?.user?.username || ""
+  ).toLowerCase();
+  const sessionUserId = session?.user?.user_id || session?.user?.id;
 
-    const isNumeric = /^\d+$/.test(String(slug));
-    const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
+  const isNumeric = /^\d+$/.test(String(slug));
+  const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
 
-    if (!(slugStr === "me" || isNumeric || isUsername)) {
-      setError("Invalid profile URL.");
-      return;
-    }
+  if (!(slugStr === "me" || isNumeric || isUsername)) {
+    setError("Invalid profile URL.");
+    setLoading(false);
+    return;
+  }
 
-    // if I'm viewing my own username, rewrite to /me
-    if (
-      status === "authenticated" &&
-      myName &&
-      slugStr !== "me" &&
-      slugStr === myName
-    ) {
-      router.replace("/home/profile/me");
-      return;
-    }
+  // If authenticated user is viewing their own profile by ID or username, redirect to /me
+  if (
+    status === "authenticated" && 
+    sessionUsername && 
+    slugStr !== "me" && 
+    (slugStr === sessionUsername || (sessionUserId && slugStr === String(sessionUserId)))
+  ) {
+    console.log("Redirecting own profile view to /me");
+    router.replace("/home/profile/me");
+    return;
+  }
 
-    let cancelled = false;
+  let cancelled = false;
 
-    (async () => {
-      try {
-        setError(null);
+  (async () => {
+    try {
+      setError(null);
+      setLoading(true);
 
-        let url;
-        if (slug === "me") {
-          url = `${API_BASE}/me/`;
-        } else if (isNumeric) {
-          url = `${API_BASE}/users/${slug}/`;
-        } else {
-          url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
-        }
+      let url;
+      if (slug === "me") {
+        url = `${API_BASE}/me/`;
+      } else if (isNumeric) {
+        url = `${API_BASE}/users/${slug}/`;
+      } else {
+        url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+      }
 
-        console.log("[profile] Making request to:", url);
+      console.log("[profile] Making request to:", url);
 
-        const headers = {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        };
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
 
-        // Only add auth header if we have a token
-        if (session?.access) {
-          headers.Authorization = `Bearer ${session.access}`;
-          console.log("[profile] Authorization header set");
-        } else {
-          console.log("[profile] No access token available");
-        }
+      // Only add auth header if we have a token
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+        console.log("[profile] Authorization header set");
+      } else {
+        console.log("[profile] No access token available");
+      }
 
-        // Make the request and log everything
-        const res = await fetch(url, {
-          method: "GET",
-          headers,
-          credentials: "include",
-        });
+      // Make the request and log everything
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        credentials: "include",
+      });
 
-        console.log("[profile] Response received:", res.status);
+      console.log("[profile] Response received:", res.status);
 
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error("[profile] Request failed:", res.status, errorText);
-          throw new Error(`HTTP ${res.status}: ${errorText}`);
-        }
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[profile] Request failed:", res.status, errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
 
-        const data = await res.json();
-        console.log("[profile] Data received:", data);
+      const data = await res.json();
+      console.log("[profile] Data received:", data);
 
-        if (cancelled) return;
+      if (cancelled) return;
 
-        // Map the user data
-        console.log("[profile] Mapping user data from:", data);
+      // Map the user data
+      console.log("[profile] Mapping user data from:", data);
 
-        setUser((prev) => ({
-          ...prev,
-          firstname: data.first_name || data.firstname || "",
-          lastname: data.last_name || data.lastname || "",
-          username: data.username || "",
-          id:
-            Number(data.user_id ?? data.id ?? (isNumeric ? slug : null)) ||
-            null,
-          profilePic: data.profilePic || null,
-          joined: data.created_at
-            ? new Date(data.created_at).toLocaleString(undefined, {
-                month: "long",
-                year: "numeric",
-              })
-            : "",
-          rating: Number(data.avgStars ?? data.rating) || 0,
-          reviews: Number(data.ratingCount ?? data.reviews) || 0,
-          bio: data.bio || "",
-          is_verified: Boolean(data.is_verified),
-          verification_status: data.verification_status ?? null,
-          userVerifyId: data.userVerifyId || null,
+      setUser((prev) => ({
+        ...prev,
+        firstname: data.first_name || data.firstname || "",
+        lastname: data.last_name || data.lastname || "",
+        username: data.username || "",
+        id:
+          Number(data.user_id ?? data.id ?? (isNumeric ? slug : null)) ||
+          null,
+        profilePic: data.profilePic || null,
+        joined: data.created_at
+          ? new Date(data.created_at).toLocaleString(undefined, {
+              month: "long",
+              year: "numeric",
+            })
+          : "",
+        rating: Number(data.avgStars ?? data.rating) || 0,
+        reviews: Number(data.ratingCount ?? data.reviews) || 0,
+        bio: data.bio || "",
+        is_verified: Boolean(data.is_verified),
+        verification_status: data.verification_status ?? null,
+        userVerifyId: data.userVerifyId || null,
 
-          // XP calculation
-          ...(() => {
-            const totalXp = Number(
-              data.tot_XpPts ?? data.tot_xppts ?? data.totalXp ?? 0
-            );
-            const d = deriveFromTotalXp(totalXp);
-            return {
-              tot_xppts: totalXp,
-              level: d.level,
-              xpPoints: d.xpInLevel,
-              _lvlWidth: d.levelWidth,
-            };
-          })(),
-        }));
-
-        setUserInterests(data.interests || []);
-        setOriginalUserInterests(data.interests || []);
-
-        console.log("[profile] User state updated successfully");
-
-        // Load interests and skills
-        const userId = isNumeric
-          ? String(slug)
-          : String(data.user_id ?? data.id ?? "");
-        if (userId) {
-          console.log(
-            "[profile] Loading interests and skills for user:",
-            userId
+        // XP calculation
+        ...(() => {
+          const totalXp = Number(
+            data.tot_XpPts ?? data.tot_xppts ?? data.totalXp ?? 0
           );
+          const d = deriveFromTotalXp(totalXp);
+          return {
+            tot_xppts: totalXp,
+            level: d.level,
+            xpPoints: d.xpInLevel,
+            _lvlWidth: d.levelWidth,
+          };
+        })(),
+      }));
 
-          const [iRes, sRes] = await Promise.all([
-            fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
-            fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
+      setUserInterests(data.interests || []);
+      setOriginalUserInterests(data.interests || []);
+
+      console.log("[profile] User state updated successfully");
+
+      // Load interests and skills
+      const userId = isNumeric
+        ? String(slug)
+        : String(data.user_id ?? data.id ?? "");
+      if (userId) {
+        console.log(
+          "[profile] Loading interests and skills for user:",
+          userId
+        );
+
+        const [iRes, sRes] = await Promise.all([
+          fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
+          fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
+        ]);
+
+        console.log("[profile] Interests response:", iRes.status);
+        console.log("[profile] Skills response:", sRes.status);
+
+        if (iRes.ok && sRes.ok) {
+          const [iJson, sJson] = await Promise.all([
+            iRes.json(),
+            sRes.json(),
           ]);
 
-          console.log("[profile] Interests response:", iRes.status);
-          console.log("[profile] Skills response:", sRes.status);
+          if (cancelled) return;
 
-          if (iRes.ok && sRes.ok) {
-            const [iJson, sJson] = await Promise.all([
-              iRes.json(),
-              sRes.json(),
-            ]);
+          console.log("[profile] Interests data:", iJson);
+          console.log("[profile] Skills data:", sJson);
 
-            if (cancelled) return;
+          const interests = Array.isArray(iJson?.interests)
+            ? iJson.interests
+            : [];
+          setUserInterests(data.interests || []);
+          setOriginalUserInterests(data.interests || []);
 
-            console.log("[profile] Interests data:", iJson);
-            console.log("[profile] Skills data:", sJson);
-
-            const interests = Array.isArray(iJson?.interests)
-              ? iJson.interests
-              : [];
-            setUserInterests(data.interests || []);
-            setOriginalUserInterests(data.interests || []);
-
-            if (sJson?.skill_groups && typeof sJson.skill_groups === "object") {
-              const skillGroupsArray = Object.entries(sJson.skill_groups).map(
-                ([category, skills]) => ({
-                  category,
-                  skills: Array.isArray(skills) ? skills : [],
-                })
-              );
-              setSelectedSkillGroups(skillGroupsArray);
-              setOriginalSkillGroups(skillGroupsArray);
-            } else {
-              setSelectedSkillGroups([]);
-              setOriginalSkillGroups([]);
-            }
+          if (sJson?.skill_groups && typeof sJson.skill_groups === "object") {
+            const skillGroupsArray = Object.entries(sJson.skill_groups).map(
+              ([category, skills]) => ({
+                category,
+                skills: Array.isArray(skills) ? skills : [],
+              })
+            );
+            setSelectedSkillGroups(skillGroupsArray);
+            setOriginalSkillGroups(skillGroupsArray);
+          } else {
+            setSelectedSkillGroups([]);
+            setOriginalSkillGroups([]);
           }
         }
-      } catch (e) {
-        console.error("[profile] Load error:", e);
-        console.error("[profile] Error stack:", e.stack);
-        setError(`Failed to load profile: ${e.message}`);
       }
-    })();
+    } catch (e) {
+      console.error("[profile] Load error:", e);
+      console.error("[profile] Error stack:", e.stack);
+      setError(`Failed to load profile: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, session?.access, status]);
+  return () => {
+    cancelled = true;
+  };
+}, [slug, session?.access, status, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -443,9 +485,6 @@ export default function ProfilePage() {
       return newState;
     });
   };
-
-  // Determine if viewing own profile
-  const isOwnProfile = true;
 
   const reviewRatings = useMemo(() => {
   const ratings = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, 0: 0 };

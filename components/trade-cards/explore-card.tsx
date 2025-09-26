@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Icon } from "@iconify/react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "../ui/button";
 import Link from "next/link";
 
@@ -14,8 +14,9 @@ interface ExploreCardProps {
   need: string;
   offer: string;
   deadline: string;
-  profilePicUrl?: string; // Add this prop for profile picture URL
-  userId?: number; // Optional: for linking to specific user profile
+  profilePicUrl?: string;
+  userId?: number;
+  username?: string; 
   onInterestedClick?: () => void;
 }
 
@@ -29,17 +30,47 @@ export default function ExploreCard({
   deadline,
   profilePicUrl,
   userId,
+  username, // Add username parameter
   onInterestedClick,
 }: ExploreCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Construct the profile link with user ID if available
-  const profileLink = userId ? `/profile/${userId}` : "/profile";
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   // Handle image error fallback
   const handleImageError = () => {
     setImageError(true);
+  };
+
+  // Handle report action
+  const handleReport = () => {
+    setShowMenu(false);
+    // Implement your report logic here
+    console.log(`Reporting user ${userId}`);
+  };
+
+  // Handle not interested action
+  const handleNotInterested = () => {
+    setShowMenu(false);
+    // Implement your not interested logic here
+    console.log(`Marked not interested for user ${userId}`);
   };
 
   return (
@@ -53,8 +84,26 @@ export default function ExploreCard({
       {/* Top Row */}
       <div className="flex justify-between items-start w-full">
         <div className="flex gap-[10px]">
-          <Link href={profileLink}>
-            <div className="relative w-[25px] h-[25px] rounded-full overflow-hidden cursor-pointer">
+          {/* Profile Picture - Clickable */}
+          {username ? (
+            <Link href={`/home/profile/${username}`} className="flex-shrink-0">
+              <div className="relative w-[25px] h-[25px] rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#0038FF] transition-all">
+                <Image
+                  src={
+                    !imageError && profilePicUrl 
+                      ? profilePicUrl 
+                      : "/assets/defaultavatar.png"
+                  }
+                  alt={`${name}'s avatar`}
+                  width={25}
+                  height={25}
+                  className="rounded-full object-cover"
+                  onError={handleImageError}
+                />
+              </div>
+            </Link>
+          ) : (
+            <div className="relative w-[25px] h-[25px] rounded-full overflow-hidden">
               <Image
                 src={
                   !imageError && profilePicUrl 
@@ -68,10 +117,18 @@ export default function ExploreCard({
                 onError={handleImageError}
               />
             </div>
-          </Link>
+          )}
 
           <div className="flex flex-col gap-[5px]">
-            <span className="text-base font-medium">{name}</span>
+            {/* Name - Also clickable */}
+            {username ? (
+              <Link href={`/home/profile/${username}`} className="hover:text-[#0038FF] transition-colors">
+                <span className="text-base font-medium cursor-pointer">{name}</span>
+              </Link>
+            ) : (
+              <span className="text-base font-medium">{name}</span>
+            )}
+            
             <div className="flex gap-[15px] items-center text-sm text-white/90">
               {/* Rating */}
               <div className="flex gap-1 items-center">
@@ -100,20 +157,33 @@ export default function ExploreCard({
         </div>
 
         {/* More Options */}
-        <div className="relative">
-          <button onClick={() => setShowMenu(!showMenu)}>
+        <div className="relative" ref={menuRef}>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
+            className="p-1 hover:bg-white/10 rounded-full transition-colors"
+          >
             <Icon icon="mdi:dots-horizontal" className="text-white text-xl" />
           </button>
+          
           {showMenu && (
-            <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-              <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
+            <div className="absolute right-0 top-full mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-20 shadow-lg overflow-hidden">
+              <button 
+                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full transition-colors"
+                onClick={handleReport}
+              >
                 <Icon
                   icon="mdi:alert-circle-outline"
                   className="text-white text-base"
                 />
                 Report
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full">
+              <button 
+                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full transition-colors"
+                onClick={handleNotInterested}
+              >
                 <Icon
                   icon="mdi:eye-off-outline"
                   className="text-white text-base"

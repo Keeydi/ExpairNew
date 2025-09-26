@@ -1,17 +1,22 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Icon } from "@iconify/react";
 import { useState } from "react";
 
 export default function ActiveTradeHome({ 
   name, 
   profilePic, 
-  //level, 
-  //rating, 
+  username,
   offering, 
   totalXp, 
   deadline 
 }) {
   const [openMenuIndex, setOpenMenuIndex] = useState(null);
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   return (
     <div
@@ -23,21 +28,49 @@ export default function ActiveTradeHome({
       {/* Top Row */}
       <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-[10px]">
-          <Image
-            src={profilePic || "/assets/defaultavatar.png"}
-            alt="Avatar"
-            width={25}
-            height={25}
-            className="rounded-full object-cover"
-          />
+          {/* Clickable Profile Picture */}
+          {username ? (
+            <Link href={`/home/profile/${username}`} className="flex-shrink-0">
+              <div className="relative w-[25px] h-[25px] rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#0038FF] transition-all">
+                <Image
+                  src={
+                    !imageError && profilePic 
+                      ? profilePic 
+                      : "/assets/defaultavatar.png"
+                  }
+                  alt={`${name}'s avatar`}
+                  width={25}
+                  height={25}
+                  className="rounded-full object-cover"
+                  onError={handleImageError}
+                />
+              </div>
+            </Link>
+          ) : (
+            <Image
+              src={
+                !imageError && profilePic 
+                  ? profilePic 
+                  : "/assets/defaultavatar.png"
+              }
+              alt="Avatar"
+              width={25}
+              height={25}
+              className="rounded-full object-cover"
+              onError={handleImageError}
+            />
+          )}
+          
           <div className="flex items-center gap-[8px]">
-            <p className="text-base">{name}</p>
+            {/* Clickable Name */}
+            {username ? (
+              <Link href={`/home/profile/${username}`} className="hover:text-[#0038FF] transition-colors">
+                <p className="text-base cursor-pointer">{name}</p>
+              </Link>
+            ) : (
+              <p className="text-base">{name}</p>
+            )}
             <div className="flex items-center gap-[4px]">
-              {/*} <span className="text-xs text-white/60">LVL {level}</span>
-              <div className="flex items-center gap-[2px]">
-                <Icon icon="mdi:star" className="text-yellow-400 text-xs" />
-                <span className="text-xs text-white/60">{rating.toFixed(1)}</span> 
-              </div>*/}
             </div>
           </div>
         </div>

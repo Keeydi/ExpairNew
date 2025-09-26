@@ -407,9 +407,8 @@ useEffect(() => {
             <ActiveTradeCardHome
               key={trade.tradereq_id}
               name={trade.other_user.name}
+              username={trade.other_user.username} 
               profilePic={trade.other_user.profilePic}
-              //level={trade.other_user.level}
-              //rating={trade.other_user.rating}
               offering={trade.offering}
               totalXp={trade.total_xp}
               deadline={trade.deadline_formatted}
@@ -654,6 +653,7 @@ useEffect(() => {
               deadline={item.deadline ? `until ${fmtUntil(item.deadline)}` : ""}
               profilePicUrl={item.profilePicUrl} 
               userId={item.userId}
+              username={item.username}
               onInterestedClick={() => handleInterestedClick(item)}
             />
             ))
