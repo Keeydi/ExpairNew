@@ -22,7 +22,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import (
-    Evaluation, GenSkill, UserInterest, User, VerificationStatus, UserCredential,
+    Evaluation, GenSkill, TradeDetail, UserInterest, User, VerificationStatus, UserCredential,
     SpecSkill, UserSkill, TradeRequest, TradeInterest, PasswordResetToken
 )
 from .serializers import (
