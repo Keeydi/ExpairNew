@@ -47,4 +47,6 @@ backend/venv/
 
 __pycache__/
 *.pyc
-*.pyo
+*.pyo__pycache__/
+*.py[cod]
+
