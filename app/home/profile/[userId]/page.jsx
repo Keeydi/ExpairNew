@@ -32,9 +32,19 @@ const LVL_CAPS = [
   43600, 45100, 46600, 48100, 49600, 51100, 52700, 54300, 55900, 57500, 59200,
   60900, 62600, 64300, 66000, 67700, 69500, 71300, 73100, 74900, 76700, 78500,
   80300, 82100, 85000,
+  50, 75, 100, 125, 150, 175, 200, 230, 260, 300, 350, 400, 460, 520, 600, 700,
+  800, 900, 1000, 1100, 1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200,
+  3500, 3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000,
+  9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300, 15000, 15800, 16600,
+  17500, 18400, 19300, 20300, 21300, 22300, 23300, 24300, 25400, 26500, 27700,
+  28900, 30100, 31300, 32600, 33900, 35200, 36500, 37900, 39300, 40700, 42100,
+  43600, 45100, 46600, 48100, 49600, 51100, 52700, 54300, 55900, 57500, 59200,
+  60900, 62600, 64300, 66000, 67700, 69500, 71300, 73100, 74900, 76700, 78500,
+  80300, 82100, 85000,
 ];
 
 const clampLevel = (lvl) =>
+ 
   Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
 
 // Width of the current level band (XP range inside this level)
@@ -42,7 +52,6 @@ const getLevelWidth = (lvl) => LVL_CAPS[clampLevel(lvl) - 1] || 1;
 
 // Derive level + in-level progress from lifetime total XP (tot_xppts)
 // Inclusive boundary: exact cap stays on the same level
-// Derive level + in-level progress from lifetime total XP (tot_xppts)
 const deriveFromTotalXp = (totalXp) => {
   const t = Math.max(0, Number(totalXp) || 0);
 
@@ -161,101 +170,141 @@ export default function ProfilePage() {
     }
   };
 
+  const isOwnProfile = useMemo(() => {
+  console.log("=== IS OWN PROFILE CHECK ===");
+  console.log("Current slug:", slug);
+  console.log("Session user ID:", session?.user?.user_id || session?.user?.id);
+  console.log("Session user username:", session?.user?.username || session?.username);
+  console.log("Loaded user ID:", user?.id);
+  console.log("Loaded user username:", user?.username);
+
+  // If viewing /me, it's always own profile
+  if (slug === "me") {
+    console.log("Viewing /me - own profile");
+    return true;
+  }
+
+  // If not authenticated, can't be own profile
+  if (!session?.user && !session?.access) {
+    console.log("Not authenticated - not own profile");
+    return false;
+  }
+
+  // Get current user info from session
+  const sessionUserId = session?.user?.user_id || session?.user?.id;
+  const sessionUsername = session?.user?.username || session?.username;
+
+  // Check if slug matches current user ID or username
+  const slugIsUserId = sessionUserId && String(sessionUserId) === String(slug);
+  const slugIsUsername = sessionUsername && sessionUsername.toLowerCase() === String(slug).toLowerCase();
+
+  // Also check if loaded user data matches session user
+  const loadedUserMatches = user?.id && sessionUserId && user.id === sessionUserId;
+
+  const result = slugIsUserId || slugIsUsername || loadedUserMatches;
+  console.log("Final isOwnProfile result:", result);
+  
+  return result;
+}, [slug, session, user?.id, user?.username]);
+
   useEffect(() => {
-    console.log("=== USEEFFECT RUNNING ===");
-    console.log("Slug:", slug);
-    console.log("Session:", session);
+  console.log("=== USEEFFECT RUNNING ===");
+  console.log("Slug:", slug);
+  console.log("Session:", session);
 
-    if (!slug) return;
-    if (status === "loading") return; // Wait for session to load
+  if (!slug) return;
+  if (status === "loading") return; // Wait for session to load
 
-    // Only require authentication for "me" endpoint
-    if (slug === "me" && !session?.access) {
-      console.error("[profile] NO ACCESS TOKEN for /me endpoint");
-      setError("Authentication required");
-      return;
-    }
+  // Only require authentication for "me" endpoint
+  if (slug === "me" && !session?.access) {
+    console.error("[profile] NO ACCESS TOKEN for /me endpoint");
+    setError("Authentication required");
+    setLoading(false);
+    return;
+  }
 
-    console.log("=== PROFILE LOAD START ===");
-    console.log("Slug:", slug);
-    console.log("Session status:", status);
-    console.log("Full session object:", JSON.stringify(session, null, 2));
+  console.log("=== PROFILE LOAD START ===");
+  console.log("Slug:", slug);
+  console.log("Session status:", status);
+  console.log("Full session object:", JSON.stringify(session, null, 2));
 
-    const slugStr = String(slug).toLowerCase();
-    const myName = String(
-      session?.username ||
-        session?.user?.username || // fallback if NextAuth keeps it under user
-        ""
-    ).toLowerCase();
+  const slugStr = String(slug).toLowerCase();
+  const sessionUsername = String(
+    session?.username || session?.user?.username || ""
+  ).toLowerCase();
+  const sessionUserId = session?.user?.user_id || session?.user?.id;
 
-    const isNumeric = /^\d+$/.test(String(slug));
-    const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
+  const isNumeric = /^\d+$/.test(String(slug));
+  const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
 
-    if (!(slugStr === "me" || isNumeric || isUsername)) {
-      setError("Invalid profile URL.");
-      return;
-    }
+  if (!(slugStr === "me" || isNumeric || isUsername)) {
+    setError("Invalid profile URL.");
+    setLoading(false);
+    return;
+  }
 
-    // if I'm viewing my own username, rewrite to /me
-    if (
-      status === "authenticated" &&
-      myName &&
-      slugStr !== "me" &&
-      slugStr === myName
-    ) {
-      router.replace("/home/profile/me");
-      return;
-    }
+  // If authenticated user is viewing their own profile by ID or username, redirect to /me
+  if (
+    status === "authenticated" && 
+    sessionUsername && 
+    slugStr !== "me" && 
+    (slugStr === sessionUsername || (sessionUserId && slugStr === String(sessionUserId)))
+  ) {
+    console.log("Redirecting own profile view to /me");
+    router.replace("/home/profile/me");
+    return;
+  }
 
     let cancelled = false;
 
-    (async () => {
-      try {
-        setError(null);
+  (async () => {
+    try {
+      setError(null);
+      setLoading(true);
 
-        let url;
-        if (slug === "me") {
-          url = `${API_BASE}/me/`;
-        } else if (isNumeric) {
-          url = `${API_BASE}/users/${slug}/`;
-        } else {
-          url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
-        }
+      let url;
+      if (slug === "me") {
+        url = `${API_BASE}/me/`;
+      } else if (isNumeric) {
+        url = `${API_BASE}/users/${slug}/`;
+      } else {
+        url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+      }
 
         console.log("[profile] Making request to:", url);
 
-        const headers = {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        };
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
 
-        // Only add auth header if we have a token
-        if (session?.access) {
-          headers.Authorization = `Bearer ${session.access}`;
-          console.log("[profile] Authorization header set");
-        } else {
-          console.log("[profile] No access token available");
-        }
+      // Only add auth header if we have a token
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+        console.log("[profile] Authorization header set");
+      } else {
+        console.log("[profile] No access token available");
+      }
 
-        // Make the request and log everything
-        const res = await fetch(url, {
-          method: "GET",
-          headers,
-          credentials: "include",
-        });
+      // Make the request and log everything
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        credentials: "include",
+      });
 
-        console.log("[profile] Response received:", res.status);
+      console.log("[profile] Response received:", res.status);
 
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error("[profile] Request failed:", res.status, errorText);
-          throw new Error(`HTTP ${res.status}: ${errorText}`);
-        }
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[profile] Request failed:", res.status, errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
 
-        const data = await res.json();
-        console.log("[profile] Data received:", data);
+      const data = await res.json();
+      console.log("[profile] Data received:", data);
 
-        if (cancelled) return;
+      if (cancelled) return;
 
         // Map the user data
         console.log("[profile] Mapping user data from:", data);
@@ -302,31 +351,31 @@ export default function ProfilePage() {
 
         console.log("[profile] User state updated successfully");
 
-        // Load interests and skills
-        const userId = isNumeric
-          ? String(slug)
-          : String(data.user_id ?? data.id ?? "");
-        if (userId) {
-          console.log(
-            "[profile] Loading interests and skills for user:",
-            userId
-          );
+      // Load interests and skills
+      const userId = isNumeric
+        ? String(slug)
+        : String(data.user_id ?? data.id ?? "");
+      if (userId) {
+        console.log(
+          "[profile] Loading interests and skills for user:",
+          userId
+        );
 
-          const [iRes, sRes] = await Promise.all([
-            fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
-            fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
+        const [iRes, sRes] = await Promise.all([
+          fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
+          fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
+        ]);
+
+        console.log("[profile] Interests response:", iRes.status);
+        console.log("[profile] Skills response:", sRes.status);
+
+        if (iRes.ok && sRes.ok) {
+          const [iJson, sJson] = await Promise.all([
+            iRes.json(),
+            sRes.json(),
           ]);
 
-          console.log("[profile] Interests response:", iRes.status);
-          console.log("[profile] Skills response:", sRes.status);
-
-          if (iRes.ok && sRes.ok) {
-            const [iJson, sJson] = await Promise.all([
-              iRes.json(),
-              sRes.json(),
-            ]);
-
-            if (cancelled) return;
+          if (cancelled) return;
 
             console.log("[profile] Interests data:", iJson);
             console.log("[profile] Skills data:", sJson);
@@ -359,10 +408,10 @@ export default function ProfilePage() {
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, session?.access, status]);
+  return () => {
+    cancelled = true;
+  };
+}, [slug, session?.access, status, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -430,68 +479,11 @@ export default function ProfilePage() {
   }, [user?.id, session?.access]);
 
   const [showAllCreds, setShowAllCreds] = useState(false);
-  const [reviews, setReviews] = useState([
-    {
-      requester: "David Chen",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "May 12",
-      requestTitle: "Corporate Training",
-      offerTitle: "Gardening",
-      rating: 5.0,
-      reviewDescription:
-        "John was patient and clear in his corporate training sessions. He adapted well to my learning pace and made the experience enjoyable. I learned a lot thanks to his help.",
-      likes: 42,
-    },
-    {
-      requester: "Sarah Kim",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "June 10",
-      requestTitle: "Personal Training",
-      offerTitle: "Graphic Design",
-      rating: 4.5,
-      reviewDescription:
-        "John was a dedicated personal trainer who tailored workouts to my needs. He was punctual, encouraging, and professional throughout our sessions. I highly recommend him for anyone looking to improve their fitness.",
-      likes: 34,
-    },
-    {
-      requester: "Michael Lee",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "June 2",
-      requestTitle: "Illustration",
-      offerTitle: "Web Development",
-      rating: 4.0,
-      reviewDescription:
-        "John provided excellent illustration work for my website graphics. He was responsive to feedback and delivered quality designs on time. It was a pleasure collaborating with him.",
-      likes: 21,
-    },
-    {
-      requester: "Priya Patel",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "May 20",
-      requestTitle: "Tutoring",
-      offerTitle: "Language Instruction",
-      rating: 3.5,
-      reviewDescription:
-        "John helped me with tutoring sessions and was very organized. There were a few small misunderstandings initially, but he was quick to address them. Overall, a reliable trade partner.",
-      likes: 15,
-    },
-    {
-      requester: "Mark Thompson",
-      tradePartner: "John Doe",
-      tradeCompletionDate: "April 15",
-      requestTitle: "Event Planning",
-      offerTitle: "Handyman Services",
-      rating: 4.2,
-      reviewDescription:
-        "John was very helpful setting up for my event and offered useful handyman services on site. He was punctual and easy to communicate with. I’d gladly trade with him again.",
-      likes: 18,
-    },
-  ]);
 
-  const handleDeleteReview = (reviewToDelete) => {
-    // Filter out the review to be deleted and update the state
-    setReviews(reviews.filter((review) => review !== reviewToDelete));
-  };
+
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState(null);
 
   const toggleCategory = (index) => {
     setExpanded((prev) => {
@@ -501,18 +493,78 @@ export default function ProfilePage() {
     });
   };
 
-  // Determine if viewing own profile
-  const isOwnProfile = true;
+  const reviewRatings = useMemo(() => {
+  const ratings = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, 0: 0 };
+  reviews.forEach(review => {
+    const roundedRating = Math.floor(review.rating);
+    if (ratings.hasOwnProperty(roundedRating)) {
+      ratings[roundedRating]++;
+    }
+  });
+  return ratings;
+}, [reviews]);
 
-  // Mock data for review ratings to match a 4.3 average for 25 reviews
-  const reviewRatings = {
-    5: 12,
-    4: 10,
-    3: 2,
-    2: 1,
-    1: 0,
-    0: 0,
+useEffect(() => {
+  if (!user?.id) return;
+
+  const fetchReviews = async () => {
+    setReviewsLoading(true);
+    setReviewsError(null);
+
+    try {
+      const headers = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+
+      if (session?.access) {
+        headers.Authorization = `Bearer ${session.access}`;
+      }
+
+      const response = await fetch(
+        `${API_BASE}/users/${user.id}/reviews/`, // You'll need to create this endpoint
+        {
+          method: "GET",
+          headers,
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch reviews (${response.status})`);
+      }
+
+      const data = await response.json();
+      console.log("[reviews] Data received:", data);
+
+      // Transform the backend data to match your frontend format
+      const transformedReviews = (data.reviews || []).map(review => ({
+        requester: `${review.reviewer_first_name} ${review.reviewer_last_name}`.trim() || review.reviewer_username,
+        tradePartner: `${user.firstname} ${user.lastname}`.trim() || user.username,
+        tradeCompletionDate: new Date(review.completed_at).toLocaleDateString("en-US", { 
+          month: "short", 
+          day: "numeric" 
+        }),
+        requestTitle: review.request_title,
+        offerTitle: review.offer_title,
+        rating: review.rating,
+        reviewDescription: review.review_description,
+        likes: review.likes_count || 0,
+        trade_id: review.trade_id,
+      }));
+
+      setReviews(transformedReviews);
+    } catch (error) {
+      console.error("[reviews] Fetch error:", error);
+      setReviewsError(error.message || "Failed to load reviews");
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
   };
+
+  fetchReviews();
+}, [user?.id, session?.access]);
 
   // Function to render stars based on a rating, now using filled and outlined stars
   const renderStars = (rating) => {
@@ -2949,56 +3001,80 @@ export default function ProfilePage() {
                 What others say
               </h5>
               <span className="text-[16px] text-white/50 mt-[5px]">
-                25 trades & reviews
+                {user.reviews} trades & reviews
               </span>
             </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowSortDropdown(!showSortDropdown)}
-                className="flex items-center text-white text-[16px] border border-white/20 rounded-[10px] h-[30px] px-3"
-              >
-                {sortOption}{" "}
-                <ChevronDownIcon className="ml-2 h-4 w-4 text-white" />
-              </button>
-              {showSortDropdown && (
-                <div className="absolute top-full right-0 mt-2 w-40 bg-[#120A2A] rounded-xl border border-white/20 shadow-lg py-1 z-10">
-                  {["Latest", "Highest Rating", "Lowest Rating"].map(
-                    (option) => (
-                      <button
-                        key={option}
-                        onClick={() => handleSortChange(option)}
-                        className={clsx(
-                          "block w-full text-left px-4 py-2 text-sm transition-colors",
-                          option === sortOption
-                            ? "text-[#906EFF] bg-white/10"
-                            : "text-white hover:bg-white/10"
-                        )}
-                      >
-                        {option}
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
+            {reviews.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className="flex items-center text-white text-[16px] border border-white/20 rounded-[10px] h-[30px] px-3"
+                >
+                  {sortOption}{" "}
+                  <ChevronDownIcon className="ml-2 h-4 w-4 text-white" />
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute top-full right-0 mt-2 w-40 bg-[#120A2A] rounded-xl border border-white/20 shadow-lg py-1 z-10">
+                    {["Latest", "Highest Rating", "Lowest Rating"].map(
+                      (option) => (
+                        <button
+                          key={option}
+                          onClick={() => handleSortChange(option)}
+                          className={clsx(
+                            "block w-full text-left px-4 py-2 text-sm transition-colors",
+                            option === sortOption
+                              ? "text-[#906EFF] bg-white/10"
+                              : "text-white hover:bg-white/10"
+                          )}
+                        >
+                          {option}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Rating Analytics */}
-          <div className="flex items-start gap-[50px]">
-            {/* Overall Rating Group - now at the top left */}
-            <div className="flex flex-col">
-              <div className="flex items-end gap-[10px]">
-                <span className="text-[40px] font-bold leading-none">
-                  {safeFixed(user.rating, 1)}
-                </span>
-                <span className="text-[16px] text-white/50 pb-2">
-                  ({Number(user.reviews) || 0})
-                </span>
-              </div>
-              <div className="flex items-center mt-[20px]">
-                {renderStars(user.rating)}
-              </div>
+          {/* Loading state */}
+          {reviewsLoading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-white/60">Loading reviews...</div>
             </div>
+          )}
+
+          {/* Error state */}
+          {reviewsError && !reviewsLoading && (
+            <div className="text-red-400 text-sm bg-red-900/20 border border-red-500/30 rounded-[10px] p-3">
+              {reviewsError}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!reviewsLoading && !reviewsError && reviews.length === 0 && (
+            <div className="text-white/60 text-center py-8">
+              No reviews yet.
+            </div>
+          )}
+
+          {/* Rating Analytics - only show if there are reviews */}
+          {reviews.length > 0 && (
+            <div className="flex items-start gap-[50px]">
+              {/* Overall Rating Group */}
+              <div className="flex flex-col">
+                <div className="flex items-end gap-[10px]">
+                  <span className="text-[40px] font-bold leading-none">
+                    {safeFixed(user.rating, 1)}
+                  </span>
+                  <span className="text-[16px] text-white/50 pb-2">
+                    ({Number(user.reviews) || 0})
+                  </span>
+                </div>
+                <div className="flex items-center mt-[20px]">
+                  {renderStars(user.rating)}
+                </div>
+              </div>
 
             {/* Rating Bars */}
             <div className="flex flex-col gap-[10px]">
@@ -3010,9 +3086,9 @@ export default function ProfilePage() {
                     <div className="w-[270px] h-[15px] bg-white/20 rounded-full">
                       <div
                         style={{
-                          width: `${
+                          width: user.reviews > 0 ? `${
                             (reviewRatings[rating] / user.reviews) * 100
-                          }%`,
+                          }%` : '0%',
                         }}
                         className="h-full bg-[#906EFF] rounded-full"
                       />
@@ -3021,18 +3097,19 @@ export default function ProfilePage() {
                 ))}
             </div>
           </div>
+        )}
 
-          {/* Reviews section using the new ReviewCard component */}
+        {/* Reviews section */}
+        {reviews.length > 0 && (
           <div className="mt-8 flex flex-col gap-6">
             {sortedReviews.map((review, index) => (
               <ReviewCard
                 key={index}
                 review={review}
-                onDelete={handleDeleteReview}
               />
             ))}
           </div>
-        </div>
+        )}
       </div>
 
       {/* === Verification Popup (improved UI) === */}
@@ -3163,6 +3240,7 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

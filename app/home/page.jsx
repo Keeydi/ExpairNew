@@ -77,7 +77,7 @@ export default function HomePage() {
   
   try {
     const headers = { "Content-Type": "application/json" };
-    const token = session?.access || session?.accessToken;
+    const token = session?.access;
     if (token) headers["Authorization"] = `Bearer ${token}`;
     
     const response = await fetch(`${BACKEND_URL}/express-interest/`, {
@@ -407,9 +407,8 @@ useEffect(() => {
             <ActiveTradeCardHome
               key={trade.tradereq_id}
               name={trade.other_user.name}
+              username={trade.other_user.username} 
               profilePic={trade.other_user.profilePic}
-              //level={trade.other_user.level}
-              //rating={trade.other_user.rating}
               offering={trade.offering}
               totalXp={trade.total_xp}
               deadline={trade.deadline_formatted}
@@ -652,6 +651,9 @@ useEffect(() => {
               need={item.need}
               offer={item.offer}
               deadline={item.deadline ? `until ${fmtUntil(item.deadline)}` : ""}
+              profilePicUrl={item.profilePicUrl} 
+              userId={item.userId}
+              username={item.username}
               onInterestedClick={() => handleInterestedClick(item)}
             />
             ))

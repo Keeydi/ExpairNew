@@ -16,26 +16,23 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:800
 function TradeRequestInfo({ requested, exchange }) {
   return (
     <div className="w-full mb-[30px]">
-      <div className="bg-[#120A2A] border border-white/20 rounded-[15px] p-[20px]">
-        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-          <div className="flex-1">
-            <h3 className="text-[18px] font-medium text-white mb-2">Request Details</h3>
-            <div className="text-[14px] text-white/80">
-              <div className="mb-2">
-                <span className="text-white/60">Requesting: </span>
-                <span className="text-white">{requested}</span>
-              </div>
-              {exchange && (
-                <div>
-                  <span className="text-white/60">In exchange for: </span>
-                  <span className="text-white">{exchange}</span>
-                </div>
-              )}
+    <div className="bg-[#120A2A] border border-white/20 rounded-[15px] p-[20px]">
+        {/* Simplified flex container, ensuring content stacks */}
+        <div className="flex flex-col"> 
+            <div className="flex-1 w-full">
+                <h3 className="text-[24px] font-bold text-white mb-2">
+                    Requesting for <span className="text-[#D78DE5]">{requested}</span>
+                </h3>
+
+                {exchange && (
+                    <p className="text-[17px] text-white/80">
+                        In exchange for <span className="text-white">{exchange}</span>
+                    </p>
+                )}
             </div>
-          </div>
         </div>
-      </div>
     </div>
+</div>
   );
 }
 
@@ -424,10 +421,10 @@ export default function AddTradeDetailsPage() {
             
             {/* XP Display */}
             {xpBreakdown && (
-              <div className="w-full max-w-[400px] mb-[20px] p-[20px] bg-[#120A2A] border border-white/20 rounded-[15px]">
-                <h3 className="text-[16px] font-medium text-white mb-[15px] text-center">XP Earned</h3>
+              <div className="w-full max-w-[500px] mb-[20px] p-[20px] bg-[#120A2A] border border-white/20 rounded-[15px]">
+                <h3 className="text-[16px] font-medium text-white mb-[5px] text-center">The XP for this trade, based on the details provided, are</h3>
                 <div className="flex justify-center">
-                  <span className="text-[24px] font-bold text-[#906EFF]">+{xpBreakdown.total_xp} XP</span>
+                  <span className="text-[24px] font-bold text-[#906EFF]">{xpBreakdown.total_xp} XP</span>
                 </div>
               </div>
             )}

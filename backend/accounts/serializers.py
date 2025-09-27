@@ -99,6 +99,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             instance.userVerifyId = new_file
             instance.verification_status = VerificationStatus.PENDING
             instance.is_verified = False
+        
+        # --- handle links ---
+        if "links" in validated_data:
+            links = validated_data["links"] or []
+            instance.links = links  # ✅ store as JSON string in DB
 
         # --- handle links ---
         if "links" in validated_data:
