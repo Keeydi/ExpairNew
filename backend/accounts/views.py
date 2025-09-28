@@ -551,7 +551,6 @@ def user_skills(request, user_id: int):
 
         return Response({"skill_groups": skill_groups}, status=200)
 
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def google_login(request):
@@ -559,57 +558,76 @@ def google_login(request):
     print(f"Request data: {request.data}")
     
     email = request.data.get('email')
-    name = request.data.get('name')
+    name = request.data.get('name', '')
     image = request.data.get('image')
 
     if not email:
         return Response({"error": "Email is required"}, status=400)
 
     try:
+        # Check if user exists
         user = User.objects.get(email=email)
         print(f"Existing user found: {user.username}")
         
-        # Generate JWT tokens for existing user
+        # EXISTING USER LOGIC - Generate JWT tokens like regular login
         try:
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
             refresh_token = str(refresh)
-            print("JWT tokens generated for Google login")
+            print("JWT tokens generated for existing Google user")
         except Exception as token_error:
             print(f"Token generation failed: {token_error}")
             return Response({
                 "error": "Authentication system error. Please try again."
             }, status=500)
         
-        # Get user payload
+        # Get user payload (same as your regular login)
         user_payload = _public_user_payload(user, request)
         
-        # Return user data with tokens (similar to regular login)
-        user_data = {
-            "access": access_token,        # ✅ Generated token
-            "refresh": refresh_token,      # ✅ Generated token
-            "user_id": user.id,       # ✅ Use user_id field
+        # Return same format as your regular login for existing users
+        return Response({
+            "is_new": False,
+            "message": "Login successful",
+            "user_id": user.id,
             "id": user.id,
             "username": user.username,
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "name": user.first_name,  # For compatibility
+            "profilePic": user_payload.get("profilePic"),
             "image": user_payload.get("profilePic"),
-            "is_new": False
-        }
-        
-        print(f"Returning existing user data with tokens")
-        return Response(user_data, status=200)
+            "access": access_token,  # JWT tokens for existing user
+            "refresh": refresh_token,
+        }, status=200)
         
     except User.DoesNotExist:
         print(f"New user with email: {email}")
-        # New user – return flag to redirect to onboarding
+        
+        # NEW USER LOGIC - Parse name and return registration data
+        full_name = name.strip()
+        name_parts = full_name.split(" ") if full_name else []
+        first_name = name_parts[0] if name_parts else ""
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+        
+        # Return data for new user registration flow (NO tokens)
         return Response({
             "is_new": True,
             "email": email,
             "name": name,
-            "image": image
+            "first_name": first_name,
+            "last_name": last_name,
+            "image": image,
+            "message": "New user detected - please complete registration"
         }, status=200)
+        
+    except Exception as e:
+        print(f"Error in google_login: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            "error": "Server error occurred"
+        }, status=500)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

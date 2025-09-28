@@ -5,7 +5,6 @@ import { Icon } from "@iconify/react";
 import { useState, useRef, useEffect } from "react";
 import { Button } from "../ui/button";
 import Link from "next/link";
-import AnimatedLevelBar from "../ui/animated-level-bar";
 
 interface ExploreCardProps {
   name: string;
@@ -154,19 +153,6 @@ export default function ExploreCard({
                   />
                   <span className="text-white/80">LVL {level}</span>
                 </div>
-                <AnimatedLevelBar
-                  level={level}
-                  currentXp={Math.floor(Math.random() * 80) + 20} // Random progress between 20-100%
-                  maxXp={100}
-                  width={80}
-                  height={8}
-                  showLevel={false}
-                  showXpNumbers={false}
-                  animationDelay={200}
-                  animationDuration={800}
-                  gradient="purple"
-                  className="ml-[13px]" // Align with the level text
-                />
               </div>
             </div>
           </div>

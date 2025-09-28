@@ -78,23 +78,24 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      const res = await signIn("google", {
-        prompt: "select_account",
-        callbackUrl: "/home",
-      });
+const handleGoogleLogin = async () => {
+  try {
+    console.log("Starting Google OAuth...");
+    setErrorMessage(""); 
 
-      if (res && res.error) {
-        // Log the error message from NextAuth
-        console.log("Google login failed:", res.error);
-      }
+    // Start Google OAuth - NextAuth will handle the redirect
+    await signIn("google", {
+      callbackUrl: `${window.location.origin}/auth/callback`,
+      redirect: true, // Let NextAuth handle the redirect
+    });
 
-      console.log("Sign in result:", res); // This will log the result of the sign-in attempt
-    } catch (error) {
-      console.error("Google login error:", error);
-    }
-  };
+    // This code won't execute because redirect: true
+
+  } catch (error) {
+    console.error("Google login error:", error);
+    setErrorMessage("An error occurred during Google sign-in. Please try again.");
+  }
+};
 
   // Redirect if already authenticated
   useEffect(() => {

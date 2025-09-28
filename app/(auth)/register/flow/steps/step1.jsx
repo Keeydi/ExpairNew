@@ -1,28 +1,32 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useSession, signOut } from "next-auth/react"; // Added useSession import
 import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import Image from "next/image";
 import { Eye, EyeOff, ChevronRight, Check, X } from "lucide-react";
 import { Inter } from "next/font/google";
-import { signOut } from "next-auth/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Step1({ step1Data, onDataSubmit, onNext }) {
+  const { data: session, status } = useSession(); // Added NextAuth session hook
+  
   const [firstName, setFirstName] = useState(step1Data?.firstname || "");
   const [lastName, setLastName] = useState(step1Data?.lastname || "");
   const [email, setEmail] = useState(step1Data?.email || "");
   const [username, setUsername] = useState(step1Data?.username || "");
   const [password, setPassword] = useState(step1Data?.password || "");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [isGoogleUser, setIsGoogleUser] = useState(false); // Track if user came from Google
 
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    // Handle existing step1Data (from previous form submissions)
     if (step1Data) {
       setFirstName(step1Data.firstname || "");
       setLastName(step1Data.lastname || "");
@@ -30,7 +34,27 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
       setUsername(step1Data.username || "");
       setPassword(step1Data.password || "");
     }
-  }, [step1Data]);
+
+    // Handle Google OAuth pre-fill data from NextAuth session
+    if (status === "authenticated" && session?.user?.isNewUser && session?.user?.googleData) {
+      console.log("Detected Google OAuth new user, pre-filling form...");
+      const googleData = session.user.googleData;
+      
+      setIsGoogleUser(true);
+      setFirstName(googleData.first_name || "");
+      setLastName(googleData.last_name || "");
+      setEmail(googleData.email || "");
+      
+      // Generate suggested username from email (only if not already set)
+      if (googleData.email && !username) {
+        const emailUsername = googleData.email.split("@")[0];
+        setUsername(emailUsername);
+      }
+      
+      console.log("Pre-filled form with Google data");
+      setErrorMessage("");
+    }
+  }, [step1Data, session, status]);
 
   const passwordRules = [
     { label: "At least one lowercase letter", test: /[a-z]/ },
@@ -108,7 +132,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
       <div className="relative z-10 w-full max-w-4xl text-center">
-        {/* Header */}
+        {/* Updated Header - Show different message for Google users */}
         <div className="flex flex-col items-center">
           <Image
             src="/assets/logos/Logotype=Logotype M.png"
@@ -117,12 +141,23 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             height={76}
             className="rounded-full mb-[30px]"
           />
-          <h1 className="font-[600] text-[25px] text-center mb-[90px]">
-            Let’s get your account started.
-          </h1>
+          {isGoogleUser ? (
+            <div className="text-center mb-[50px]">
+              <h1 className="font-[600] text-[25px] text-center mb-[10px]">
+                Complete Your Account Setup
+              </h1>
+              <p className="text-white opacity-80 text-[16px]">
+                Just a few more details to get you started
+              </p>
+            </div>
+          ) : (
+            <h1 className="font-[600] text-[25px] text-center mb-[90px]">
+              Let's get your account started.
+            </h1>
+          )}
         </div>
 
-        {/* Form Grid */}
+        {/* Form Grid - Same as before */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[44px] gap-y-[20px] justify-center">
           {/* First Name */}
           <div className="w-full max-w-[400px] text-left">
@@ -242,7 +277,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
           )}
         </div>
 
-        {/* Already have account */}
+        {/* Already have account - Updated for Google users */}
         <p className="underline text-center text-sm text-[16px] mt-[44px] mb-[100px]">
           <a
             href="/signin"
@@ -250,11 +285,16 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             onClick={async (e) => {
               e.preventDefault(); // stop the immediate nav
               try {
-                localStorage.removeItem("prefill_email");
-                localStorage.removeItem("prefill_name");
-                localStorage.removeItem("user_id");
-              } catch {}
-              await signOut({ callbackUrl: "/signin" });
+                // Clear any stored Google data
+                if (isGoogleUser) {
+                  console.log("Clearing Google OAuth session...");
+                  await signOut({ redirect: false }); // Don't redirect automatically
+                }
+              } catch (error) {
+                console.error("Error signing out:", error);
+              }
+              // Navigate to sign-in page
+              window.location.href = "/signin";
             }}
           >
             I have an account already.
