@@ -2486,7 +2486,7 @@ useEffect(() => {
                     }
                     setShowVerificationPopup(true);
                   }}
-                  className="bg-red-600 hover:bg-[#1a4dff] text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2 shadow-[0px_0px_15px_red]"
+                  className="bg-red-600 hover:bg-[#9c050c] text-white text-sm rounded-[15px] px-5 py-2 flex items-center gap-2 shadow-[0px_0px_15px_red]"
                 >
                   <Icon icon="material-symbols:verified" className="w-4 h-4" />
                   <span>Resubmit ID</span>
