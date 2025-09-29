@@ -174,6 +174,7 @@ export default NextAuth({
     async jwt({ token, user, account, trigger }) {
       console.log("=== JWT CALLBACK START ===");
       console.log("Trigger:", trigger);
+      console.log("Current token keys:", token ? Object.keys(token) : "no token");
 
       // Initial sign in
       if (user && account) {
@@ -224,6 +225,7 @@ export default NextAuth({
 
       if (accessExpiry) {
         const timeToExpiry = accessExpiry - now;
+        console.log(`Token expires in: ${Math.round(timeToExpiry / 1000 / 60)} minutes`);
         
         if (timeToExpiry < tenMinutes) {
           console.log("=== REFRESHING TOKEN ===");
@@ -270,6 +272,8 @@ export default NextAuth({
 
     async session({ session, token }) {
       console.log("=== SESSION CALLBACK ===");
+      console.log("Token available:", !!token);
+      console.log("Token has access:", !!token?.access);
 
       if (token) {
         // Only set access/refresh for existing users
@@ -295,7 +299,7 @@ export default NextAuth({
           }
         }
       }
-
+      console.log("Session prepared with access token:", !!session.access);
       return session;
     }
   },
