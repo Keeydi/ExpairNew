@@ -1254,14 +1254,16 @@ def get_home_active_trades(request):
 def explore_feed(request):
     """
     Returns explore feed. Shows what each requester can offer based on skill matching.
+    Includes CANCELLED trades so they can receive new offers.
     """
     viewer = request.user if getattr(request.user, "id", None) else None
 
     # Load recent requests, exclude viewer's own requests
-    # Only show PENDING trades in explore feed (not ACTIVE ones)
+    # Show PENDING, NULL (no status), and CANCELLED trades in explore feed
+    # Exclude only ACTIVE and COMPLETED trades
     qs = (TradeRequest.objects
           .select_related("requester")
-          .filter(Q(status__isnull=True) | Q(status=TradeRequest.Status.PENDING))  # Only pending/null
+          .exclude(status__in=[TradeRequest.Status.ACTIVE, TradeRequest.Status.COMPLETED])  # Exclude only active/completed
           .order_by("-tradereq_id"))
     
     if viewer:
@@ -1367,6 +1369,7 @@ def express_trade_interest(request):
     """
     Express interest in a trade request.
     Creates a TradeInterest record - multiple users can express interest.
+    If user was previously DECLINED, reactivates their interest to PENDING.
     """
     print("=== EXPRESS TRADE INTEREST DEBUG ===")
     print(f"Request data: {request.data}")
@@ -1390,35 +1393,57 @@ def express_trade_interest(request):
                 "error": "You cannot express interest in your own trade request"
             }, status=400)
         
-        # Check if this user has already expressed interest
-        existing_interest = TradeInterest.objects.filter(
+        # Check if this user has already expressed PENDING or ACCEPTED interest
+        # Allow re-expressing interest if previously DECLINED
+        existing_active_interest = TradeInterest.objects.filter(
             trade_request=trade_request,
-            interested_user=request.user
+            interested_user=request.user,
+            status__in=[TradeInterest.InterestStatus.PENDING, TradeInterest.InterestStatus.ACCEPTED]
         ).exists()
         
-        if existing_interest:
+        if existing_active_interest:
             return Response({
                 "error": "You have already expressed interest in this trade request"
             }, status=400)
         
-        # Create the interest record
-        trade_interest = TradeInterest.objects.create(
+        # Check if there's a DECLINED interest - if so, update it to PENDING instead of creating new
+        declined_interest = TradeInterest.objects.filter(
             trade_request=trade_request,
             interested_user=request.user,
-        )
+            status=TradeInterest.InterestStatus.DECLINED
+        ).first()
+        
+        if declined_interest:
+            # Reactivate the declined interest
+            declined_interest.status = TradeInterest.InterestStatus.PENDING
+            declined_interest.created_at = django_timezone.now()  # Update timestamp
+            declined_interest.save()
+            
+            trade_interest = declined_interest
+            print(f"Reactivated declined interest for user {request.user.id}")
+        else:
+            # Create new interest record
+            trade_interest = TradeInterest.objects.create(
+                trade_request=trade_request,
+                interested_user=request.user,
+            )
+            print(f"Created new trade interest for user {request.user.id}")
         
         # Update trade request status to PENDING if it's the first interest (NULL -> PENDING)
         if not trade_request.status:  # If status is NULL/empty
             trade_request.status = TradeRequest.Status.PENDING
             trade_request.save()
         
-        # Get total interest count
-        interest_count = TradeInterest.objects.filter(trade_request=trade_request).count()
+        # Get total PENDING interest count (exclude declined)
+        interest_count = TradeInterest.objects.filter(
+            trade_request=trade_request,
+            status=TradeInterest.InterestStatus.PENDING
+        ).count()
         
-        print(f"Trade interest created successfully")
+        print(f"Trade interest created/reactivated successfully")
         print(f"Requester: {trade_request.requester.username}")
         print(f"Interested User: {request.user.username}")
-        print(f"Total interests: {interest_count}")
+        print(f"Total pending interests: {interest_count}")
         
         return Response({
             "message": "Interest expressed successfully",
@@ -1435,7 +1460,8 @@ def express_trade_interest(request):
             },
             "total_interests": interest_count,
             "reqname": trade_request.reqname,
-            "created_at": trade_interest.created_at
+            "created_at": trade_interest.created_at,
+            "reactivated": declined_interest is not None
         }, status=201)
         
     except TradeRequest.DoesNotExist:
@@ -1505,11 +1531,14 @@ def get_posted_trades(request):
     user = request.user
     
     # Get trades where user is the requester
+    # Show PENDING (waiting for confirmation), NULL (no interests yet), and CANCELLED (can pick another offer)
+    # Hide ACTIVE (already confirmed) and COMPLETED trades
     posted_trades = TradeRequest.objects.filter(
-        Q(requester=user) & 
-        (Q(status=TradeRequest.Status.PENDING) | Q(status__isnull=True))
+        requester=user
+    ).exclude(
+        status__in=[TradeRequest.Status.ACTIVE, TradeRequest.Status.COMPLETED]
     ).prefetch_related(
-        'interests__interested_user'  # Prefetch interested users
+        'interests__interested_user'
     ).order_by('-tradereq_id')
     
     # Get requester's skills (Francis's skills)
@@ -1989,76 +2018,26 @@ def get_active_trades(request):
         is_requester = (trade.requester.id == user.id)
         other_user = trade.responder if is_requester else trade.requester
         
-        # RECALCULATE skills using same logic as explore_feed instead of using saved exchange field
+        # Get fallback skill once
+        fallback_skill = GenSkill.objects.first()
+        fallback_skill_name = fallback_skill.genCateg if fallback_skill else "Skills & Services"
+        
+        # ✅ USE THE SAVED EXCHANGE FIELD - no recalculation needed!
+        # The exchange field was set correctly when the interest was accepted
         if is_requester:
-            # Current user is requester, show what responder can offer
-            # Use same logic as explore_feed: responder's skills that match requester's interests
-            
-            # Get responder's skills
-            responder_skills_query = (
-                UserSkill.objects.filter(user_id=trade.responder.id)
-                .select_related("specSkills__genSkills_id")
-                .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
-            )
-            responder_gen_skills = dict(responder_skills_query)
-            
-            # Get requester's interests
-            requester_interests = UserInterest.objects.filter(
-                user_id=trade.requester.id
-            ).values_list('genSkills_id__genCateg', flat=True)
-            
-            # Find matching skill
-            can_offer_by_responder = ""
-            if requester_interests and responder_gen_skills:
-                matching_skills = set(responder_gen_skills.values()) & set(requester_interests)
-                if matching_skills:
-                    can_offer_by_responder = list(matching_skills)[0]
-            
-            if not can_offer_by_responder and responder_gen_skills:
-                can_offer_by_responder = list(responder_gen_skills.values())[0]
-            
-            if not can_offer_by_responder:
-                any_skill = GenSkill.objects.first()
-                can_offer_by_responder = any_skill.genCateg if any_skill else "Skills & Services"
-            
-            needs = can_offer_by_responder  # What responder can offer to requester
-            can_offer = trade.reqname        # What requester originally requested
-            
+            # Current user is requester
+            needs = trade.exchange if trade.exchange else fallback_skill_name  # What responder is offering
+            can_offer = trade.reqname  # What requester originally requested
         else:
-            # Current user is responder, show what requester needs and what responder can offer
+            # Current user is responder
             needs = trade.reqname  # What requester originally requested
-            
-            # Get what responder (current user) can offer using same logic
-            user_skills_query = (
-                UserSkill.objects.filter(user_id=user.id)
-                .select_related("specSkills__genSkills_id")
-                .values_list("specSkills__genSkills_id_id", "specSkills__genSkills_id__genCateg")
-            )
-            user_gen_skills = dict(user_skills_query)
-            
-            # Get requester's interests
-            requester_interests = UserInterest.objects.filter(
-                user_id=trade.requester.id
-            ).values_list('genSkills_id__genCateg', flat=True)
-            
-            # Find matching skill
-            can_offer = ""
-            if requester_interests and user_gen_skills:
-                matching_skills = set(user_gen_skills.values()) & set(requester_interests)
-                if matching_skills:
-                    can_offer = list(matching_skills)[0]
-            
-            if not can_offer and user_gen_skills:
-                can_offer = list(user_gen_skills.values())[0]
-                
-            if not can_offer:
-                any_skill = GenSkill.objects.first()
-                can_offer = any_skill.genCateg if any_skill else "Skills & Services"
+            can_offer = trade.exchange if trade.exchange else fallback_skill_name  # What responder is offering
         
         print(f"  - Is requester: {is_requester}")
         print(f"  - Needs: {needs}")
         print(f"  - Can offer: {can_offer}")
         print(f"  - Other user: {other_user.username}")
+        print(f"  - Exchange field: {trade.exchange}")
         
         trades_data.append({
             "id": trade.tradereq_id,

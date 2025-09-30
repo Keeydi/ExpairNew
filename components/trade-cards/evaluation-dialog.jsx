@@ -10,22 +10,22 @@ import RejectDialog from "./reject-dialog";
 const StarLogo = () => (
   <svg width="200" height="200" viewBox="0 0 162 181" fill="none" xmlns="http://www.w3.org/2000/svg" className="filter drop-shadow-[0px_4px_40px_#D78DE5]">
     <g filter="url(#filter0_d_2180_7319)">
-      <path d="M81 136.5L90.0723 86.5L81 36.5L71.9277 86.5L81 136.5Z" fill="white"/>
-      <path d="M40.5917 55.6433L79.8637 94.3593L91.2485 78.4686L40.5917 55.6433Z" fill="#0038FF"/>
-      <path d="M121.388 117.215L82.1163 78.4991L70.7315 94.3898L121.388 117.215Z" fill="#0038FF"/>
-      <path d="M121.408 55.6433L82.1366 94.3593L70.7517 78.4686L121.408 55.6433Z" fill="#906EFF"/>
-      <path d="M40.612 117.215L79.8839 78.4991L91.2688 94.3898L40.612 117.215Z" fill="#906EFF"/>
+      <path d="M81 136.5L90.0723 86.5L81 36.5L71.9277 86.5L81 136.5Z" fill="white" />
+      <path d="M40.5917 55.6433L79.8637 94.3593L91.2485 78.4686L40.5917 55.6433Z" fill="#0038FF" />
+      <path d="M121.388 117.215L82.1163 78.4991L70.7315 94.3898L121.388 117.215Z" fill="#0038FF" />
+      <path d="M121.408 55.6433L82.1366 94.3593L70.7517 78.4686L121.408 55.6433Z" fill="#906EFF" />
+      <path d="M40.612 117.215L79.8839 78.4991L91.2688 94.3898L40.612 117.215Z" fill="#906EFF" />
     </g>
     <defs>
       <filter id="filter0_d_2180_7319" x="-9" y="0.5" width="180" height="180" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
-        <feFlood floodOpacity="0" result="BackgroundImageFix"/>
-        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-        <feOffset dy="4"/>
-        <feGaussianBlur stdDeviation="20"/>
-        <feComposite in2="hardAlpha" operator="out"/>
-        <feColorMatrix type="matrix" values="0 0 0 0 0.841408 0 0 0 0 0.553254 0 0 0 0 0.899038 0 0 0 1 0"/>
-        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2180_7319"/>
-        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_2180_7319" result="shape"/>
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="20" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0.841408 0 0 0 0 0.553254 0 0 0 0 0.899038 0 0 0 1 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2180_7319" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_2180_7319" result="shape" />
       </filter>
     </defs>
   </svg>
@@ -34,6 +34,9 @@ const StarLogo = () => (
 export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUpdate }) {
 
   const { data: session } = useSession();
+
+  const currentUserHasResponded = tradeData?.evaluationStatus?.current_user_response !== null;
+  const userResponse = tradeData?.evaluationStatus?.current_user_response; // "CONFIRMED" or "REJECTED"
 
   // Default values that can be easily adjusted
   const [evaluation, setEvaluation] = useState({
@@ -49,12 +52,12 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
     taskComplexity: 0,
     timeCommitment: 0,
     skillLevel: 0,
-  });  
-  
+  });
+
   // State for confirmation dialogs
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
-  
+
   // Update evaluation if tradeData includes these values
   useEffect(() => {
     if (tradeData) {
@@ -98,7 +101,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
       }, 1200);
     }
   }, [evaluation, isOpen]);
-  
+
   // Handle close with proper event handling and state reset
   const handleClose = (e) => {
     if (e) {
@@ -141,106 +144,114 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
   }, [isOpen]);
 
   // Handle confirm dialog completion
-
   const handleConfirmComplete = async () => {
-  if (!tradeData?.tradereq_id) {
-    console.error('No trade request ID found in tradeData:', tradeData);
-    return;
-  }
-
-  console.log('=== CONFIRM COMPLETE DEBUG ===');
-  console.log('Trade ID:', tradeData.tradereq_id);
-  console.log('Session access token exists:', !!session?.access);
-
-  try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeData.tradereq_id}/evaluation/confirm/`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    console.log('Response status:', response.status);
-    console.log('Response ok:', response.ok);
-
-    const responseText = await response.text();
-    console.log('Raw response:', responseText);
-
-    if (response.ok) {
-      const result = JSON.parse(responseText);
-      console.log('Trade confirmed successfully:', result);
-      setShowConfirmDialog(false);
-      onClose();
-      if (onTradeUpdate) onTradeUpdate();
-    } else {
-      let errorData;
-      try {
-        errorData = JSON.parse(responseText);
-      } catch {
-        errorData = { error: responseText };
-      }
-      console.error('Error confirming trade:', errorData);
-      alert(`Error: ${errorData.error || 'Unknown error occurred'}`);
+    if (!tradeData?.tradereq_id) {
+      console.error('No trade request ID found in tradeData:', tradeData);
+      throw new Error('No trade request ID found');
     }
-  } catch (error) {
-    console.error('Network error confirming trade:', error);
-    alert('Network error. Please check your connection and try again.');
-  }
-};
+
+    console.log('=== CONFIRM COMPLETE DEBUG ===');
+    console.log('Trade ID:', tradeData.tradereq_id);
+    console.log('Session access token exists:', !!session?.access);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeData.tradereq_id}/evaluation/confirm/`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+
+      if (response.ok) {
+        const result = JSON.parse(responseText);
+        console.log('Trade confirmed successfully:', result);
+        setShowConfirmDialog(false);
+        onClose();
+        if (onTradeUpdate) onTradeUpdate();
+        // ✅ Don't throw error on success
+      } else {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { error: responseText };
+        }
+        console.error('Error confirming trade:', errorData);
+        alert(`Error: ${errorData.error || 'Unknown error occurred'}`);
+        // ✅ THROW ERROR to prevent success dialog
+        throw new Error(errorData.error || 'Failed to confirm trade');
+      }
+    } catch (error) {
+      console.error('Network error confirming trade:', error);
+      alert('Network error. Please check your connection and try again.');
+      // ✅ RE-THROW ERROR to propagate it
+      throw error;
+    }
+  };
 
   // Handle reject dialog completion  
   const handleRejectComplete = async () => {
-  if (!tradeData?.tradereq_id) {
-    console.error('No trade request ID found in tradeData:', tradeData);
-    return;
-  }
-
-  console.log('=== REJECT COMPLETE DEBUG ===');
-  console.log('Trade ID:', tradeData.tradereq_id);
-
-  try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeData.tradereq_id}/evaluation/reject/`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    console.log('Reject response status:', response.status);
-
-    const responseText = await response.text();
-    console.log('Reject raw response:', responseText);
-
-    if (response.ok) {
-      const result = JSON.parse(responseText);
-      console.log('Trade rejected successfully:', result);
-      setShowRejectDialog(false);
-      onClose();
-      if (onTradeUpdate) onTradeUpdate();
-    } else {
-      let errorData;
-      try {
-        errorData = JSON.parse(responseText);
-      } catch {
-        errorData = { error: responseText };
-      }
-      console.error('Error rejecting trade:', errorData);
-      alert(`Error: ${errorData.error || 'Unknown error occurred'}`);
+    if (!tradeData?.tradereq_id) {
+      console.error('No trade request ID found in tradeData:', tradeData);
+      throw new Error('No trade request ID found');
     }
-  } catch (error) {
-    console.error('Network error rejecting trade:', error);
-    alert('Network error. Please check your connection and try again.');
-  }
-};
-  
+
+    console.log('=== REJECT COMPLETE DEBUG ===');
+    console.log('Trade ID:', tradeData.tradereq_id);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeData.tradereq_id}/evaluation/reject/`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('Reject response status:', response.status);
+
+      const responseText = await response.text();
+      console.log('Reject raw response:', responseText);
+
+      if (response.ok) {
+        const result = JSON.parse(responseText);
+        console.log('Trade rejected successfully:', result);
+        setShowRejectDialog(false);
+        onClose();
+        if (onTradeUpdate) onTradeUpdate();
+      } else {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { error: responseText };
+        }
+        console.error('Error rejecting trade:', errorData);
+        alert(`Error: ${errorData.error || 'Unknown error occurred'}`);
+        // ✅ THROW ERROR
+        throw new Error(errorData.error || 'Failed to reject trade');
+      }
+    } catch (error) {
+      console.error('Network error rejecting trade:', error);
+      alert('Network error. Please check your connection and try again.');
+      // ✅ RE-THROW ERROR
+      throw error;
+    }
+  };
+
   if (!isOpen) return null;
 
   // Default data if not provided
@@ -253,15 +264,15 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50" 
+      <div
+        className="absolute inset-0 bg-black/50"
         onClick={handleBackdropClick}
       ></div>
-      
+
       {/* Dialog */}
       <div className="relative w-[940px] h-[790px] flex flex-col justify-center items-center p-[98.5px_74px] bg-black/10 shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[50px] rounded-[15px] z-50 isolate">
         {/* Close button - Enhanced with better positioning and hover effects */}
-        <button 
+        <button
           className="absolute top-[35px] right-[35px] text-white cursor-pointer flex items-center justify-center w-[30px] h-[30px] transition-all duration-200 hover:bg-white/10 hover:text-[#D78DE5] rounded-full z-[100]"
           onClick={handleClose}
           onMouseDown={(e) => e.stopPropagation()}
@@ -270,7 +281,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
         >
           <X className="w-[20px] h-[20px]" />
         </button>
-        
+
         {/* Background glow effects */}
         <div className="absolute w-[942px] h-[218px] left-[-1px] top-0 z-[1]">
           {/* Indigo glow left */}
@@ -282,7 +293,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
           {/* Blue glow bottom left */}
           <div className="absolute w-[225px] h-[105.09px] left-[calc(50%-225px/2-283.5px)] top-[83.85px] bg-[#0038FF] blur-[60px]"></div>
         </div>
-        
+
         {/* Content container */}
         <div className="flex flex-col justify-center items-center gap-[40px] w-[792px] h-[613px] z-[2]">
           {/* Header section */}
@@ -314,7 +325,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
               </div>
             </div>
           </div>
-          
+
           {/* Trade assessment */}
           <div className="flex flex-col items-center gap-[15px] w-[300px] h-[83px]">
             <div className="relative flex items-center w-[300px] h-[20px] p-[2px] bg-white shadow-[0px_5px_19px_rgba(0,0,0,0.15)] rounded-[32px] overflow-hidden">
@@ -327,7 +338,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                 }}
               >
                 {/* Inner glow effect */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-[30px] opacity-60"
                   style={{
                     background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
@@ -337,7 +348,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                 {/* Shimmer effect */}
                 {progress.tradeScore > 10 && (
                   <div className="absolute inset-0 rounded-[30px] overflow-hidden">
-                    <div 
+                    <div
                       className="absolute top-0 left-[-100%] w-full h-full opacity-40"
                       style={{
                         background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
@@ -359,7 +370,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
               </p>
             </div>
           </div>
-          
+
           {/* Assessment metrics */}
           <div className="flex flex-col items-end gap-[15px] w-[457px]">
             {/* Task complexity */}
@@ -378,7 +389,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                   }}
                 >
                   {/* Inner glow effect */}
-                  <div 
+                  <div
                     className="absolute inset-0 rounded-[30px] opacity-60"
                     style={{
                       background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
@@ -388,7 +399,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                   {/* Shimmer effect */}
                   {progress.taskComplexity > 10 && (
                     <div className="absolute inset-0 rounded-[30px] overflow-hidden">
-                      <div 
+                      <div
                         className="absolute top-0 left-[-100%] w-full h-full opacity-50"
                         style={{
                           background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
@@ -400,7 +411,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
 
                   {/* Pulse effect at the end */}
                   {progress.taskComplexity > 5 && (
-                    <div 
+                    <div
                       className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
                       style={{
                         background: "#FFFFFF",
@@ -430,7 +441,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                   }}
                 >
                   {/* Inner glow effect */}
-                  <div 
+                  <div
                     className="absolute inset-0 rounded-[30px] opacity-60"
                     style={{
                       background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
@@ -440,7 +451,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                   {/* Shimmer effect */}
                   {progress.timeCommitment > 10 && (
                     <div className="absolute inset-0 rounded-[30px] overflow-hidden">
-                      <div 
+                      <div
                         className="absolute top-0 left-[-100%] w-full h-full opacity-50"
                         style={{
                           background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
@@ -453,7 +464,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
 
                   {/* Pulse effect at the end */}
                   {progress.timeCommitment > 5 && (
-                    <div 
+                    <div
                       className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
                       style={{
                         background: "#FFFFFF",
@@ -483,7 +494,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                   }}
                 >
                   {/* Inner glow effect */}
-                  <div 
+                  <div
                     className="absolute inset-0 rounded-[30px] opacity-60"
                     style={{
                       background: "linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)"
@@ -493,7 +504,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                   {/* Shimmer effect */}
                   {progress.skillLevel > 10 && (
                     <div className="absolute inset-0 rounded-[30px] overflow-hidden">
-                      <div 
+                      <div
                         className="absolute top-0 left-[-100%] w-full h-full opacity-50"
                         style={{
                           background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)",
@@ -506,7 +517,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
 
                   {/* Pulse effect at the end */}
                   {progress.skillLevel > 5 && (
-                    <div 
+                    <div
                       className="absolute top-1/2 right-0 w-[6px] h-[6px] rounded-full opacity-90"
                       style={{
                         background: "#FFFFFF",
@@ -520,12 +531,12 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
               </div>
             </div>
           </div>
-          
+
           {/* Feedback section */}
           <div className="flex flex-col items-start gap-[15px] w-[792px] h-[110px]">
             <div className="flex flex-row items-center gap-[15px] w-[792px] h-[19px]">
               <svg width="15" height="16" viewBox="0 0 15 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7.57483 0.5C8.08409 4.35956 11.1404 7.41579 15 7.92506V8.07483C11.1404 8.58409 8.08409 11.6404 7.57483 15.5H7.42517C6.91591 11.6404 3.85956 8.58409 0 8.07483V7.92506C3.85956 7.41579 6.91591 4.35956 7.42517 0.5H7.57483Z" fill="#D9D9D9"/>
+                <path d="M7.57483 0.5C8.08409 4.35956 11.1404 7.41579 15 7.92506V8.07483C11.1404 8.58409 8.08409 11.6404 7.57483 15.5H7.42517C6.91591 11.6404 3.85956 8.58409 0 8.07483V7.92506C3.85956 7.41579 6.91591 4.35956 7.42517 0.5H7.57483Z" fill="#D9D9D9" />
               </svg>
               <span className="w-[122px] h-[19px] italic text-[16px] leading-[120%] text-white">
                 What we think...
@@ -535,58 +546,78 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
               {data.feedback}
             </p>
           </div>
-          
+
           {/* Action buttons */}
+          {/* ✅ Show status message if already responded */}
+          {currentUserHasResponded && (
+            <div className="absolute top-[-40px] left-0 right-0 text-center">
+              <span className="text-[14px] text-[#6DDFFF]">
+                You have already {userResponse === "CONFIRMED" ? "confirmed" : "rejected"} this evaluation
+              </span>
+            </div>
+          )}
+
           <div className="flex flex-row justify-center items-center gap-[40px] w-[792px] h-[70px] relative isolate mb-[35px]">
             <span className="absolute w-[116px] h-[24px] left-[168px] top-[23px] font-medium text-[20px] leading-[120%] text-white z-0">
               Reject trade
             </span>
-            
+
             {/* Reject button */}
-            <button 
-              className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[1] cursor-pointer hover:scale-105 transition-transform"
+            <button
+              className={`flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[1] transition-all ${currentUserHasResponded
+                  ? 'opacity-40 cursor-not-allowed'
+                  : 'cursor-pointer hover:scale-105'
+                }`}
               onClick={(e) => {
                 e.stopPropagation();
-                setShowRejectDialog(true);
+                if (!currentUserHasResponded) {
+                  setShowRejectDialog(true);
+                }
               }}
+              disabled={currentUserHasResponded}
               type="button"
             >
               <div className="absolute left-0 right-0 top-0 bottom-0 bg-[#0038FF] rounded-[100px] z-0"></div>
               <X className="w-[25px] h-[25px] text-white z-[1]" />
             </button>
-            
+
             {/* Confirm button */}
-            <button 
-              className="flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[2] cursor-pointer hover:scale-105 transition-transform"
+            <button
+              className={`flex flex-row justify-center items-center p-[16px] gap-[10px] w-[70px] h-[70px] filter drop-shadow-[0px_0px_15px_#284CCC] z-[2] transition-all ${currentUserHasResponded
+                  ? 'opacity-40 cursor-not-allowed'
+                  : 'cursor-pointer hover:scale-105'
+                }`}
               onClick={(e) => {
                 e.stopPropagation();
-                setShowConfirmDialog(true);
+                if (!currentUserHasResponded) {
+                  setShowConfirmDialog(true);
+                }
               }}
+              disabled={currentUserHasResponded}
               type="button"
             >
               <div className="absolute left-0 right-0 top-0 bottom-0 bg-[#0038FF] rounded-[100px] z-0"></div>
               <Check className="w-[35px] h-[25px] text-white rounded-[2px] z-[1]" />
             </button>
-            
             <span className="absolute w-[133px] h-[24px] left-[526px] top-[23px] font-medium text-[20px] leading-[120%] text-white z-[3]">
               Confirm trade
             </span>
           </div>
         </div>
-        
+
         {/* Disclaimer */}
         <p className="absolute w-[847px] h-[19px] left-[calc(50%-847px/2+4.5px)] top-[737px] text-[12px] leading-[120%] text-center text-white/80 opacity-60 z-[3]">
           This response is generated by AI and may be inaccurate sometimes. This should only serve as a guide for users.
         </p>
       </div>
-      
+
       {/* Confirm Dialog */}
-      <ConfirmDialog 
+      <ConfirmDialog
         isOpen={showConfirmDialog}
         onClose={() => setShowConfirmDialog(false)}
         onConfirm={handleConfirmComplete}
       />
-      
+
       {/* Reject Dialog */}
       <RejectDialog
         isOpen={showRejectDialog}

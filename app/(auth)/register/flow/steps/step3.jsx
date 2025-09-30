@@ -257,6 +257,10 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
           </Button>
         </div>
 
+        <p className="mt-2 text-sm text-gray-500 text-center">
+          You can skip this step by clicking this button.
+        </p>
+
         {/* Pagination */}
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-sm text-white opacity-60 z-50">
           <ChevronLeft

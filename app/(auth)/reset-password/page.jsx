@@ -1,96 +1,93 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Input } from '../../../components/ui/input';
-import { Button } from '../../../components/ui/button';
-import { useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link';
-import { Inter } from 'next/font/google';
-import PasswordResetSuccessDialog from '../../../components/auth/password-reset-success-dialog';
-import { useSearchParams } from 'next/navigation';
+import { createClient } from "@/utils/supabase/client";
+import { useState } from "react";
+import { Input } from "../../../components/ui/input";
+import { Button } from "../../../components/ui/button";
+import { useMutation } from "@tanstack/react-query";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { Inter } from "next/font/google";
+import PasswordResetSuccessDialog from "../../../components/auth/password-reset-success-dialog";
+import { useSearchParams } from "next/navigation";
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ["latin"] });
 
 // Client-side password validation function
 const validatePassword = (password) => {
   const errors = [];
   if (password.length < 8) {
-    errors.push('Password must be at least 8 characters long.');
+    errors.push("Password must be at least 8 characters long.");
   }
   if (!/[A-Z]/.test(password)) {
-    errors.push('Password must contain at least one uppercase letter.');
+    errors.push("Password must contain at least one uppercase letter.");
   }
   if (!/[a-z]/.test(password)) {
-    errors.push('Password must contain at least one lowercase letter.');
+    errors.push("Password must contain at least one lowercase letter.");
   }
   if (!/\d/.test(password)) {
-    errors.push('Password must contain at least one number.');
+    errors.push("Password must contain at least one number.");
   }
   if (!/[!@#$%^&*]/.test(password)) {
-    errors.push('Password must contain at least one symbol (!@#$%^&*).');
+    errors.push("Password must contain at least one symbol (!@#$%^&*).");
   }
   return errors;
 };
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
-  const [password, setPassword] = useState('');
-  const [repeatPassword, setRepeatPassword] = useState('');
+  const token = searchParams.get("token");
+  const [password, setPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
+  const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      // API call to your Django backend
-      const response = await fetch('http://127.0.0.1:8000/api/reset-password/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token, password }),
-      });
+    mutationFn: async ({ password }) => {
+      // 1. Get the Supabase client
+      const supabase = createClient();
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to reset password.');
+      // 2. Perform client-side validation first
+      const validationErrors = validatePassword(password);
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors.join(" "));
       }
 
-      return response.json();
+      // 3. Update the user's password using the existing session from the email link
+      const { data, error } = await supabase.auth.updateUser({
+        password: password,
+      });
+
+      if (error) {
+        throw new Error(error.message || "Failed to reset password.");
+      }
+
+      return data;
     },
     onSuccess: () => {
       setIsSuccessDialogOpen(true);
     },
     onError: (error) => {
-      console.warn('Error:', error.message);
+      console.warn("Error:", error.message);
       setErrorMessage(error.message);
     },
   });
 
-  const onSubmit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setErrorMessage('');
-
-    // Client-side validation
-    const validationErrors = validatePassword(password);
-    if (validationErrors.length > 0) {
-      setErrorMessage(validationErrors.join(' '));
+    
+    // Check if passwords match first
+    if (newPassword !== repeatPassword) {
+      setErrorMessage("Passwords do not match.");
       return;
     }
 
-    if (!token) {
-      setErrorMessage('Invalid or missing token.');
-      return;
-    }
-    if (password !== repeatPassword) {
-      setErrorMessage('Passwords do not match.');
-      return;
-    }
-
-    mutation.mutate();
+    // Call the mutation function, passing the new password
+    mutation.mutate({ password: newPassword }); 
   };
 
   return (
@@ -111,14 +108,14 @@ export default function ResetPasswordPage() {
         </p>
 
         <form
-          onSubmit={onSubmit}
+          onSubmit={handleSubmit}
           className="w-full space-y-4 flex flex-col items-center"
         >
           {/* Password Field */}
           <div className="relative mb-1 w-[400px] max-w-full mb-[35px] ">
             <Input
               placeholder="Password"
-              type={showPassword ? 'text' : 'password'}
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pr-10 appearance-none"
@@ -136,7 +133,7 @@ export default function ResetPasswordPage() {
           <div className="relative mb-1 w-[400px] max-w-full mb-[20px] ">
             <Input
               placeholder="Repeat password"
-              type={showRepeatPassword ? 'text' : 'password'}
+              type={showRepeatPassword ? "text" : "password"}
               value={repeatPassword}
               onChange={(e) => setRepeatPassword(e.target.value)}
               className="pr-10 appearance-none"
@@ -163,7 +160,7 @@ export default function ResetPasswordPage() {
             className="flex w-[400px] max-w-full h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-normal transition rounded-[15px]"
             disabled={mutation.isPending}
           >
-            {mutation.isPending ? 'Resetting...' : 'Reset password'}
+            {mutation.isPending ? "Resetting..." : "Reset password"}
           </Button>
         </form>
 
@@ -184,9 +181,9 @@ export default function ResetPasswordPage() {
       </div>
 
       {/* Success Dialog */}
-      <PasswordResetSuccessDialog 
-        isOpen={isSuccessDialogOpen} 
-        onClose={() => setIsSuccessDialogOpen(false)} 
+      <PasswordResetSuccessDialog
+        isOpen={isSuccessDialogOpen}
+        onClose={() => setIsSuccessDialogOpen(false)}
       />
     </div>
   );

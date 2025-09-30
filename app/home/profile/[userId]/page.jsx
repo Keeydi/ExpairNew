@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-
 import Link from "next/link";
 import Image from "next/image";
 import { Inter } from "next/font/google";
@@ -17,6 +16,7 @@ import {
   Star,
   Heart,
   Flag,
+  Link as LinkIcon,
 } from "lucide-react";
 import AnimatedLevelBar from "../../../../components/ui/animated-level-bar";
 import ProfileAvatar from "@/components/avatar";
@@ -31,20 +31,18 @@ const LVL_CAPS = [
   28900, 30100, 31300, 32600, 33900, 35200, 36500, 37900, 39300, 40700, 42100,
   43600, 45100, 46600, 48100, 49600, 51100, 52700, 54300, 55900, 57500, 59200,
   60900, 62600, 64300, 66000, 67700, 69500, 71300, 73100, 74900, 76700, 78500,
-  80300, 82100, 85000,
-  50, 75, 100, 125, 150, 175, 200, 230, 260, 300, 350, 400, 460, 520, 600, 700,
-  800, 900, 1000, 1100, 1250, 1400, 1600, 1800, 2000, 2300, 2600, 2900, 3200,
-  3500, 3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000,
-  9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300, 15000, 15800, 16600,
-  17500, 18400, 19300, 20300, 21300, 22300, 23300, 24300, 25400, 26500, 27700,
-  28900, 30100, 31300, 32600, 33900, 35200, 36500, 37900, 39300, 40700, 42100,
-  43600, 45100, 46600, 48100, 49600, 51100, 52700, 54300, 55900, 57500, 59200,
-  60900, 62600, 64300, 66000, 67700, 69500, 71300, 73100, 74900, 76700, 78500,
-  80300, 82100, 85000,
+  80300, 82100, 85000, 50, 75, 100, 125, 150, 175, 200, 230, 260, 300, 350, 400,
+  460, 520, 600, 700, 800, 900, 1000, 1100, 1250, 1400, 1600, 1800, 2000, 2300,
+  2600, 2900, 3200, 3500, 3800, 4200, 4600, 5000, 5500, 6000, 6500, 7000, 7500,
+  8000, 8500, 9000, 9600, 10200, 10800, 11500, 12200, 12900, 13600, 14300,
+  15000, 15800, 16600, 17500, 18400, 19300, 20300, 21300, 22300, 23300, 24300,
+  25400, 26500, 27700, 28900, 30100, 31300, 32600, 33900, 35200, 36500, 37900,
+  39300, 40700, 42100, 43600, 45100, 46600, 48100, 49600, 51100, 52700, 54300,
+  55900, 57500, 59200, 60900, 62600, 64300, 66000, 67700, 69500, 71300, 73100,
+  74900, 76700, 78500, 80300, 82100, 85000,
 ];
 
 const clampLevel = (lvl) =>
- 
   Math.max(1, Math.min(100, Math.floor(Number(lvl) || 1)));
 
 // Width of the current level band (XP range inside this level)
@@ -147,6 +145,7 @@ export default function ProfilePage() {
     level: 1,
     xpPoints: 0,
     tot_xppts: 0,
+    links: "",
   });
 
   useEffect(() => {
@@ -171,140 +170,151 @@ export default function ProfilePage() {
   };
 
   const isOwnProfile = useMemo(() => {
-  console.log("=== IS OWN PROFILE CHECK ===");
-  console.log("Current slug:", slug);
-  console.log("Session user ID:", session?.user?.user_id || session?.user?.id);
-  console.log("Session user username:", session?.user?.username || session?.username);
-  console.log("Loaded user ID:", user?.id);
-  console.log("Loaded user username:", user?.username);
+    console.log("=== IS OWN PROFILE CHECK ===");
+    console.log("Current slug:", slug);
+    console.log(
+      "Session user ID:",
+      session?.user?.user_id || session?.user?.id
+    );
+    console.log(
+      "Session user username:",
+      session?.user?.username || session?.username
+    );
+    console.log("Loaded user ID:", user?.id);
+    console.log("Loaded user username:", user?.username);
 
-  // If viewing /me, it's always own profile
-  if (slug === "me") {
-    console.log("Viewing /me - own profile");
-    return true;
-  }
+    // If viewing /me, it's always own profile
+    if (slug === "me") {
+      console.log("Viewing /me - own profile");
+      return true;
+    }
 
-  // If not authenticated, can't be own profile
-  if (!session?.user && !session?.access) {
-    console.log("Not authenticated - not own profile");
-    return false;
-  }
+    // If not authenticated, can't be own profile
+    if (!session?.user && !session?.access) {
+      console.log("Not authenticated - not own profile");
+      return false;
+    }
 
-  // Get current user info from session
-  const sessionUserId = session?.user?.user_id || session?.user?.id;
-  const sessionUsername = session?.user?.username || session?.username;
+    // Get current user info from session
+    const sessionUserId = session?.user?.user_id || session?.user?.id;
+    const sessionUsername = session?.user?.username || session?.username;
 
-  // Check if slug matches current user ID or username
-  const slugIsUserId = sessionUserId && String(sessionUserId) === String(slug);
-  const slugIsUsername = sessionUsername && sessionUsername.toLowerCase() === String(slug).toLowerCase();
+    // Check if slug matches current user ID or username
+    const slugIsUserId =
+      sessionUserId && String(sessionUserId) === String(slug);
+    const slugIsUsername =
+      sessionUsername &&
+      sessionUsername.toLowerCase() === String(slug).toLowerCase();
 
-  // Also check if loaded user data matches session user
-  const loadedUserMatches = user?.id && sessionUserId && user.id === sessionUserId;
+    // Also check if loaded user data matches session user
+    const loadedUserMatches =
+      user?.id && sessionUserId && user.id === sessionUserId;
 
-  const result = slugIsUserId || slugIsUsername || loadedUserMatches;
-  console.log("Final isOwnProfile result:", result);
-  
-  return result;
-}, [slug, session, user?.id, user?.username]);
+    const result = slugIsUserId || slugIsUsername || loadedUserMatches;
+    console.log("Final isOwnProfile result:", result);
+
+    return result;
+  }, [slug, session, user?.id, user?.username]);
 
   useEffect(() => {
-  console.log("=== USEEFFECT RUNNING ===");
-  console.log("Slug:", slug);
-  console.log("Session:", session);
+    console.log("=== USEEFFECT RUNNING ===");
+    console.log("Slug:", slug);
+    console.log("Session:", session);
 
-  if (!slug) return;
-  if (status === "loading") return; // Wait for session to load
+    if (!slug) return;
+    if (status === "loading") return; // Wait for session to load
 
-  // Only require authentication for "me" endpoint
-  if (slug === "me" && !session?.access) {
-    console.error("[profile] NO ACCESS TOKEN for /me endpoint");
-    setError("Authentication required");
-    setLoading(false);
-    return;
-  }
+    // Only require authentication for "me" endpoint
+    if (slug === "me" && !session?.access) {
+      console.error("[profile] NO ACCESS TOKEN for /me endpoint");
+      setError("Authentication required");
+      setLoading(false);
+      return;
+    }
 
-  console.log("=== PROFILE LOAD START ===");
-  console.log("Slug:", slug);
-  console.log("Session status:", status);
-  console.log("Full session object:", JSON.stringify(session, null, 2));
+    console.log("=== PROFILE LOAD START ===");
+    console.log("Slug:", slug);
+    console.log("Session status:", status);
+    console.log("Full session object:", JSON.stringify(session, null, 2));
 
-  const slugStr = String(slug).toLowerCase();
-  const sessionUsername = String(
-    session?.username || session?.user?.username || ""
-  ).toLowerCase();
-  const sessionUserId = session?.user?.user_id || session?.user?.id;
+    const slugStr = String(slug).toLowerCase();
+    const sessionUsername = String(
+      session?.username || session?.user?.username || ""
+    ).toLowerCase();
+    const sessionUserId = session?.user?.user_id || session?.user?.id;
 
-  const isNumeric = /^\d+$/.test(String(slug));
-  const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
+    const isNumeric = /^\d+$/.test(String(slug));
+    const isUsername = /^[a-zA-Z0-9_.]{3,30}$/.test(String(slug));
 
-  if (!(slugStr === "me" || isNumeric || isUsername)) {
-    setError("Invalid profile URL.");
-    setLoading(false);
-    return;
-  }
+    if (!(slugStr === "me" || isNumeric || isUsername)) {
+      setError("Invalid profile URL.");
+      setLoading(false);
+      return;
+    }
 
-  // If authenticated user is viewing their own profile by ID or username, redirect to /me
-  if (
-    status === "authenticated" && 
-    sessionUsername && 
-    slugStr !== "me" && 
-    (slugStr === sessionUsername || (sessionUserId && slugStr === String(sessionUserId)))
-  ) {
-    console.log("Redirecting own profile view to /me");
-    router.replace("/home/profile/me");
-    return;
-  }
+    // If authenticated user is viewing their own profile by ID or username, redirect to /me
+    if (
+      status === "authenticated" &&
+      sessionUsername &&
+      slugStr !== "me" &&
+      (slugStr === sessionUsername ||
+        (sessionUserId && slugStr === String(sessionUserId)))
+    ) {
+      console.log("Redirecting own profile view to /me");
+      router.replace("/home/profile/me");
+      return;
+    }
 
     let cancelled = false;
 
-  (async () => {
-    try {
-      setError(null);
-      setLoading(true);
+    (async () => {
+      try {
+        setError(null);
+        setLoading(true);
 
-      let url;
-      if (slug === "me") {
-        url = `${API_BASE}/me/`;
-      } else if (isNumeric) {
-        url = `${API_BASE}/users/${slug}/`;
-      } else {
-        url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
-      }
+        let url;
+        if (slug === "me") {
+          url = `${API_BASE}/me/`;
+        } else if (isNumeric) {
+          url = `${API_BASE}/users/${slug}/`;
+        } else {
+          url = `${API_BASE}/users/by-username/${encodeURIComponent(slug)}/`;
+        }
 
         console.log("[profile] Making request to:", url);
 
-      const headers = {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      };
+        const headers = {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        };
 
-      // Only add auth header if we have a token
-      if (session?.access) {
-        headers.Authorization = `Bearer ${session.access}`;
-        console.log("[profile] Authorization header set");
-      } else {
-        console.log("[profile] No access token available");
-      }
+        // Only add auth header if we have a token
+        if (session?.access) {
+          headers.Authorization = `Bearer ${session.access}`;
+          console.log("[profile] Authorization header set");
+        } else {
+          console.log("[profile] No access token available");
+        }
 
-      // Make the request and log everything
-      const res = await fetch(url, {
-        method: "GET",
-        headers,
-        credentials: "include",
-      });
+        // Make the request and log everything
+        const res = await fetch(url, {
+          method: "GET",
+          headers,
+          credentials: "include",
+        });
 
-      console.log("[profile] Response received:", res.status);
+        console.log("[profile] Response received:", res.status);
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("[profile] Request failed:", res.status, errorText);
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
-      }
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("[profile] Request failed:", res.status, errorText);
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
 
-      const data = await res.json();
-      console.log("[profile] Data received:", data);
+        const data = await res.json();
+        console.log("[profile] Data received:", data);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
         // Map the user data
         console.log("[profile] Mapping user data from:", data);
@@ -330,6 +340,7 @@ export default function ProfilePage() {
           is_verified: Boolean(data.is_verified),
           verification_status: data.verification_status ?? null,
           userVerifyId: data.userVerifyId || null,
+          links: data.links || "",
 
           // XP calculation
           ...(() => {
@@ -351,31 +362,31 @@ export default function ProfilePage() {
 
         console.log("[profile] User state updated successfully");
 
-      // Load interests and skills
-      const userId = isNumeric
-        ? String(slug)
-        : String(data.user_id ?? data.id ?? "");
-      if (userId) {
-        console.log(
-          "[profile] Loading interests and skills for user:",
-          userId
-        );
+        // Load interests and skills
+        const userId = isNumeric
+          ? String(slug)
+          : String(data.user_id ?? data.id ?? "");
+        if (userId) {
+          console.log(
+            "[profile] Loading interests and skills for user:",
+            userId
+          );
 
-        const [iRes, sRes] = await Promise.all([
-          fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
-          fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
-        ]);
-
-        console.log("[profile] Interests response:", iRes.status);
-        console.log("[profile] Skills response:", sRes.status);
-
-        if (iRes.ok && sRes.ok) {
-          const [iJson, sJson] = await Promise.all([
-            iRes.json(),
-            sRes.json(),
+          const [iRes, sRes] = await Promise.all([
+            fetch(`${API_BASE}/users/${userId}/interests/`, { headers }),
+            fetch(`${API_BASE}/users/${userId}/skills/`, { headers }),
           ]);
 
-          if (cancelled) return;
+          console.log("[profile] Interests response:", iRes.status);
+          console.log("[profile] Skills response:", sRes.status);
+
+          if (iRes.ok && sRes.ok) {
+            const [iJson, sJson] = await Promise.all([
+              iRes.json(),
+              sRes.json(),
+            ]);
+
+            if (cancelled) return;
 
             console.log("[profile] Interests data:", iJson);
             console.log("[profile] Skills data:", sJson);
@@ -408,10 +419,10 @@ export default function ProfilePage() {
       }
     })();
 
-  return () => {
-    cancelled = true;
-  };
-}, [slug, session?.access, status, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, session?.access, status, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -480,7 +491,6 @@ export default function ProfilePage() {
 
   const [showAllCreds, setShowAllCreds] = useState(false);
 
-
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
@@ -494,77 +504,83 @@ export default function ProfilePage() {
   };
 
   const reviewRatings = useMemo(() => {
-  const ratings = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, 0: 0 };
-  reviews.forEach(review => {
-    const roundedRating = Math.floor(review.rating);
-    if (ratings.hasOwnProperty(roundedRating)) {
-      ratings[roundedRating]++;
-    }
-  });
-  return ratings;
-}, [reviews]);
-
-useEffect(() => {
-  if (!user?.id) return;
-
-  const fetchReviews = async () => {
-    setReviewsLoading(true);
-    setReviewsError(null);
-
-    try {
-      const headers = {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      };
-
-      if (session?.access) {
-        headers.Authorization = `Bearer ${session.access}`;
+    const ratings = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, 0: 0 };
+    reviews.forEach((review) => {
+      const roundedRating = Math.floor(review.rating);
+      if (ratings.hasOwnProperty(roundedRating)) {
+        ratings[roundedRating]++;
       }
+    });
+    return ratings;
+  }, [reviews]);
 
-      const response = await fetch(
-        `${API_BASE}/users/${user.id}/reviews/`, // You'll need to create this endpoint
-        {
-          method: "GET",
-          headers,
-          credentials: "include",
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchReviews = async () => {
+      setReviewsLoading(true);
+      setReviewsError(null);
+
+      try {
+        const headers = {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        };
+
+        if (session?.access) {
+          headers.Authorization = `Bearer ${session.access}`;
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch reviews (${response.status})`);
+        const response = await fetch(
+          `${API_BASE}/users/${user.id}/reviews/`, // You'll need to create this endpoint
+          {
+            method: "GET",
+            headers,
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch reviews (${response.status})`);
+        }
+
+        const data = await response.json();
+        console.log("[reviews] Data received:", data);
+
+        // Transform the backend data to match your frontend format
+        const transformedReviews = (data.reviews || []).map((review) => ({
+          requester:
+            `${review.reviewer_first_name} ${review.reviewer_last_name}`.trim() ||
+            review.reviewer_username,
+          tradePartner:
+            `${user.firstname} ${user.lastname}`.trim() || user.username,
+          tradeCompletionDate: new Date(review.completed_at).toLocaleDateString(
+            "en-US",
+            {
+              month: "short",
+              day: "numeric",
+            }
+          ),
+          requestTitle: review.request_title,
+          offerTitle: review.offer_title,
+          rating: review.rating,
+          reviewDescription: review.review_description,
+          likes: review.likes_count || 0,
+          trade_id: review.trade_id,
+        }));
+
+        setReviews(transformedReviews);
+      } catch (error) {
+        console.error("[reviews] Fetch error:", error);
+        setReviewsError(error.message || "Failed to load reviews");
+        setReviews([]);
+      } finally {
+        setReviewsLoading(false);
       }
+    };
 
-      const data = await response.json();
-      console.log("[reviews] Data received:", data);
-
-      // Transform the backend data to match your frontend format
-      const transformedReviews = (data.reviews || []).map(review => ({
-        requester: `${review.reviewer_first_name} ${review.reviewer_last_name}`.trim() || review.reviewer_username,
-        tradePartner: `${user.firstname} ${user.lastname}`.trim() || user.username,
-        tradeCompletionDate: new Date(review.completed_at).toLocaleDateString("en-US", { 
-          month: "short", 
-          day: "numeric" 
-        }),
-        requestTitle: review.request_title,
-        offerTitle: review.offer_title,
-        rating: review.rating,
-        reviewDescription: review.review_description,
-        likes: review.likes_count || 0,
-        trade_id: review.trade_id,
-      }));
-
-      setReviews(transformedReviews);
-    } catch (error) {
-      console.error("[reviews] Fetch error:", error);
-      setReviewsError(error.message || "Failed to load reviews");
-      setReviews([]);
-    } finally {
-      setReviewsLoading(false);
-    }
-  };
-
-  fetchReviews();
-}, [user?.id, session?.access]);
+    fetchReviews();
+  }, [user?.id, session?.access]);
 
   // Function to render stars based on a rating, now using filled and outlined stars
   const renderStars = (rating) => {
@@ -2317,13 +2333,11 @@ useEffect(() => {
               />
             )}
           </div>
-
           {/* Username + Joined Date */}
           <div className="flex text-white/50 text-[16px] mb-[20px] gap-[25px]">
             <span>@{user.username || "—"}</span>
             <span>Joined {user.joined || "—"}</span>
           </div>
-
           {/* Buttons: Edit, Settings (only if own profile) */}
           {isOwnProfile ? (
             <div className="absolute top-0 right-0 flex gap-4">
@@ -2355,7 +2369,6 @@ useEffect(() => {
               </Link>
             </div>
           )}
-
           {/* Rating + Level */}
           <div className="flex items-center gap-6 mb-[20px]">
             <div className="flex items-center gap-2">
@@ -2401,7 +2414,6 @@ useEffect(() => {
               </span>
             </div>
           </div>
-
           {/* Bio */}
           <div className="w-full mb-4">
             {basicInfoEditing ? (
@@ -2415,7 +2427,25 @@ useEffect(() => {
               <p className="w-full leading-[1.6]">{user.bio}</p>
             )}
           </div>
-
+          <p className="text-gray-600">{user.bio}</p>
+          ```) and **right below it**, insert: ```jsx
+          {user.links && user.links.trim() !== "" && (
+            <div className="mt-3 space-y-2">
+              {user.links.split(",").map((url, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <LinkIcon className="w-4 h-4 text-gray-500" />
+                  <a
+                    href={url.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline break-all"
+                  >
+                    {url.trim()}
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
           {/* Save / Cancel when editing */}
           {basicInfoEditing && (
             <div className="flex flex-col gap-2 mb-4">
@@ -2448,7 +2478,6 @@ useEffect(() => {
               )}
             </div>
           )}
-
           {/* Get Verified Button area */}
           {isOwnProfile && (
             <div className="w-full flex justify-end items-center gap-3">
@@ -3076,171 +3105,171 @@ useEffect(() => {
                 </div>
               </div>
 
-            {/* Rating Bars */}
-            <div className="flex flex-col gap-[10px]">
-              {Object.keys(reviewRatings)
-                .reverse()
-                .map((rating) => (
-                  <div key={rating} className="flex items-center gap-[15px]">
-                    <span className="text-[16px] w-[15px]">{rating}</span>
-                    <div className="w-[270px] h-[15px] bg-white/20 rounded-full">
-                      <div
-                        style={{
-                          width: user.reviews > 0 ? `${
-                            (reviewRatings[rating] / user.reviews) * 100
-                          }%` : '0%',
-                        }}
-                        className="h-full bg-[#906EFF] rounded-full"
-                      />
+              {/* Rating Bars */}
+              <div className="flex flex-col gap-[10px]">
+                {Object.keys(reviewRatings)
+                  .reverse()
+                  .map((rating) => (
+                    <div key={rating} className="flex items-center gap-[15px]">
+                      <span className="text-[16px] w-[15px]">{rating}</span>
+                      <div className="w-[270px] h-[15px] bg-white/20 rounded-full">
+                        <div
+                          style={{
+                            width:
+                              user.reviews > 0
+                                ? `${
+                                    (reviewRatings[rating] / user.reviews) * 100
+                                  }%`
+                                : "0%",
+                          }}
+                          className="h-full bg-[#906EFF] rounded-full"
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Reviews section */}
-        {reviews.length > 0 && (
-          <div className="mt-8 flex flex-col gap-6">
-            {sortedReviews.map((review, index) => (
-              <ReviewCard
-                key={index}
-                review={review}
-              />
-            ))}
+          {/* Reviews section */}
+          {reviews.length > 0 && (
+            <div className="mt-8 flex flex-col gap-6">
+              {sortedReviews.map((review, index) => (
+                <ReviewCard key={index} review={review} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* === Verification Popup (improved UI) === */}
+        {showVerificationPopup && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-[#120A2A] p-6 rounded-[15px] w-[420px] shadow-lg border border-white/20">
+              <div className="flex items-start justify-between">
+                <h3 className="text-white text-lg font-semibold">
+                  Upload your ID
+                </h3>
+                <button
+                  onClick={() => {
+                    // close & clear selection
+                    setShowVerificationPopup(false);
+                    setIdFile(null);
+                    if (idPreviewUrl) {
+                      URL.revokeObjectURL(idPreviewUrl);
+                      setIdPreviewUrl(null);
+                    }
+                  }}
+                  className="p-1 rounded hover:bg-white/10"
+                  aria-label="Close verification popup"
+                >
+                  <Icon icon="mdi:close" className="w-5 h-5 text-white/70" />
+                </button>
+              </div>
+
+              <p className="text-white/70 text-sm mt-2 mb-4">
+                Please upload a clear image or PDF of your government-issued ID.
+                Accepted: PDF, PNG, or JPEG. Max 15&nbsp;MB.
+              </p>
+
+              {/* Upload control */}
+              <div className="flex items-center gap-3 mb-5">
+                <input
+                  id="id-upload"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) =>
+                    handleIdFileChange(e.target.files?.[0] ?? null)
+                  }
+                />
+
+                {/* Visible button (label) */}
+                <label
+                  htmlFor="id-upload"
+                  className="cursor-pointer inline-flex items-center gap-2 rounded-[12px] px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm border border-white/20"
+                >
+                  <Icon icon="mdi:upload" className="w-4 h-4" />
+                  Upload file
+                </label>
+
+                {/* Filename or preview */}
+                <div className="flex-1 min-w-0">
+                  {idFile ? (
+                    <div className="flex items-center gap-3">
+                      {idPreviewUrl ? (
+                        <img
+                          src={idPreviewUrl}
+                          alt="ID preview"
+                          className="w-12 h-8 object-cover rounded-sm border border-white/10"
+                        />
+                      ) : (
+                        <span className="inline-block w-12 h-8 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/70">
+                          PDF
+                        </span>
+                      )}
+                      <span className="text-white/80 text-sm truncate">
+                        {idFile.name}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setIdFile(null);
+                          if (idPreviewUrl) {
+                            URL.revokeObjectURL(idPreviewUrl);
+                            setIdPreviewUrl(null);
+                          }
+                          // clear the native input too
+                          const el = document.getElementById("id-upload");
+                          if (el) el.value = "";
+                        }}
+                        className="ml-2 text-white/60 hover:text-white/90"
+                        aria-label="Remove selected file"
+                        type="button"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-white/60 text-sm">
+                      No file selected
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    // cancel
+                    setShowVerificationPopup(false);
+                    setIdFile(null);
+                    if (idPreviewUrl) {
+                      URL.revokeObjectURL(idPreviewUrl);
+                      setIdPreviewUrl(null);
+                    }
+                    const el = document.getElementById("id-upload");
+                    if (el) el.value = "";
+                  }}
+                  className="bg-white/10 text-white rounded-[15px] px-4 py-2 hover:bg-white/20"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={handleSubmitVerification}
+                  disabled={!idFile}
+                  className={`rounded-[15px] px-4 py-2 shadow ${
+                    idFile
+                      ? "bg-[#0038FF] hover:bg-[#1a4dff] text-white"
+                      : "bg-white/10 text-white/40 cursor-not-allowed"
+                  }`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      {/* === Verification Popup (improved UI) === */}
-      {showVerificationPopup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#120A2A] p-6 rounded-[15px] w-[420px] shadow-lg border border-white/20">
-            <div className="flex items-start justify-between">
-              <h3 className="text-white text-lg font-semibold">
-                Upload your ID
-              </h3>
-              <button
-                onClick={() => {
-                  // close & clear selection
-                  setShowVerificationPopup(false);
-                  setIdFile(null);
-                  if (idPreviewUrl) {
-                    URL.revokeObjectURL(idPreviewUrl);
-                    setIdPreviewUrl(null);
-                  }
-                }}
-                className="p-1 rounded hover:bg-white/10"
-                aria-label="Close verification popup"
-              >
-                <Icon icon="mdi:close" className="w-5 h-5 text-white/70" />
-              </button>
-            </div>
-
-            <p className="text-white/70 text-sm mt-2 mb-4">
-              Please upload a clear image or PDF of your government-issued ID.
-              Accepted: PDF, PNG, or JPEG. Max 15&nbsp;MB.
-            </p>
-
-            {/* Upload control */}
-            <div className="flex items-center gap-3 mb-5">
-              <input
-                id="id-upload"
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                onChange={(e) =>
-                  handleIdFileChange(e.target.files?.[0] ?? null)
-                }
-              />
-
-              {/* Visible button (label) */}
-              <label
-                htmlFor="id-upload"
-                className="cursor-pointer inline-flex items-center gap-2 rounded-[12px] px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm border border-white/20"
-              >
-                <Icon icon="mdi:upload" className="w-4 h-4" />
-                Upload file
-              </label>
-
-              {/* Filename or preview */}
-              <div className="flex-1 min-w-0">
-                {idFile ? (
-                  <div className="flex items-center gap-3">
-                    {idPreviewUrl ? (
-                      <img
-                        src={idPreviewUrl}
-                        alt="ID preview"
-                        className="w-12 h-8 object-cover rounded-sm border border-white/10"
-                      />
-                    ) : (
-                      <span className="inline-block w-12 h-8 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center text-xs text-white/70">
-                        PDF
-                      </span>
-                    )}
-                    <span className="text-white/80 text-sm truncate">
-                      {idFile.name}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setIdFile(null);
-                        if (idPreviewUrl) {
-                          URL.revokeObjectURL(idPreviewUrl);
-                          setIdPreviewUrl(null);
-                        }
-                        // clear the native input too
-                        const el = document.getElementById("id-upload");
-                        if (el) el.value = "";
-                      }}
-                      className="ml-2 text-white/60 hover:text-white/90"
-                      aria-label="Remove selected file"
-                      type="button"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-white/60 text-sm">
-                    No file selected
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  // cancel
-                  setShowVerificationPopup(false);
-                  setIdFile(null);
-                  if (idPreviewUrl) {
-                    URL.revokeObjectURL(idPreviewUrl);
-                    setIdPreviewUrl(null);
-                  }
-                  const el = document.getElementById("id-upload");
-                  if (el) el.value = "";
-                }}
-                className="bg-white/10 text-white rounded-[15px] px-4 py-2 hover:bg-white/20"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleSubmitVerification}
-                disabled={!idFile}
-                className={`rounded-[15px] px-4 py-2 shadow ${
-                  idFile
-                    ? "bg-[#0038FF] hover:bg-[#1a4dff] text-white"
-                    : "bg-white/10 text-white/40 cursor-not-allowed"
-                }`}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
     </div>
   );
 }

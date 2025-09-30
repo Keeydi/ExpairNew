@@ -389,7 +389,7 @@ export default function Step5({
           </h2>
 
           {/* Skills grid */}
-          <div className="grid grid-cols-4 gap-[20px] w-full max-w-[907px]">
+          <div className="grid grid-cols-4 gap-[20px] w-full max-w-[907px] justify-center place-items-center mx-auto">
             {skills.map((skill) => {
               const isSelected = selectedSkills.includes(skill.id);
 

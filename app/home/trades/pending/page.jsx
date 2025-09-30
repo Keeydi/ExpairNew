@@ -13,39 +13,6 @@ import Tooltip from "../../../../components/ui/tooltip";
 
 const inter = Inter({ subsets: ["latin"] });
 
-const ConfirmationModal = ({ message, onConfirm, onCancel }) => {
-  return (
-    <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50">
-      <div
-        className="w-[440px] h-[240px] p-[25px] flex flex-col justify-between rounded-[20px] border-[3px] border-[#D78DE5]/80"
-        style={{
-          background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
-          boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)",
-        }}
-      >
-        <div className="bg-[#170a3eff] p-8 rounded-[20px] shadow-lg w-full">
-          <h3 className="text-center text-[16px] font-semibold text-white mb-4">{message}</h3>
-          <div className="flex justify-between gap-4">
-            <button
-              onClick={onCancel}
-              className="w-[120px] py-2 rounded-[15px] text-white border-2 border-[#FB9696] bg-transparent hover:bg-[#FB9696] transition duration-300"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              className="w-[120px] py-2 rounded-[15px] text-white bg-[#906EFF] hover:bg-[#7e59f7] transition duration-300"
-            >
-              Confirm
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
 export default function PendingTradesPage() {
   const { data: session } = useSession();
 
@@ -108,7 +75,7 @@ export default function PendingTradesPage() {
     }));
   }, []);
 
-  // Update specific finalization trade
+
   const updateFinalizationTrade = useCallback(async (tradeRequestId) => {
     if (!session?.access) return;
 
@@ -127,7 +94,6 @@ export default function PendingTradesPage() {
         const updatedTrade = data.active_trades.find(trade => trade.trade_request_id === tradeRequestId);
 
         if (updatedTrade) {
-          // Fetch updated status
           const statusResponse = await fetch(
             `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeRequestId}/details/status/`,
             {
@@ -141,7 +107,6 @@ export default function PendingTradesPage() {
           const statusData = statusResponse.ok ? await statusResponse.json() : null;
           const tradeWithStatus = { ...updatedTrade, detailsStatus: statusData };
 
-          // Update only the specific trade
           setFinalizationTrades(prevTrades =>
             prevTrades.map(trade =>
               trade.trade_request_id === tradeRequestId ? tradeWithStatus : trade
@@ -156,7 +121,7 @@ export default function PendingTradesPage() {
     }
   }, [session, setActionLoadingState]);
 
-  const refreshAllTrades = useCallback(async (shouldSetLoading = false) => {
+    const refreshAllTrades = useCallback(async (shouldSetLoading = false) => {
     if (!session?.access) return;
 
     if (shouldSetLoading) {
@@ -165,7 +130,6 @@ export default function PendingTradesPage() {
     }
 
     try {
-      // Fetch all three types of trades
       const [postedResponse, interestedResponse, activeResponse] = await Promise.all([
         fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/posted-trades/`, {
           headers: {
@@ -226,25 +190,69 @@ export default function PendingTradesPage() {
       if (activeResponse.ok) {
         const activeData = await activeResponse.json();
 
-        // Fetch trade details status for each active trade
+        // Fetch trade details status, actual trade details, AND evaluation status
         const tradesWithStatus = await Promise.all(
           activeData.active_trades.map(async (trade) => {
             try {
-              const statusResponse = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/details/status/`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${session.access}`,
-                    'Content-Type': 'application/json',
-                  },
-                }
-              );
+              const [statusResponse, tradeDetailsResponse, evaluationResponse] = await Promise.all([
+                fetch(
+                  `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/details/status/`,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${session.access}`,
+                      'Content-Type': 'application/json',
+                    },
+                  }
+                ),
+                fetch(
+                  `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-details/${trade.trade_request_id}/`,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${session.access}`,
+                      'Content-Type': 'application/json',
+                    },
+                  }
+                ),
+                fetch(
+                  `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/evaluation/`,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${session.access}`,
+                      'Content-Type': 'application/json',
+                    },
+                  }
+                )
+              ]);
+
+              let statusData = null;
+              let tradeDetails = null;
+              let evaluationData = null;
 
               if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                return { ...trade, detailsStatus: statusData };
+                statusData = await statusResponse.json();
               }
-              return trade;
+
+              if (tradeDetailsResponse.ok) {
+                const detailsData = await tradeDetailsResponse.json();
+                if (detailsData.details && Array.isArray(detailsData.details)) {
+                  const otherUserId = trade.is_requester ? trade.responder?.id : trade.requester?.id;
+                  tradeDetails = detailsData.details.find(detail => detail.user_id === otherUserId);
+                  if (!tradeDetails && detailsData.details.length > 0) {
+                    tradeDetails = detailsData.details.find(detail => detail.user_id === session.user.id);
+                  }
+                }
+              }
+
+              if (evaluationResponse.ok) {
+                evaluationData = await evaluationResponse.json();
+              }
+
+              return {
+                ...trade,
+                detailsStatus: statusData,
+                tradeDetails: tradeDetails,
+                evaluationStatus: evaluationData
+              };
             } catch (error) {
               console.error('Error fetching trade details status:', error);
               return trade;
@@ -252,9 +260,15 @@ export default function PendingTradesPage() {
           })
         );
 
-        setFinalizationTrades(tradesWithStatus);
-      }
+        // Filter out trades that are fully confirmed (both users accepted evaluation)
+        const pendingFinalizationTrades = tradesWithStatus.filter(trade => {
+          const isFullyConfirmed = trade.evaluationStatus?.both_users_responded && 
+                                   trade.evaluationStatus?.both_accepted;
+          return !isFullyConfirmed;
+        });
 
+        setFinalizationTrades(pendingFinalizationTrades);
+      }
     } catch (error) {
       console.error('Error refreshing trades:', error);
       if (shouldSetLoading) {
@@ -362,6 +376,63 @@ export default function PendingTradesPage() {
   const handleCancelModalClose = () => {
     setShowCancelModal(false);
     setTradeToCancel(null);
+  };
+
+  // Helper function to get trade detail tags
+  const getTradeDetailTags = (trade) => {
+    const tags = [];
+
+    if (!trade.tradeDetails) {
+      return ["Pending Details"];
+    }
+
+    // Skill Proficiency
+    if (trade.tradeDetails.skillprof) {
+      const skillMap = {
+        'BEGINNER': 'Beginner Level',
+        'INTERMEDIATE': 'Intermediate Level',
+        'ADVANCED': 'Advanced Level',
+        'CERTIFIED': 'Certified'
+      };
+      tags.push(skillMap[trade.tradeDetails.skillprof] || trade.tradeDetails.skillprof);
+    }
+
+    // Mode of Delivery
+    if (trade.tradeDetails.modedel) {
+      const deliveryMap = {
+        'ONLINE': 'Online',
+        'ONSITE': 'Onsite',
+        'HYBRID': 'Hybrid'
+      };
+      tags.push(deliveryMap[trade.tradeDetails.modedel] || trade.tradeDetails.modedel);
+    }
+
+    // Request Type
+    if (trade.tradeDetails.reqtype) {
+      const typeMap = {
+        'SERVICE': 'Service',
+        'OUTPUT': 'Output',
+        'PROJECT': 'Project'
+      };
+      tags.push(typeMap[trade.tradeDetails.reqtype] || trade.tradeDetails.reqtype);
+    }
+
+    return tags.length > 0 ? tags : ["Pending Details"];
+  };
+
+  // Helper function to get mode of delivery display text
+  const getModeOfDeliveryText = (trade) => {
+    if (!trade.tradeDetails?.modedel) {
+      return "Location TBD";
+    }
+
+    const deliveryMap = {
+      'ONLINE': 'Online',
+      'ONSITE': 'Onsite',
+      'HYBRID': 'Hybrid'
+    };
+
+    return deliveryMap[trade.tradeDetails.modedel] || trade.tradeDetails.modedel;
   };
 
   // Memoize expensive computations
@@ -713,28 +784,49 @@ export default function PendingTradesPage() {
           </div>
         ) : (
           <div className="flex flex-wrap gap-[25px]">
-            {finalizationTrades.map((trade, index) => (
-              <div key={trade.id} className="relative">
-                <div
-                  className={`${expandedFinalizationCardId === trade.id ? 'w-[945px]' : 'w-[440px]'} transition-all duration-300 hover:scale-[1.01] ${expandedFinalizationCardId === trade.id ? 'h-auto' : 'h-[240px]'} rounded-[20px] border-[3px] border-[#6DDFFF]/80`}
-                  style={{
-                    background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
-                    boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)"
-                  }}
-                >
-                  {expandedFinalizationCardId === trade.id ? (
-                    // Expanded View - Full Card with Image
-                    <div>
-                      {/* Header with more options button */}
-                      <div className="p-[25px] pb-[15px] flex justify-between items-start">
-                        <div className="flex items-start gap-[10px]">
-                          {/* Clickable Profile Picture */}
-                          {(() => {
-                            const otherUser = trade.is_requester ? trade.responder : trade.requester;
-                            return otherUser?.username;
-                          })() ? (
-                            <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="flex-shrink-0">
-                              <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 cursor-pointer hover:ring-2 hover:ring-[#6DDFFF] transition-all">
+            {finalizationTrades.map((trade, index) => {
+              const bothSubmitted = trade.detailsStatus?.submission_status?.both_submitted;
+              const isClickable = bothSubmitted;
+              return (
+                <div key={trade.id} className={`relative ${isClickable ? 'opacity-100' : 'opacity-100'}`}>
+                  <div
+                    className={`${expandedFinalizationCardId === trade.id ? 'w-[945px]' : 'w-[440px]'} transition-all duration-300 hover:scale-[1.01] ${expandedFinalizationCardId === trade.id ? 'h-auto' : 'h-[240px]'} rounded-[20px] border-[3px] border-[#6DDFFF]/80 ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                    style={{
+                      background: "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)",
+                      boxShadow: "0px 5px 40px rgba(40, 76, 204, 0.2)"
+                    }}
+                    onClick={() => {
+                      if (isClickable) {
+                        toggleFinalizationCardExpand(trade.id);
+                      }
+                    }}
+                  >
+                    {expandedFinalizationCardId === trade.id ? (
+                      // Expanded View - Full Card with Image
+                      <div>
+                        {/* Header with more options button */}
+                        <div className="p-[25px] pb-[15px] flex justify-between items-start">
+                          <div className="flex items-start gap-[10px]">
+                            {/* Clickable Profile Picture */}
+                            {(() => {
+                              const otherUser = trade.is_requester ? trade.responder : trade.requester;
+                              return otherUser?.username;
+                            })() ? (
+                              <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="flex-shrink-0">
+                                <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 cursor-pointer hover:ring-2 hover:ring-[#6DDFFF] transition-all">
+                                  <Image
+                                    src={trade.other_user_profile_pic || '/assets/defaultavatar.png'}
+                                    alt={`${trade.name}'s profile picture`}
+                                    width={25}
+                                    height={25}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
+                                    unoptimized={trade.other_user_profile_pic?.startsWith('http')}
+                                  />
+                                </div>
+                              </Link>
+                            ) : (
+                              <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 flex-shrink-0">
                                 <Image
                                   src={trade.other_user_profile_pic || '/assets/defaultavatar.png'}
                                   alt={`${trade.name}'s profile picture`}
@@ -745,182 +837,190 @@ export default function PendingTradesPage() {
                                   unoptimized={trade.other_user_profile_pic?.startsWith('http')}
                                 />
                               </div>
-                            </Link>
-                          ) : (
-                            <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 flex-shrink-0">
-                              <Image
-                                src={trade.other_user_profile_pic || '/assets/defaultavatar.png'}
-                                alt={`${trade.name}'s profile picture`}
-                                width={25}
-                                height={25}
-                                className="w-full h-full object-cover"
-                                onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
-                                unoptimized={trade.other_user_profile_pic?.startsWith('http')}
-                              />
-                            </div>
-                          )}
+                            )}
 
-                          <div>
-                            {/* Clickable Name */}
-                            {(() => {
-                              const otherUser = trade.is_requester ? trade.responder : trade.requester;
-                              return otherUser?.username;
-                            })() ? (
-                              <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="hover:text-[#6DDFFF] transition-colors">
-                                <h3 className="text-[16px] font-normal cursor-pointer">{trade.name}</h3>
-                              </Link>
-                            ) : (
-                              <h3 className="text-[16px] font-normal">{trade.name}</h3>
+                            <div>
+                              {/* Clickable Name */}
+                              {(() => {
+                                const otherUser = trade.is_requester ? trade.responder : trade.requester;
+                                return otherUser?.username;
+                              })() ? (
+                                <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="hover:text-[#6DDFFF] transition-colors">
+                                  <h3 className="text-[16px] font-normal cursor-pointer">{trade.name}</h3>
+                                </Link>
+                              ) : (
+                                <h3 className="text-[16px] font-normal">{trade.name}</h3>
+                              )}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <button onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuIndex(openMenuIndex === `final-${index}` ? null : `final-${index}`);
+                            }}>
+                              <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
+                            </button>
+                            {openMenuIndex === `final-${index}` && (
+                              <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
+                                <button
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowCancelModalForCard(trade.id);
+                                    setOpenMenuIndex(null);
+                                  }}
+                                >
+                                  <Icon icon="lucide:x" className="text-white text-base" />
+                                  Cancel
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
-                        <div className="relative">
-                          <button onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuIndex(openMenuIndex === `final-${index}` ? null : `final-${index}`);
-                          }}>
-                            <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
-                          </button>
-                          {openMenuIndex === `final-${index}` && (
-                            <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                              <button
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowCancelModalForCard(trade.id);
-                                  setOpenMenuIndex(null);
-                                }}
-                              >
-                                <Icon icon="lucide:x" className="text-white text-base" />
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Large Image */}
-                      <div className="px-[25px] pb-[20px]">
-                        <div className="w-full h-[321px] rounded-[15px] overflow-hidden shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)]">
-                          <Image
-                            src="/defaultavatar.png" // This would be the actual trade image
-                            alt="Trade Preview"
-                            width={900}
-                            height={300}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Trade Details */}
-                      <div className="px-[25px] pb-[20px]">
-                        <div className="flex justify-between items-center mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px] inline-block">
-                              <span className="text-[16px] text-white">
-                                Requested {trade.needs}
-                              </span>
+                        {/* Context Image - Only show if contextpic exists */}
+                        {trade.tradeDetails?.contextpic && (
+                          <div className="px-[25px] pb-[20px]">
+                            <div className="w-full h-[321px] rounded-[15px] overflow-hidden shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)]">
+                              <Image
+                                src={trade.tradeDetails.contextpic}
+                                alt="Trade Context"
+                                width={900}
+                                height={300}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
                           </div>
-                          <span className="text-[16px] font-normal text-[#906EFF]">
-                            300 XP
-                          </span>
-                        </div>
+                        )}
 
-                        <div className="flex flex-col gap-4">
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center gap-2">
-                              <Icon icon="lucide:map-pin" className="w-4 h-4 text-[rgba(255,255,255,0.60)]" />
-                              <span className="text-[13px] text-[rgba(255,255,255,0.60)]">Online (synchronous)</span>
-                            </div>
-                            <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">Due on {trade.until}</span>
-                          </div>
-
-                          <div className="flex flex-wrap gap-[15px]">
-                            {["Health & Wellness", "Nutrition Coaching", "Certified", "Service"].map((tag, tagIndex) => (
-                              <div
-                                key={tagIndex}
-                                className="px-[15px] py-[4px] border-[2px] border-white rounded-[15px]"
-                              >
-                                <span className="text-[13px] font-normal text-white">{tag}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div>
-                            <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px] inline-block">
-                              <span className="text-[16px] text-white">In exchange for {trade.offers}</span>
-                            </div>
-                          </div>
-
-                          <p className="text-[13px] text-[rgba(255,255,255,0.60)]">
-                            {trade.name}'s trade for {trade.needs} in exchange for {trade.offers} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="px-[25px] pb-[25px] flex flex-wrap justify-between">
-                        <button
-                          className="flex items-center justify-center"
-                          onClick={() => toggleFinalizationCardExpand(trade.id)}
-                        >
-                          <Icon icon="lucide:chevron-up" className="w-[30px] h-[30px] text-white" />
-                        </button>
-                        <div className="flex items-center gap-[15px]">
-                          <Link href={`/home/trades/add-details?requested=${encodeURIComponent(trade.needs)}&exchange=${encodeURIComponent(trade.offers)}&tradereq_id=${trade.trade_request_id}`}>
-                            <button className="min-w-[120px] h-[40px] flex justify-center items-center bg-[#0038FF] rounded-[15px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors">
-                              <span className="text-[16px] text-white">Add details</span>
-                            </button>
-                          </Link>
-                          <Tooltip content="Expair's tailored AI will evaluate your trade using task difficulty, time, and skills. Make sure to add all details before you can run the evaluation." position="left">
-                            <button
-                              className={`min-w-[120px] h-[40px] flex justify-center items-center rounded-[15px] border-2 border-[#7E59F8] shadow-[0_0_15px_#D78DE5] transition-colors ${trade.detailsStatus?.submission_status?.both_submitted
-                                ? 'bg-[#120A2A] cursor-pointer hover:bg-[#1A0F3E]'
-                                : 'bg-[#413663] cursor-not-allowed opacity-50'
-                                }`}
-                              disabled={!trade.detailsStatus?.submission_status?.both_submitted}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                if (trade.detailsStatus?.submission_status?.both_submitted) {
-                                  setSelectedTrade({
-                                    tradereq_id: trade.trade_request_id,
-                                    requestTitle: trade.needs,
-                                    offerTitle: trade.offers,
-                                    taskComplexity: 60,
-                                    timeCommitment: 50,
-                                    skillLevel: 80,
-                                    feedback: `${trade.name}'s trade for ${trade.needs} in exchange for ${trade.offers} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.`
-                                  });
-                                  setShowEvaluationDialog(true);
-                                }
-                              }}
-                            >
-                              <div className="flex items-center gap-[10px]">
-                                <img src="/assets/logos/White=Logo S.png" alt="Logo" className="w-[16px] h-[16px]" />
-                                <span className="text-[16px] font-normal text-white">
-                                  {trade.detailsStatus?.submission_status?.both_submitted ? 'Evaluate' : 'Waiting for details'}
+                        {/* Trade Details */}
+                        <div className="px-[25px] pb-[20px]">
+                          <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px] inline-block">
+                                <span className="text-[16px] text-white">
+                                  Requested {trade.needs}
                                 </span>
                               </div>
-                            </button>
-                          </Tooltip>
+                            </div>
+                            <span className="text-[16px] font-normal text-[#906EFF]">
+                              {trade.tradeDetails?.total_xp || 111} XP
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-4">
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center gap-2">
+                                <Icon icon="lucide:map-pin" className="w-4 h-4 text-[rgba(255,255,255,0.60)]" />
+                                <span className="text-[13px] text-[rgba(255,255,255,0.60)]">{getModeOfDeliveryText(trade)}</span>
+                              </div>
+                              <span className="text-[13px] font-normal text-[rgba(255,255,255,0.60)]">Due on {trade.until}</span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-[15px]">
+                              {getTradeDetailTags(trade).map((tag, tagIndex) => (
+                                <div
+                                  key={tagIndex}
+                                  className="px-[15px] py-[4px] border-[2px] border-white rounded-[15px]"
+                                >
+                                  <span className="text-[13px] font-normal text-white">{tag}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div>
+                              <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px] inline-block">
+                                <span className="text-[16px] text-white">In exchange for {trade.offers}</span>
+                              </div>
+                            </div>
+
+                            <p className="text-[13px] text-[rgba(255,255,255,0.60)]">
+                              {trade.tradeDetails?.reqbio || `Trade request: ${trade.needs}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="px-[25px] pb-[25px] flex flex-wrap justify-between">
+                          <button
+                            className="flex items-center justify-center"
+                            onClick={() => toggleFinalizationCardExpand(trade.id)}
+                          >
+                            <Icon icon="lucide:chevron-up" className="w-[30px] h-[30px] text-white" />
+                          </button>
+                          <div className="flex items-center gap-[15px]">
+
+                            <Tooltip content="Expair's tailored AI will evaluate your trade using task difficulty, time, and skills. Make sure to add all details before you can run the evaluation." position="left">
+                              <button
+                                className={`min-w-[120px] h-[40px] flex justify-center items-center rounded-[15px] border-2 border-[#7E59F8] shadow-[0_0_15px_#D78DE5] transition-colors ${trade.detailsStatus?.submission_status?.both_submitted
+                                  ? 'bg-[#120A2A] cursor-pointer hover:bg-[#1A0F3E]'
+                                  : 'bg-[#413663] cursor-not-allowed opacity-50'
+                                  }`}
+                                disabled={!trade.detailsStatus?.submission_status?.both_submitted}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  if (trade.detailsStatus?.submission_status?.both_submitted) {
+                                    setSelectedTrade({
+                                      tradereq_id: trade.trade_request_id,
+                                      requestTitle: trade.needs,
+                                      offerTitle: trade.offers,
+                                      taskComplexity: 60,
+                                      timeCommitment: 50,
+                                      skillLevel: 80,
+                                      feedback: trade.tradeDetails?.reqbio || `Trade request: ${trade.needs} in exchange for ${trade.offers}`,
+                                      evaluationStatus: trade.evaluationStatus
+                                    });
+                                    setShowEvaluationDialog(true);
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center gap-[10px]">
+                                  <img src="/assets/logos/White=Logo S.png" alt="Logo" className="w-[16px] h-[16px]" />
+                                  <span className="text-[14px] font-normal text-white">
+                                    {trade.detailsStatus?.submission_status?.both_submitted ? 'Evaluate' : 'Waiting for details'}
+                                  </span>
+                                </div>
+                              </button>
+                            </Tooltip>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    // Collapsed View
-                    <div className="p-[25px] flex flex-col justify-between h-full cursor-pointer" onClick={() => toggleFinalizationCardExpand(trade.id)}>
-                      {/* Trade Header */}
-                      <div className="flex justify-between items-start w-full">
-                        <div className="flex items-start gap-[10px]">
-                          {/* Clickable Profile Picture */}
-                          {(() => {
-                            const otherUser = trade.is_requester ? trade.responder : trade.requester;
-                            return otherUser?.username;
-                          })() ? (
-                            <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="flex-shrink-0">
-                              <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 cursor-pointer hover:ring-2 hover:ring-[#6DDFFF] transition-all">
+                    ) : (
+                      // Collapsed View
+                      <div
+                        className="p-[25px] flex flex-col justify-between h-full"
+                        onClick={(e) => {
+                          // Don't expand if not clickable
+                          if (!isClickable) {
+                            e.stopPropagation();
+                            return;
+                          }
+                          toggleFinalizationCardExpand(trade.id);
+                        }}
+                      >                      {/* Trade Header */}
+                        <div className="flex justify-between items-start w-full">
+                          <div className="flex items-start gap-[10px]">
+                            {/* Clickable Profile Picture */}
+                            {(() => {
+                              const otherUser = trade.is_requester ? trade.responder : trade.requester;
+                              return otherUser?.username;
+                            })() ? (
+                              <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="flex-shrink-0">
+                                <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 cursor-pointer hover:ring-2 hover:ring-[#6DDFFF] transition-all">
+                                  <Image
+                                    src={trade.other_user_profile_pic || '/assets/defaultavatar.png'}
+                                    alt={`${trade.name}'s profile picture`}
+                                    width={25}
+                                    height={25}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
+                                    unoptimized={trade.other_user_profile_pic?.startsWith('http')}
+                                  />
+                                </div>
+                              </Link>
+                            ) : (
+                              <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 flex-shrink-0">
                                 <Image
                                   src={trade.other_user_profile_pic || '/assets/defaultavatar.png'}
                                   alt={`${trade.name}'s profile picture`}
@@ -931,207 +1031,221 @@ export default function PendingTradesPage() {
                                   unoptimized={trade.other_user_profile_pic?.startsWith('http')}
                                 />
                               </div>
-                            </Link>
-                          ) : (
-                            <div className="w-[25px] h-[25px] rounded-full overflow-hidden bg-gray-400 flex-shrink-0">
-                              <Image
-                                src={trade.other_user_profile_pic || '/assets/defaultavatar.png'}
-                                alt={`${trade.name}'s profile picture`}
-                                width={25}
-                                height={25}
-                                className="w-full h-full object-cover"
-                                onError={(e) => { e.target.src = '/assets/defaultavatar.png'; }}
-                                unoptimized={trade.other_user_profile_pic?.startsWith('http')}
-                              />
-                            </div>
-                          )}
-
-                          <div className="flex flex-col items-start gap-[5px]">
-                            {/* Clickable Name */}
-                            {(() => {
-                              const otherUser = trade.is_requester ? trade.responder : trade.requester;
-                              return otherUser?.username;
-                            })() ? (
-                              <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="text-[16px] text-white hover:text-[#6DDFFF] transition-colors cursor-pointer">
-                                <span>{trade.name}</span>
-                              </Link>
-                            ) : (
-                              <span className="text-[16px] text-white">{trade.name}</span>
                             )}
 
-                            <div className="flex items-center gap-[15px]">
-                              <div className="flex items-center gap-[5px]">
-                                <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
-                                <span className="text-[13px] font-bold text-white">{trade.rating}</span>
-                                <span className="text-[13px] font-normal text-white"> ({trade.reviews})</span>
-                              </div>
-                              <div className="flex flex-col gap-[3px]">
+                            <div className="flex flex-col items-start gap-[5px]">
+                              {/* Clickable Name */}
+                              {(() => {
+                                const otherUser = trade.is_requester ? trade.responder : trade.requester;
+                                return otherUser?.username;
+                              })() ? (
+                                <Link href={`/home/profile/${trade.is_requester ? trade.responder.username : trade.requester.username}`} className="text-[16px] text-white hover:text-[#6DDFFF] transition-colors cursor-pointer">
+                                  <span>{trade.name}</span>
+                                </Link>
+                              ) : (
+                                <span className="text-[16px] text-white">{trade.name}</span>
+                              )}
+
+                              <div className="flex items-center gap-[15px]">
                                 <div className="flex items-center gap-[5px]">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
-                                    <path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z"
-                                      fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5" />
-                                    <defs>
-                                      <radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)">
-                                        <stop offset="0.4" stopColor="#933BFF" />
-                                        <stop offset="1" stopColor="#34188D" />
-                                      </radialGradient>
-                                      <linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse">
-                                        <stop stopColor="white" />
-                                        <stop offset="0.5" stopColor="#999999" />
-                                        <stop offset="1" stopColor="white" />
-                                      </linearGradient>
-                                    </defs>
-                                  </svg>
-                                  <span className="text-[13px] text-white">LVL {trade.level}</span>
+                                  <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
+                                  <span className="text-[13px] font-bold text-white">{trade.rating}</span>
+                                  <span className="text-[13px] font-normal text-white"> ({trade.reviews})</span>
+                                </div>
+                                <div className="flex flex-col gap-[3px]">
+                                  <div className="flex items-center gap-[5px]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
+                                      <path d="M6 1.41516C6.09178 1.41516 6.17096 1.42794 6.22461 1.44446C6.23598 1.44797 6.2447 1.4517 6.25098 1.45422L11.0693 6.66516L6.25098 11.8751C6.24467 11.8777 6.23618 11.8823 6.22461 11.8859C6.17096 11.9024 6.09178 11.9152 6 11.9152C5.90822 11.9152 5.82904 11.9024 5.77539 11.8859C5.76329 11.8821 5.75441 11.8777 5.74805 11.8751L0.929688 6.66516L5.74805 1.45422C5.75439 1.45164 5.76351 1.44812 5.77539 1.44446C5.82904 1.42794 5.90822 1.41516 6 1.41516Z"
+                                        fill="url(#paint0_radial_1202_2090)" stroke="url(#paint1_linear_1202_2090)" strokeWidth="1.5" />
+                                      <defs>
+                                        <radialGradient id="paint0_radial_1202_2090" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6.00002 6.66516) scale(6.09125 6.58732)">
+                                          <stop offset="0.4" stopColor="#933BFF" />
+                                          <stop offset="1" stopColor="#34188D" />
+                                        </radialGradient>
+                                        <linearGradient id="paint1_linear_1202_2090" x1="6.00002" y1="0.0778344" x2="6.00002" y2="13.2525" gradientUnits="userSpaceOnUse">
+                                          <stop stopColor="white" />
+                                          <stop offset="0.5" stopColor="#999999" />
+                                          <stop offset="1" stopColor="white" />
+                                        </linearGradient>
+                                      </defs>
+                                    </svg>
+                                    <span className="text-[13px] text-white">LVL {trade.level}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="relative">
-                          <button onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setOpenMenuIndex(openMenuIndex === `final-${index}` ? null : `final-${index}`);
-                          }}>
-                            <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
-                          </button>
-                          {openMenuIndex === `final-${index}` && (
-                            <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
-                              <button
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowCancelModalForCard(trade.id);
-                                  setOpenMenuIndex(null);
-                                }}
+                          <div className="flex items-center gap-2">
+                            {!bothSubmitted && (
+                              <Tooltip
+                                content={`Please wait for ${trade.is_requester ? trade.responder?.name?.split(' ')[0] : trade.requester?.name?.split(' ')[0]} to fill out the details.`}
+                                position="left"
                               >
-                                <Icon icon="lucide:x" className="text-white text-base" />
-                                Cancel
+                                <div className="cursor-help">
+                                  <Icon icon="lucide:clock" className="w-4 h-4 text-[#FB9696]" />
+                                </div>
+                              </Tooltip>
+                            )}
+
+                            {bothSubmitted && trade.evaluationStatus?.current_user_response && !trade.evaluationStatus?.both_users_responded && (
+                              <Tooltip
+                                content={`Waiting for ${trade.is_requester ? trade.responder?.name?.split(' ')[0] : trade.requester?.name?.split(' ')[0]} to respond to evaluation.`}
+                                position="left"
+                              >
+                                <div className="cursor-help">
+                                  <Icon icon="lucide:clock" className="w-4 h-4 text-[#6DDFFF]" />
+                                </div>
+                              </Tooltip>
+                            )}
+
+                            <div className="relative">
+                              <button onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setOpenMenuIndex(openMenuIndex === `final-${index}` ? null : `final-${index}`);
+                              }}>
+
+
+                                <Icon icon="lucide:more-horizontal" className="w-6 h-6 text-white" />
                               </button>
+                              {openMenuIndex === `final-${index}` && (
+                                <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
+                                  <button
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowCancelModalForCard(trade.id);
+                                      setOpenMenuIndex(null);
+                                    }}
+                                  >
+                                    <Icon icon="lucide:x" className="text-white text-base" />
+                                    Cancel
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        {showCancelModalForCard === trade.id && (
-                          <InlineConfirmationModal
-                            message="Are you sure you want to cancel this trade?"
-                            onConfirm={() => handleCancelTrade(trade.trade_request_id)}
-                            onCancel={() => setShowCancelModalForCard(null)}
-                          />
-                        )}
-                      </div>
-
-                      {/* Needs/Offers Section */}
-                      <div className="flex justify-between items-start w-full">
-                        {/* Needs */}
-                        <div className="flex flex-col items-start gap-[10px]">
-                          <span className="text-[13px] text-white">Needs</span>
-                          <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
-                            <span className="text-[13px] text-white leading-tight">{trade.needs}</span>
+                            {showCancelModalForCard === trade.id && (
+                              <InlineConfirmationModal
+                                message="Are you sure you want to cancel this trade?"
+                                onConfirm={() => handleCancelTrade(trade.trade_request_id)}
+                                onCancel={() => setShowCancelModalForCard(null)}
+                              />
+                            )}
                           </div>
                         </div>
 
-                        {/* Offers */}
-                        <div className="flex flex-col items-end gap-[10px]">
-                          <span className="text-[13px] text-white">Can offer</span>
-                          <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
-                            <span className="text-[13px] text-white leading-tight">{trade.offers}</span>
+                        {/* Needs/Offers Section */}
+                        <div className="flex justify-between items-start w-full">
+                          {/* Needs */}
+                          <div className="flex flex-col items-start gap-[10px]">
+                            <span className="text-[13px] text-white">Needs</span>
+                            <div className="px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[2px] border-[#0038FF] rounded-[15px]">
+                              <span className="text-[13px] text-white leading-tight">{trade.needs}</span>
+                            </div>
+                          </div>
+
+                          {/* Offers */}
+                          <div className="flex flex-col items-end gap-[10px]">
+                            <span className="text-[13px] text-white">Can offer</span>
+                            <div className="px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[2px] border-[#906EFF] rounded-[15px]">
+                              <span className="text-[13px] text-white leading-tight">{trade.offers}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Date */}
-                      <div className="flex justify-end items-center w-full">
-                        <span className="text-[13px] text-white/60">until {trade.until}</span>
-                      </div>
+                        {/* Date */}
+                        <div className="flex justify-end items-center w-full">
+                          <span className="text-[13px] text-white/60">until {trade.until}</span>
+                        </div>
 
-                      {/* Buttons Row */}
-                      <div className="flex justify-between items-center w-full">
-                        {(() => {
-                          const currentUserSubmitted = trade.detailsStatus?.current_user?.has_submitted;
-                          const otherUserSubmitted = trade.is_requester
-                            ? trade.detailsStatus?.responder?.has_submitted
-                            : trade.detailsStatus?.requester?.has_submitted;
-                          const otherUserName = trade.is_requester
-                            ? trade.detailsStatus?.responder?.name?.split(' ')[0]
-                            : trade.detailsStatus?.requester?.name?.split(' ')[0];
+                        {/* Buttons Row */}
+                        <div className="flex justify-between items-center w-full">
+                          {(() => {
+                            const currentUserSubmitted = trade.detailsStatus?.current_user?.has_submitted;
+                            const otherUserSubmitted = trade.is_requester
+                              ? trade.detailsStatus?.responder?.has_submitted
+                              : trade.detailsStatus?.requester?.has_submitted;
+                            const otherUserName = trade.is_requester
+                              ? trade.detailsStatus?.responder?.name?.split(' ')[0]
+                              : trade.detailsStatus?.requester?.name?.split(' ')[0];
 
-                          if (!currentUserSubmitted) {
-                            return (
-                              <Link href={`/home/trades/add-details?requested=${encodeURIComponent(trade.needs)}&exchange=${encodeURIComponent(trade.offers)}&tradereq_id=${trade.trade_request_id}`}>
-                                <button className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
+                            if (!currentUserSubmitted) {
+                              return (
+                                <Link href={`/home/trades/add-details?requested=${encodeURIComponent(trade.needs)}&exchange=${encodeURIComponent(trade.offers)}&tradereq_id=${trade.trade_request_id}`}>
+                                  <button className="w-[120px] h-[30px] flex justify-center items-center bg-[#0038FF] rounded-[10px] shadow-[0px_0px_15px_#284CCC] cursor-pointer hover:bg-[#1a4dff] transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span className="text-[13px] text-white">Add details</span>
+                                  </button>
+                                </Link>
+                              );
+                            } else if (!otherUserSubmitted) {
+                              return (
+                                <button
+                                  disabled
+                                  className="w-[140px] h-[30px] flex justify-center items-center bg-[#413663] rounded-[10px] cursor-not-allowed"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                  }}
                                 >
-                                  <span className="text-[13px] text-white">Add details</span>
+                                  <span className="text-[11px] text-white/70">Waiting for {otherUserName}</span>
                                 </button>
-                              </Link>
-                            );
-                          } else if (!otherUserSubmitted) {
-                            return (
-                              <button
-                                disabled
-                                className="w-[140px] h-[30px] flex justify-center items-center bg-[#413663] rounded-[10px] cursor-not-allowed"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                }}
-                              >
-                                <span className="text-[11px] text-white/70">Waiting for {otherUserName}</span>
-                              </button>
-                            );
-                          } else {
-                            return (
-                              <button
-                                disabled
-                                className="w-[120px] h-[30px] flex justify-center items-center bg-[#6DDFFF] rounded-[10px]"
-                              >
-                                <span className="text-[14px] text-black font-bold">Ready</span>
-                              </button>
-                            );
-                          }
-                        })()}
-
-                        <button
-                          className={`h-[35px] flex justify-center items-center border border-white rounded-[10px] transition-colors ${trade.detailsStatus?.submission_status?.both_submitted
-                            ? 'w-[120px] bg-[#120A2A] cursor-pointer hover:bg-[#1A0F3E]'
-                            : 'w-[170px] bg-[#413663] cursor-not-allowed opacity-50'
-                            }`}
-                          disabled={!trade.detailsStatus?.submission_status?.both_submitted}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            if (trade.detailsStatus?.submission_status?.both_submitted) {
-                              setSelectedTrade({
-                                tradereq_id: trade.trade_request_id,
-                                requestTitle: trade.needs,
-                                offerTitle: trade.offers,
-                                taskComplexity: 60,
-                                timeCommitment: 50,
-                                skillLevel: 80,
-                                feedback: `${trade.name}'s trade for ${trade.needs} in exchange for ${trade.offers} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.`
-                              });
-                              setShowEvaluationDialog(true);
+                              );
+                            } else {
+                              return (
+                                <button
+                                  disabled
+                                  className="w-[120px] h-[30px] flex justify-center items-center bg-[#6DDFFF] rounded-[10px]"
+                                >
+                                  <span className="text-[14px] text-black font-bold">Ready</span>
+                                </button>
+                              );
                             }
-                          }}
-                        >
-                          <div className="flex items-center gap-1">
-                            <Icon icon="lucide:star" className="w-4 h-4 text-white" />
-                            <span className="text-[14px] text-white">
-                              {trade.detailsStatus?.submission_status?.both_submitted ? 'Evaluate' : 'Waiting for details'}
-                            </span>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                          })()}
 
-              </div>
-            ),
-            )}
+                          <button
+                            className={`h-[35px] flex justify-center items-center border border-white rounded-[10px] transition-colors ${trade.detailsStatus?.submission_status?.both_submitted
+                              ? 'w-[120px] bg-[#120A2A] cursor-pointer hover:bg-[#1A0F3E]'
+                              : 'w-[170px] bg-[#413663] cursor-not-allowed opacity-50'
+                              }`}
+                            disabled={!trade.detailsStatus?.submission_status?.both_submitted}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              if (trade.detailsStatus?.submission_status?.both_submitted) {
+                                setSelectedTrade({
+                                  tradereq_id: trade.trade_request_id,
+                                  requestTitle: trade.needs,
+                                  offerTitle: trade.offers,
+                                  taskComplexity: 60,
+                                  timeCommitment: 50,
+                                  skillLevel: 80,
+                                  feedback: `${trade.name}'s trade for ${trade.needs} in exchange for ${trade.offers} is well-balanced, with a high skill level required and moderate time commitment. The task complexity is fairly challenging, which makes this a valuable and rewarding exchange for both parties. Overall, it's a great match that promises meaningful growth and results.`,
+                                  evaluationStatus: trade.evaluationStatus 
+                                });
+                                setShowEvaluationDialog(true);
+                              }
+                            }}
+                          >
+                            <div className="flex items-center gap-[10px]">
+                              <Icon icon="lucide:star" className="w-4 h-4 text-white" />
+                              <span className="text-[14px] text-white">
+                                {trade.detailsStatus?.submission_status?.both_submitted ? 'Evaluate' : 'Waiting for details'}
+                              </span>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
+
       {/* Offers Popup */}
       <OffersPopup
         isOpen={showOffersPopup}

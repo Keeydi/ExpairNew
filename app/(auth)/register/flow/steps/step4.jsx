@@ -400,7 +400,7 @@ export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
           </h2>
 
           {/* Categories grid */}
-          <div className="grid grid-cols-4 gap-[20px] w-full max-w-[907px]">
+          <div className="grid grid-cols-4 gap-[20px] w-full max-w-[907px] justify-center place-items-center mx-auto">
             {categories.map((category) => {
               const isSelected = selectedCategories.includes(category.id);
 

@@ -18,7 +18,7 @@ export default function ConfirmDialog({
   if (!isOpen && !showSuccess) return null;
 
 
-  const handleConfirm = async () => {
+const handleConfirm = async () => {
   setSubmitting(true);
   
   try {
@@ -27,11 +27,14 @@ export default function ConfirmDialog({
       await onConfirm();
     }
     
+    // ✅ Only show success if we reach here without error
     setSubmitting(false);
     setShowSuccess(true);
   } catch (error) {
     console.error('Error in confirm dialog:', error);
     setSubmitting(false);
+    // ❌ Don't show success dialog on error
+    // The error alert should already be shown by the parent component
   }
 };
 

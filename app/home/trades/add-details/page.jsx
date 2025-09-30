@@ -7,34 +7,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { X, Info } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import TradeRequestInfo from "../../../../components/trade-cards/trade-request-info";
+import WarningDialog from "../../../../components/trade-cards/warning-dialog";
 
 const inter = Inter({ subsets: ["latin"] });
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
-
-// TradeRequestInfo component
-function TradeRequestInfo({ requested, exchange }) {
-  return (
-    <div className="w-full mb-[30px]">
-    <div className="bg-[#120A2A] border border-white/20 rounded-[15px] p-[20px]">
-        {/* Simplified flex container, ensuring content stacks */}
-        <div className="flex flex-col"> 
-            <div className="flex-1 w-full">
-                <h3 className="text-[24px] font-bold text-white mb-2">
-                    Requesting for <span className="text-[#D78DE5]">{requested}</span>
-                </h3>
-
-                {exchange && (
-                    <p className="text-[17px] text-white/80">
-                        In exchange for <span className="text-white">{exchange}</span>
-                    </p>
-                )}
-            </div>
-        </div>
-    </div>
-</div>
-  );
-}
 
 export default function AddTradeDetailsPage() {
   const [deliveryMode, setDeliveryMode] = useState("");
@@ -52,7 +30,8 @@ export default function AddTradeDetailsPage() {
   const [error, setError] = useState("");
   const [tradeRequestId, setTradeRequestId] = useState(null);
   const [xpBreakdown, setXpBreakdown] = useState(null);
-  
+  const [showWarningModal, setShowWarningModal] = useState(false);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -62,52 +41,57 @@ export default function AddTradeDetailsPage() {
     const requested = searchParams.get('requested');
     const exchange = searchParams.get('exchange');
     const tradereqId = searchParams.get('tradereq_id');
-    
+
     if (requested) {
       setTradeData({
         requested: decodeURIComponent(requested),
         exchange: exchange ? decodeURIComponent(exchange) : ""
       });
     }
-    
+
     if (tradereqId) {
       setTradeRequestId(parseInt(tradereqId));
     }
   }, [searchParams]);
-  
+
   const handleDetailsChange = (e) => {
     const text = e.target.value;
     setDetails(text);
     setCharCount(text.length);
   };
-  
+
   const handleSubmit = () => {
     // Validate required fields
     if (!deliveryMode || !skillLevel || !requestType || !details.trim()) {
       setError("Please fill in all required fields");
       return;
     }
-    
+
     if (details.length > 500) {
       setError("Details must be 500 characters or less");
       return;
     }
-    
+
     setError("");
     setShowConfirmModal(true);
   };
-  
+
+  const handleWarningConfirm = () => {
+    setShowWarningModal(false);
+    setShowSuccessModal(true);
+  };
+
   const handleConfirm = async () => {
     setShowConfirmModal(false);
     setIsLoading(true);
     setError("");
-    
+
     if (!session?.access || !tradeRequestId) {
       setError("Authentication required or trade request ID missing");
       setIsLoading(false);
       return;
     }
-    
+
     try {
       // Prepare form data for submission
       const formData = new FormData();
@@ -115,11 +99,11 @@ export default function AddTradeDetailsPage() {
       formData.append('skillLevel', skillLevel);
       formData.append('requestType', requestType);
       formData.append('details', details.trim());
-      
+
       if (photo) {
         formData.append('photo', photo);
       }
-      
+
       console.log("Submitting trade details:", {
         tradeRequestId,
         deliveryMode,
@@ -128,7 +112,7 @@ export default function AddTradeDetailsPage() {
         details: details.substring(0, 50) + "...",
         hasPhoto: !!photo
       });
-      
+
       const response = await fetch(`${BACKEND_URL}/trade-requests/${tradeRequestId}/details/`, {
         method: 'POST',
         headers: {
@@ -136,10 +120,10 @@ export default function AddTradeDetailsPage() {
         },
         body: formData,
       });
-      
+
       const responseData = await response.json();
       console.log("Backend response:", responseData);
-      
+
       if (response.ok) {
         // Store XP breakdown for success modal
         if (responseData.xp_breakdown) {
@@ -162,10 +146,14 @@ export default function AddTradeDetailsPage() {
       {/* Background glows */}
       <div className="fixed w-[673px] h-[673px] left-[-611.5px] top-[-336px] bg-[#906EFF] opacity-35 blur-[200px] z-0"></div>
       <div className="fixed w-[673px] h-[673px] right-[-354px] bottom-[-454px] bg-[#0038FF] opacity-35 blur-[200px] z-0"></div>
-      
+
       {/* Main content */}
       <div className="relative z-10 max-w-[940px] w-full mx-auto pt-[23px] md:pt-[50px] pb-[100px] px-4 md:px-6 flex flex-col items-center">
-        <h1 className="text-[25px] font-semibold mb-[34px] w-full">Adding trade details</h1>
+        <h1 className="text-[25px] font-semibold mb-[10px] w-full">Adding trade details</h1>
+        {/* Instruction text */}
+        <p className="text-[16px] text-white/70 mb-[30px] w-full">
+          Specify your {tradeData.exchange || 'service'} needs. This helps the other person understand exactly what you're looking for.
+        </p>
 
         {/* Error message */}
         {error && (
@@ -175,8 +163,8 @@ export default function AddTradeDetailsPage() {
         )}
 
         {/* Trade Request Info */}
-        {(tradeData.requested) && (
-          <TradeRequestInfo 
+        {(tradeData.requested && tradeData.exchange) && (
+          <TradeRequestInfo
             requested={tradeData.requested}
             exchange={tradeData.exchange}
           />
@@ -189,7 +177,7 @@ export default function AddTradeDetailsPage() {
             <div className="flex flex-col gap-[15px]">
               <label className="text-[16px]">Select the mode of delivery *</label>
               <div className="relative">
-                <select 
+                <select
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
                   value={deliveryMode}
                   onChange={(e) => setDeliveryMode(e.target.value)}
@@ -201,13 +189,13 @@ export default function AddTradeDetailsPage() {
                   <option value="online">Online</option>
                   <option value="hybrid">Hybrid</option>
                 </select>
-                <Icon 
-                  icon="mingcute:down-fill" 
-                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]" 
+                <Icon
+                  icon="mingcute:down-fill"
+                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]"
                 />
               </div>
             </div>
-            
+
             {/* Skill proficiency */}
             <div className="flex flex-col gap-[15px]">
               <div className="flex items-center gap-2">
@@ -224,17 +212,18 @@ export default function AddTradeDetailsPage() {
                   {showSkillTooltip && (
                     <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
                       <div className="text-sm text-white space-y-2">
-                        <div><strong>Beginner</strong> — Just starting out and have basic knowledge of the skill.</div>
-                        <div><strong>Intermediate</strong> — Comfortable with the skill and can perform it with some independence.</div>
-                        <div><strong>Advanced</strong> — Highly skilled and able to perform complex tasks with expertise.</div>
-                        <div><strong>Certified</strong> — Verified by uploading at least one official credential related to the skill.</div>
+                        <div>Indicates the level of expertise required for a trade, helping users set clear expectations for skill and experience.</div>
+                        <div><strong>Beginner</strong> – Just starting out and have basic knowledge of the skill.</div>
+                        <div><strong>Intermediate</strong> – Comfortable with the skill and can perform it with some independence.</div>
+                        <div><strong>Advanced</strong> – Highly skilled and able to perform complex tasks with expertise.</div>
+                        <div><strong>Certified</strong> – Verified by uploading at least one official credential related to the skill.</div>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
               <div className="relative">
-                <select 
+                <select
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
                   value={skillLevel}
                   onChange={(e) => setSkillLevel(e.target.value)}
@@ -247,13 +236,13 @@ export default function AddTradeDetailsPage() {
                   <option value="advanced">Advanced</option>
                   <option value="certified">Certified</option>
                 </select>
-                <Icon 
-                  icon="mingcute:down-fill" 
-                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]" 
+                <Icon
+                  icon="mingcute:down-fill"
+                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]"
                 />
               </div>
             </div>
-            
+
             {/* Request type */}
             <div className="flex flex-col gap-[15px]">
               <div className="flex items-center gap-2">
@@ -270,16 +259,17 @@ export default function AddTradeDetailsPage() {
                   {showRequestTooltip && (
                     <div className="absolute left-0 top-6 w-[320px] bg-[#120A2A] border border-white/20 rounded-[10px] p-3 shadow-lg z-20">
                       <div className="text-sm text-white space-y-2">
-                        <div><strong>Service</strong> — An action done for someone else within a period of time (e.g., tutoring, house repairs, fitness training).</div>
-                        <div><strong>Output</strong> — A one-time deliverable you create or provide (e.g., logo design, video edit, custom playlist)</div>
-                        <div><strong>Project</strong> — A long-term recurring collaboration. (e.g., developing a website, co-writing a film, organizing an event)</div>
+                        <div>Defines the format of the trade, whether it involves time-based services, one-time outputs, or ongoing projects.</div>
+                        <div><strong>Service</strong> – An action done for someone else within a period of time (e.g., tutoring, house repairs, fitness training).</div>
+                        <div><strong>Output</strong> – A one-time deliverable you create or provide (e.g., logo design, video edit, custom playlist)</div>
+                        <div><strong>Project</strong> – A long-term recurring collaboration. (e.g., developing a website, co-writing a film, organizing an event)</div>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
               <div className="relative">
-                <select 
+                <select
                   className="w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] appearance-none text-[16px] text-white outline-none cursor-pointer"
                   value={requestType}
                   onChange={(e) => setRequestType(e.target.value)}
@@ -291,41 +281,41 @@ export default function AddTradeDetailsPage() {
                   <option value="output">Output</option>
                   <option value="project">Project</option>
                 </select>
-                <Icon 
-                  icon="mingcute:down-fill" 
-                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]" 
+                <Icon
+                  icon="mingcute:down-fill"
+                  className="absolute right-[16px] top-1/2 transform -translate-y-1/2 text-white w-[24px] h-[24px]"
                 />
               </div>
             </div>
-            
+
             {/* Photo upload */}
             <div className="flex flex-col gap-[15px]">
               <label className="text-[16px]">Upload a photo for context</label>
               <div className="relative">
-                <input 
-                  type="file" 
-                  id="photo-upload" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  id="photo-upload"
+                  className="hidden"
                   accept="image/*"
                   onChange={(e) => setPhoto(e.target.files[0])}
                   disabled={isLoading}
                 />
-                <label 
-                  htmlFor="photo-upload" 
+                <label
+                  htmlFor="photo-upload"
                   className={`w-full h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] px-[16px] py-[15px] flex justify-between items-center ${isLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                 >
                   <span className="text-[16px] text-[#413663]">
                     {photo ? photo.name : "Upload photo"}
                   </span>
-                  <Icon 
-                    icon="material-symbols:upload" 
-                    className="text-white w-[24px] h-[24px]" 
+                  <Icon
+                    icon="material-symbols:upload"
+                    className="text-white w-[24px] h-[24px]"
                   />
                 </label>
               </div>
             </div>
           </div>
-          
+
           {/* Right column */}
           <div className="w-full md:w-[400px] flex flex-col gap-[20px]">
             {/* Details textarea */}
@@ -346,7 +336,7 @@ export default function AddTradeDetailsPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Confirm button */}
             <div className="flex justify-end mt-auto">
               <button
@@ -360,40 +350,40 @@ export default function AddTradeDetailsPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowConfirmModal(false)}></div>
           <div className="relative w-[90%] max-w-[700px] h-auto min-h-[220px] flex flex-col items-center justify-center bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 px-4 md:px-[50px] py-[40px] md:py-[60px]">
             {/* Close button */}
-            <button 
+            <button
               className="absolute top-[20px] right-[20px] text-white hover:text-gray-300 cursor-pointer"
               onClick={() => setShowConfirmModal(false)}
             >
               <X className="w-[15px] h-[15px]" />
             </button>
-            
+
             <h2 className="font-bold text-[20px] md:text-[22px] text-center text-white w-full max-w-[500px] mb-[20px]">
               Are the trade details correct?
             </h2>
-            
+
             <div className="flex flex-col items-center gap-[15px] w-full max-w-[500px]">
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-[25px]">
-                <button 
+                <button
                   className="w-full sm:w-[160px] h-[40px] flex justify-center items-center border-2 border-[#0038FF] text-[#0038FF] rounded-[15px] hover:bg-[#0038FF]/10 transition-colors cursor-pointer shadow-[0px_0px_15px_#284CCC]"
                   onClick={() => setShowConfirmModal(false)}
                 >
                   <span className="text-[16px]">Cancel</span>
                 </button>
-                <button 
+                <button
                   className="w-full sm:w-[168px] h-[40px] flex justify-center items-center bg-[#0038FF] text-white rounded-[15px] shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
                   onClick={handleConfirm}
                 >
                   <span className="text-[16px]">Confirm</span>
                 </button>
               </div>
-              
+
               <p className="text-[13px] text-white/60 text-center">
                 Please review the trade details carefully. Once confirmed, changes will no longer be allowed.
               </p>
@@ -401,24 +391,31 @@ export default function AddTradeDetailsPage() {
           </div>
         </div>
       )}
-      
+
+      {/* Warning Modal */}
+      <WarningDialog
+        isOpen={showWarningModal}
+        onClose={() => setShowWarningModal(false)}
+        onConfirm={handleWarningConfirm}
+      />
+
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 bg-black/50"></div>
           <div className="relative w-[90%] max-w-[700px] h-auto min-h-[220px] flex flex-col items-center justify-center bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 px-4 md:px-[50px] py-[40px] md:py-[60px]">
             {/* Close button */}
-            <button 
+            <button
               className="absolute top-[20px] right-[20px] text-white hover:text-gray-300 cursor-pointer"
               onClick={() => setShowSuccessModal(false)}
             >
               <X className="w-[15px] h-[15px]" />
             </button>
-            
+
             <h2 className="font-bold text-[20px] md:text-[22px] text-center text-white mb-[20px]">
               Trade details successfully added.
             </h2>
-            
+
             {/* XP Display */}
             {xpBreakdown && (
               <div className="w-full max-w-[500px] mb-[20px] p-[20px] bg-[#120A2A] border border-white/20 rounded-[15px]">
@@ -428,9 +425,9 @@ export default function AddTradeDetailsPage() {
                 </div>
               </div>
             )}
-            
+
             <Link href="/home/trades/pending">
-              <button 
+              <button
                 className="w-full sm:w-[240px] h-[50px] flex justify-center items-center bg-[#0038FF] text-white rounded-[15px] shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
               >
                 <span className="text-[16px]">Go back to Pending Trades</span>
