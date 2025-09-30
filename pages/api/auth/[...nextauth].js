@@ -134,7 +134,7 @@ export default NextAuth({
             // No JWT tokens for new users
             user.access = null;
             user.refresh = null;
-            
+
             console.log("New Google user - storing registration data");
             return true;
 
@@ -166,20 +166,35 @@ export default NextAuth({
       console.log("=== REDIRECT CALLBACK ===");
       console.log("URL:", url);
       console.log("Base URL:", baseUrl);
-      
+
       // For OAuth redirects, go to our handler page
       return `${baseUrl}/auth/callback`;
     },
 
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account, trigger, session }) {
       console.log("=== JWT CALLBACK START ===");
       console.log("Trigger:", trigger);
-      console.log("Current token keys:", token ? Object.keys(token) : "no token");
+
+      // Handle session update trigger (after registration completion)
+      if (trigger === "update" && session) {
+        console.log("=== SESSION UPDATE TRIGGER ===");
+
+        if (session.access && session.refresh) {
+          token.access = session.access;
+          token.refresh = session.refresh;
+          token.isNewUser = false;
+          token.tokenTimestamp = Date.now();
+          delete token.googleData;
+          console.log("Updated session with new tokens after registration");
+        }
+
+        return token;
+      }
 
       // Initial sign in
       if (user && account) {
         console.log("=== INITIAL SIGN IN ===");
-        
+
         token.id = user.id;
         token.username = user.username;
         token.first_name = user.first_name;
@@ -213,7 +228,7 @@ export default NextAuth({
         return token;
       }
 
-      // Token refresh logic for existing users (your existing logic)
+      // Token refresh logic continues as before...
       if (!token.access || !token.refresh) {
         console.error("Missing stored tokens");
         return null;
@@ -226,7 +241,7 @@ export default NextAuth({
       if (accessExpiry) {
         const timeToExpiry = accessExpiry - now;
         console.log(`Token expires in: ${Math.round(timeToExpiry / 1000 / 60)} minutes`);
-        
+
         if (timeToExpiry < tenMinutes) {
           console.log("=== REFRESHING TOKEN ===");
 

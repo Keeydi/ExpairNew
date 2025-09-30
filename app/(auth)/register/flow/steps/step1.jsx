@@ -141,6 +141,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             height={76}
             className="rounded-full mb-[30px]"
           />
+        
           {isGoogleUser ? (
             <div className="text-center mb-[50px]">
               <h1 className="font-[600] text-[25px] text-center mb-[10px]">
@@ -157,7 +158,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
           )}
         </div>
 
-        {/* Form Grid - Same as before */}
+        {/* Form Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[44px] gap-y-[20px] justify-center">
           {/* First Name */}
           <div className="w-full max-w-[400px] text-left">
@@ -285,6 +286,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             onClick={async (e) => {
               e.preventDefault(); // stop the immediate nav
               try {
+              
                 // Clear any stored Google data
                 if (isGoogleUser) {
                   console.log("Clearing Google OAuth session...");

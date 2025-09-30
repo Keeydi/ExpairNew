@@ -19,32 +19,18 @@ export default function RegisterFlow() {
 
   const completeRegistration = async () => {
   try {
-    // Clear registration flags
     setIsRegistering(false);
     sessionStorage.removeItem('registrationComplete');
     sessionStorage.removeItem('userEmail');
     
-    // Sign in the user automatically using their credentials from step1Data
-    const result = await signIn('credentials', {
-      identifier: step1Data.username || step1Data.email,
-      password: step1Data.password,
-      redirect: false, // Don't redirect automatically
-    });
-    
-    if (result?.ok) {
-      // Successfully signed in, redirect to home
-      router.push("/home");
-    } else {
-      // Sign in failed, redirect to signin page
-      router.push("/signin?message=registration_complete_signin_required");
-    }
+    // User is already signed in from step 6, just redirect
+    router.push("/home");
   } catch (error) {
-    console.error("Auto sign-in failed:", error);
-    router.push("/signin?message=registration_complete");
+    console.error("Navigation error:", error);
+    router.push("/signin?message=session_error");
   }
 };
 
-  // Prevent step reset when session changes during registration
   const [isRegistering, setIsRegistering] = useState(false);
 
   // Hold step data
@@ -59,7 +45,6 @@ export default function RegisterFlow() {
     searchQuery: "",
     marker: null,
   });
-
   const [step3Data, setStep3Data] = useState({
     profilePicFile: null,
     introduction: "",
@@ -67,13 +52,10 @@ export default function RegisterFlow() {
     userIDFile: null,
     userIDFileName: "",
   });
-
   const [step4Data, setStep4Data] = useState({
     selectedCategories: [],
   });
-
   const [step5Data, setStep5Data] = useState([]);
-
   const [step6Data, setStep6Data] = useState({});
 
   const handleStep1Submit = (data) => setStep1Data(data);
@@ -88,14 +70,13 @@ export default function RegisterFlow() {
 
   const nextStep = () => {
     if (step === 6) {
-      setIsRegistering(true); // Mark as in registration process
-      setStep(7); // Jump to Onboarding1 after Step6
+      setIsRegistering(true);
+      setStep(7);
     } else {
       setStep((prev) => prev + 1);
     }
   };
 
-  // Check which step we are at and update the corresponding step data
   const prevStep = (stepData) => {
     switch (step) {
       case 2:
@@ -114,7 +95,7 @@ export default function RegisterFlow() {
         if (stepData) setStep6Data(stepData);
         break;
       case 7:
-        setIsRegistering(false); // Clear registration flag when going back
+        setIsRegistering(false);
         break;
       default:
         break;
@@ -122,19 +103,31 @@ export default function RegisterFlow() {
     setStep((prev) => prev - 1);
   };
 
-  // Handle session changes - only redirect if not in registration flow
+  // FIXED: Handle session changes - prevent redirect for new Google users
   useEffect(() => {
+    console.log("=== REGISTER FLOW SESSION CHECK ===");
+    console.log("Status:", status);
+    console.log("Is new user:", session?.user?.isNewUser);
+    console.log("Current step:", step);
+    console.log("Is registering:", isRegistering);
+
     // Don't redirect during registration or post-registration onboarding
     const inPostRegFlow = sessionStorage.getItem('postRegistrationFlow') === 'true';
-    
+
     if (isRegistering || step >= 7 || inPostRegFlow) {
       console.log("Skipping redirect - in registration/onboarding flow");
       return;
     }
-    
-    if (status === "authenticated" && session) {
-      // User is already signed in and not in registration/onboarding
-      console.log("User already authenticated, redirecting to home");
+
+    // Don't redirect new Google users who need to complete registration
+    if (session?.user?.isNewUser) {
+      console.log("New Google user detected - allowing registration flow");
+      return;
+    }
+
+    // Only redirect existing authenticated users
+    if (status === "authenticated" && session && !session.user?.isNewUser) {
+      console.log("Existing user already authenticated, redirecting to home");
       router.push("/home");
     }
   }, [session, status, isRegistering, step, router]);
@@ -191,9 +184,99 @@ export default function RegisterFlow() {
           onDataSubmit={handleStep6Submit}
           onNext={nextStep}
           onPrev={prevStep}
+          onConfirm={async (step6FinalData) => {
+            // Save step 6 data
+            handleStep6Submit(step6FinalData);
+
+            // Set loading state
+            setIsRegistering(true);
+
+            try {
+              // CREATE THE ACCOUNT HERE - Call the complete-registration API
+              const formData = new FormData();
+
+              // Add basic user info from step1
+              formData.append("first_name", step1Data.firstName);
+              formData.append("last_name", step1Data.lastName);
+              formData.append("username", step1Data.username);
+              formData.append("email", step1Data.email);
+              formData.append("password", step1Data.password);
+
+              // Add location from step2
+              if (step2Data.searchQuery) {
+                formData.append("location", step2Data.searchQuery);
+              }
+
+              // Add profile data from step3
+              if (step3Data.profilePicFile) {
+                formData.append("profilePic", step3Data.profilePicFile);
+              }
+              if (step3Data.introduction) {
+                formData.append("bio", step3Data.introduction);
+              }
+              if (step3Data.links && step3Data.links.length > 0) {
+                formData.append("links", JSON.stringify(step3Data.links));
+              }
+              if (step3Data.userIDFile) {
+                formData.append("userVerifyId", step3Data.userIDFile);
+              }
+
+              // Add interests from step5 (general skills)
+              const genSkillsIds = step5Data.map(item =>
+                item.category_id || item.genskills_id || item
+              );
+              formData.append("genSkills_ids", JSON.stringify(genSkillsIds));
+
+              // Add skills from step6 (specific skills)
+              // Convert checkedOptions format to what backend expects
+              const specSkills = {};
+              Object.entries(step6FinalData.checkedOptions).forEach(([genId, specIds]) => {
+                specSkills[genId] = specIds;
+              });
+              formData.append("specSkills", JSON.stringify(specSkills));
+
+              console.log("Calling complete-registration API...");
+
+              // Call the backend registration endpoint
+              const response = await fetch("/api/dj/complete-registration/", {
+                method: "POST",
+                body: formData,
+              });
+
+              const data = await response.json();
+
+              if (!response.ok) {
+                throw new Error(data.error || "Registration failed");
+              }
+
+              console.log("Registration successful!", data);
+
+              console.log("Signing in user...");
+              const signInResult = await signIn('credentials', {
+                identifier: step1Data.username || step1Data.email,
+                password: step1Data.password,
+                redirect: false,
+              });
+
+              if (!signInResult?.ok) {
+                throw new Error("Auto sign-in failed after registration");
+              }
+
+              console.log("Sign-in successful, session created");
+
+              // NOW move to onboarding with active session
+              nextStep();
+
+            } catch (error) {
+              console.error("Registration error:", error);
+              setIsRegistering(false);
+              alert(`Registration failed: ${error.message}. Please try again.`);
+            }
+          }}
+          isSubmitting={isRegistering}
         />
       )}
-      
+
       {step === 7 && <Onboarding1 onNext={() => setStep(8)} onPrev={() => setStep(6)} />}
       {step === 8 && <Onboarding2 onNext={completeRegistration} onPrev={() => setStep(7)} />}
     </div>
