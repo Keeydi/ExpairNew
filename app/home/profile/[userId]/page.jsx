@@ -2427,8 +2427,8 @@ export default function ProfilePage() {
               <p className="w-full leading-[1.6]">{user.bio}</p>
             )}
           </div>
+          {/* Links */}
           <p className="text-gray-600">{user.bio}</p>
-          ```) and **right below it**, insert: ```jsx
           {user.links && user.links.trim() !== "" && (
             <div className="mt-3 space-y-2">
               {user.links.split(",").map((url, index) => (
