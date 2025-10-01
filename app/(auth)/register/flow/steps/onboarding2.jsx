@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Button } from "../../../../../components/ui/button";
 import { Inter } from "next/font/google";
 import { Search, Filter, ArrowUpDown, MoreHorizontal, Star, X, EyeOff } from "lucide-react";
@@ -13,6 +14,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:800
 
 export default function Onboarding2({ onNext, onPrev }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -102,9 +104,34 @@ export default function Onboarding2({ onNext, onPrev }) {
     setShowConfirmModal(true);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     setShowConfirmModal(false);
-    setShowSuccessModal(true);
+    
+    try {
+      const headers = { "Content-Type": "application/json" };
+      const token = session?.access;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      
+      const response = await fetch(`${BACKEND_URL}/express-interest/`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          tradereq_id: selectedPartner?.tradereq_id,
+          requester_name: selectedPartner?.name
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Interest expressed successfully:", data);
+        setShowSuccessModal(true);
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to express interest:", errorData.error);
+      }
+    } catch (error) {
+      console.error("Network error:", error);
+    }
   };
 
   const handleCancel = () => {
@@ -113,6 +140,13 @@ export default function Onboarding2({ onNext, onPrev }) {
   
   const handleGoToHome = () => {
     onNext();
+  };
+
+  // Navigate to user profile
+  const handleProfileClick = (username) => {
+    if (username) {
+      router.push(`/profile/${username}`);
+    }
   };
   
   const handleSortChange = (option) => {
@@ -139,10 +173,6 @@ export default function Onboarding2({ onNext, onPrev }) {
     });
   };
   
-  const handleNotInterested = (partnerId) => {
-    setOpenMenuIndex(null);
-    console.log(`Marked partner ${partnerId} as not interested`);
-  };
   
   const handleReport = (partnerId) => {
     setOpenMenuIndex(null);
@@ -210,11 +240,9 @@ export default function Onboarding2({ onNext, onPrev }) {
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 bg-black/50" onClick={handleCancel}></div>
           <div className="relative flex flex-col items-center justify-center w-[500px] h-[220px] bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 overflow-hidden">
-            {/* Decorative elements */}
             <div className="absolute top-[-100px] left-[-100px] w-[200px] h-[200px] rounded-full bg-[#0038FF]/20 blur-[60px]"></div>
             <div className="absolute bottom-[-80px] right-[-80px] w-[180px] h-[180px] rounded-full bg-[#D78DE5]/20 blur-[60px]"></div>
             
-            {/* Close button */}
             <button 
               className="absolute top-4 right-4 text-white hover:text-gray-300"
               onClick={handleCancel}
@@ -223,12 +251,10 @@ export default function Onboarding2({ onNext, onPrev }) {
             </button>
             
             <div className="flex flex-col items-center gap-5 w-full px-8">
-              {/* Title */}
               <h2 className="font-bold text-[22px] text-center text-white leading-tight">
                 Are you sure you want to add this to your pending trades?
               </h2>
               
-              {/* Buttons */}
               <div className="flex flex-row gap-5 mt-3">
                 <button 
                   className="flex items-center justify-center w-[130px] h-[38px] border-2 border-[#0038FF] rounded-[15px] text-[#0038FF] text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#0038FF]/10 transition-colors cursor-pointer"
@@ -253,11 +279,9 @@ export default function Onboarding2({ onNext, onPrev }) {
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="absolute inset-0 bg-black/50"></div>
           <div className="relative flex flex-col items-center justify-center w-[500px] h-[220px] bg-black/40 border-2 border-[#0038FF] shadow-[0px_4px_15px_#D78DE5] backdrop-blur-[40px] rounded-[15px] z-50 overflow-hidden">
-            {/* Decorative elements */}
             <div className="absolute top-[-100px] left-[-100px] w-[200px] h-[200px] rounded-full bg-[#0038FF]/20 blur-[60px]"></div>
             <div className="absolute bottom-[-80px] right-[-80px] w-[180px] h-[180px] rounded-full bg-[#D78DE5]/20 blur-[60px]"></div>
             
-            {/* Close button */}
             <button 
               className="absolute top-4 right-4 text-white hover:text-gray-300"
               onClick={() => setShowSuccessModal(false)}
@@ -266,12 +290,10 @@ export default function Onboarding2({ onNext, onPrev }) {
             </button>
             
             <div className="flex flex-col items-center gap-5 w-full px-8">
-              {/* Title */}
               <h2 className="font-bold text-[22px] text-center text-white leading-tight">
                 Success! You can start checking out Expair now.
               </h2>
               
-              {/* Button */}
               <div className="flex flex-row gap-5 mt-3">
                 <button 
                   className="flex items-center justify-center w-[160px] h-[38px] bg-[#0038FF] rounded-[15px] text-white text-[15px] font-medium shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
@@ -313,7 +335,6 @@ export default function Onboarding2({ onNext, onPrev }) {
                         <ArrowUpDown className="text-lg" />
                       </div>
                       
-                      {/* Sort Dropdown Menu */}
                       {showSortMenu && (
                         <div className="absolute top-full left-0 mt-2 w-[200px] bg-[#120A2A] border border-[#284CCC]/30 rounded-[15px] shadow-lg z-50 overflow-hidden">
                           <div className="p-2">
@@ -356,13 +377,11 @@ export default function Onboarding2({ onNext, onPrev }) {
                         <Filter className="text-lg" />
                       </div>
                       
-                      {/* Filter Dropdown Menu */}
                       {showFilterMenu && (
                         <div className="absolute top-full right-0 mt-2 w-[280px] bg-[#120A2A] border border-[#284CCC]/30 rounded-[15px] shadow-lg z-50 overflow-hidden">
                           <div className="p-4">
                             <h3 className="text-white font-medium mb-3">Filter Options</h3>
                             
-                            {/* Rating Filter */}
                             <div className="mb-4">
                               <h4 className="text-white/70 text-sm mb-2">Minimum Rating</h4>
                               <div className="flex flex-wrap gap-2">
@@ -378,7 +397,6 @@ export default function Onboarding2({ onNext, onPrev }) {
                               </div>
                             </div>
                             
-                            {/* Skill Category Filter */}
                             <div className="mb-4">
                               <h4 className="text-white/70 text-sm mb-2">Skill Category</h4>
                               <select 
@@ -393,7 +411,6 @@ export default function Onboarding2({ onNext, onPrev }) {
                               </select>
                             </div>
                             
-                            {/* Level Filter */}
                             <div className="mb-4">
                               <h4 className="text-white/70 text-sm mb-2">Minimum Level</h4>
                               <div className="flex flex-wrap gap-2">
@@ -409,7 +426,6 @@ export default function Onboarding2({ onNext, onPrev }) {
                               </div>
                             </div>
                             
-                            {/* Filter Actions */}
                             <div className="flex justify-between mt-4">
                               <button 
                                 className="px-4 py-1 text-sm text-white/70 hover:text-white transition"
@@ -478,7 +494,7 @@ export default function Onboarding2({ onNext, onPrev }) {
               ) : filteredAndSortedItems.length > 0 ? (
                 filteredAndSortedItems.map((item, index) => (
                   <div
-                    key={`explore-${item.id || item.name || index}`}
+                    key={`explore-${item.tradereq_id || index}`}
                     className="w-[311px] h-[240px] p-[25px] flex flex-col justify-between rounded-[20px] border-[3px] border-[#284CCC]/80"
                     style={{
                       background:
@@ -491,9 +507,21 @@ export default function Onboarding2({ onNext, onPrev }) {
                       {/* Partner Header */}
                       <div className="flex justify-between items-start w-full">
                         <div className="flex items-start gap-[10px]">
-                          <Image src="/defaultavatar.png" alt="Default Avatar" width={25} height={25} className="rounded-full object-cover" />
+                          <Image 
+                            src={item.profilePicUrl || "/defaultavatar.png"} 
+                            alt={item.name} 
+                            width={25} 
+                            height={25} 
+                            className="rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                            onClick={() => handleProfileClick(item.username)}
+                          />
                           <div className="flex flex-col items-start gap-[5px]">
-                            <span className="text-[16px] text-white">{item.name}</span>
+                            <span 
+                              className="text-[16px] text-white cursor-pointer hover:underline"
+                              onClick={() => handleProfileClick(item.username)}
+                            >
+                              {item.name}
+                            </span>
                             <div className="flex items-center gap-[15px]">
                               <div className="flex items-center gap-[5px]">
                                 <Star className="w-4 h-4 text-[#906EFF] fill-[#906EFF]" />
@@ -529,14 +557,7 @@ export default function Onboarding2({ onNext, onPrev }) {
                           {openMenuIndex === index && (
                             <div className="absolute right-0 mt-2 w-[160px] bg-[#1A0F3E] rounded-[10px] border border-[#2B124C] z-10 shadow-lg">
                               <button
-                                onClick={() => handleNotInterested(item.id || item.name)}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
-                              >
-                                <EyeOff className="w-4 h-4 text-white" />
-                                Not Interested
-                              </button>
-                              <button
-                                onClick={() => handleReport(item.id || item.name)}
+                                onClick={() => handleReport(item.tradereq_id || item.name)}
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#2C1C52] w-full text-left"
                               >
                                 <X className="w-4 h-4 text-white" />
@@ -549,7 +570,6 @@ export default function Onboarding2({ onNext, onPrev }) {
 
                       {/* Needs/Offers Section */}
                       <div className="flex justify-between w-full">
-                        {/* Needs */}
                         <div className="flex flex-col gap-[5px] items-start">
                           <span className="text-[13px] text-white">Needs</span>
                           <div className="inline-flex px-[10px] py-[5px] bg-[rgba(40,76,204,0.2)] border-[1.5px] border-[#0038FF] rounded-[15px]">
@@ -559,7 +579,6 @@ export default function Onboarding2({ onNext, onPrev }) {
                           </div>
                         </div>
 
-                        {/* Can Offer */}
                         <div className="flex flex-col gap-[5px] items-end">
                           <span className="text-[13px] text-white">Can offer</span>
                           <div className="inline-flex px-[10px] py-[5px] bg-[rgba(144,110,255,0.2)] border-[1.5px] border-[#906EFF] rounded-[15px]">

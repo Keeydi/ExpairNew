@@ -2338,26 +2338,18 @@ export default function ProfilePage() {
             <span>@{user.username || "—"}</span>
             <span>Joined {user.joined || "—"}</span>
           </div>
-          {/* Buttons: Edit, Settings (only if own profile) */}
+          {/* Buttons: Edit (only if own profile) */}
           {isOwnProfile ? (
             <div className="absolute top-0 right-0 flex gap-4">
               <button
                 className="text-white hover:bg-[#1A0F3E] px-3 py-2 flex items-center gap-2 rounded-[10px] transition"
-                onClick={() => {
-                  setEditableFirstName(user?.firstname || "");
-                  setEditableLastName(user?.lastname || "");
-                  setEditableBio(user?.bio || "");
-                  setBasicInfoEditing(true);
-                }}
+                onClick={() =>
+                  router.push(`/home/profile/${user.username}/settings`)
+                }
               >
-                <Icon icon="mdi:pencil" className="w-5 h-5" />
+                <Icon icon="mdi:cog" className="w-5 h-5" />
                 Edit
               </button>
-              <Link href={`/home/profile/${params.userId}/settings`}>
-                <button className="text-white hover:bg-[#1A0F3E] p-2 rounded-[10px] transition">
-                  <Icon icon="mdi:cog" className="w-5 h-5" />
-                </button>
-              </Link>
             </div>
           ) : (
             <div className="absolute top-0 right-0">
@@ -2385,7 +2377,7 @@ export default function ProfilePage() {
             {/* Level Bar Section */}
             <div className="flex items-center gap-3">
               {/* LVL label (moved to the left, purple) */}
-              <span className="text-[16px] font-semibold text-purple-400">
+              <span className="text-[16px] font-semibold text-[#906EFF]">
                 LVL {user.level}
               </span>
 
@@ -2427,26 +2419,45 @@ export default function ProfilePage() {
               <p className="w-full leading-[1.6]">{user.bio}</p>
             )}
           </div>
-          <p className="text-gray-600">{user.bio}</p>
-          ```) and **right below it**, insert: ```jsx
-          {user.links && user.links.trim() !== "" && (
-            <div className="mt-3 space-y-2">
-              {user.links.split(",").map((url, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <LinkIcon className="w-4 h-4 text-gray-500" />
-                  <a
-                    href={url.trim()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline break-all"
-                  >
-                    {url.trim()}
-                  </a>
+          {/* Links */}
+          {user.links &&
+            (() => {
+              let parsedLinks = [];
+
+              if (Array.isArray(user.links)) {
+                parsedLinks = user.links;
+              } else if (typeof user.links === "string") {
+                try {
+                  const maybeJson = JSON.parse(user.links);
+                  parsedLinks = Array.isArray(maybeJson)
+                    ? maybeJson
+                    : [user.links];
+                } catch {
+                  parsedLinks = [user.links];
+                }
+              }
+
+              return parsedLinks.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {parsedLinks
+                    .filter((url) => url && url.trim() !== "")
+                    .map((url, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <LinkIcon className="w-4 h-4 text-gray-500" />
+                        <a
+                          href={url.startsWith("http") ? url : `https://${url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#4A9EFF] underline hover:opacity-80 break-all"
+                        >
+                          {url}
+                        </a>
+                      </div>
+                    ))}
                 </div>
-              ))}
-            </div>
-          )}
-          {/* Save / Cancel when editing */}
+              ) : null;
+            })()}
+
           {basicInfoEditing && (
             <div className="flex flex-col gap-2 mb-4">
               <div className="flex gap-3">
@@ -2861,10 +2872,12 @@ export default function ProfilePage() {
                   onChange={(e) => {
                     if (e.target.checked) {
                       setSelectedInterests((prev) => [...prev, c]);
+                      setUserInterests((prev) => [...new Set([...prev, c])]); // ✅ Add directly too
                     } else {
                       setSelectedInterests((prev) =>
                         prev.filter((i) => i !== c)
                       );
+                      setUserInterests((prev) => prev.filter((i) => i !== c)); // ✅ Remove directly too
                     }
                   }}
                 />
