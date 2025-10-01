@@ -132,7 +132,7 @@ class GenSkill(models.Model):
 
     class Meta:
         db_table = 'genskills_tbl'
-        managed = False
+        managed = True
 
 class SpecSkill(models.Model):
     specSkills_id = models.AutoField(primary_key=True, db_column='specskills_id')
@@ -141,7 +141,7 @@ class SpecSkill(models.Model):
 
     class Meta:
         db_table = 'specskills_tbl'
-        managed = False
+        managed = True
 
 class UserInterest(models.Model):
     userinterests_id = models.AutoField(primary_key=True, db_column='userinterests_id')
