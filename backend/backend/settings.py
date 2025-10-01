@@ -25,8 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY", "fallback-secret")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost").split(",")
-
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,expair.onrender.com").split(",")
 
 # Application definition
 INSTALLED_APPS = [
@@ -201,4 +200,7 @@ EMAIL_HOST_USER = 'expaircs@gmail.com'
 EMAIL_HOST_PASSWORD = 'qjfy dmyf vmff xkpa' 
 DEFAULT_FROM_EMAIL = 'expaircs@gmail.com'
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'https://expair.onrender.com'
+]
