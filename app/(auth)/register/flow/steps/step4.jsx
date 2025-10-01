@@ -378,7 +378,7 @@ export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
       className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
-      <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center">
+      <div className="relative z-10 w-full max-w-[1920px] text-center px-4 flex flex-col items-center">
         {/* Header */}
         <div className="flex flex-col items-center">
           <Image
@@ -394,13 +394,13 @@ export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
         </div>
 
         {/* Main content */}
-        <div className="flex flex-col items-center justify-center w-full max-w-[907px] mx-auto gap-[30px]">
+        <div className="flex flex-col items-center justify-center w-full max-w-[1150px] mx-auto gap-[30px]">
           <h2 className="text-[20px] font-[500] self-start text-white">
             Select the categories you're interested in.
           </h2>
 
           {/* Categories grid */}
-          <div className="grid grid-cols-4 gap-[20px] w-full max-w-[907px] justify-center place-items-center mx-auto">
+          <div className="grid grid-cols-5 gap-[20px] w-full max-w-[1150px]">
             {categories.map((category) => {
               const isSelected = selectedCategories.includes(category.id);
 
@@ -408,7 +408,7 @@ export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
                 <div
                   key={category.id}
                   onClick={() => toggleCategory(category.id)}
-                  className={`flex items-center p-5 gap-3 rounded-[20px] cursor-pointer transition-all duration-300 h-[80px] w-full ${
+                  className={`flex items-center p-5 gap-3 rounded-[20px] cursor-pointer transition-all duration-300 h-[90px] w-full ${
                     isSelected
                       ? "bg-[#120A2A] shadow-[0px_5px_40px_rgba(40,76,204,0.2)]"
                       : "bg-[rgba(88,36,144,0.15)] border-[3px] border-[#7E59F8] shadow-[0px_4px_4px_rgba(0,0,0,0.25),0px_5px_15px_#906EFF]"
@@ -470,7 +470,7 @@ export default function Step4({ step4Data, onDataSubmit, onNext, onPrev }) {
         </div>
 
         {/* Continue Button */}
-        <div className="flex justify-center mt-[119px] mb-[47.5px]">
+        <div className="flex justify-center mt-[50px] mb-[47.5px]">
           <Button
             className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-[20px] font-[500] transition rounded-[15px]"
             onClick={handleContinue}

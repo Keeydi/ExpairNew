@@ -367,7 +367,7 @@ export default function Step5({
       className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
-      <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center">
+      <div className="relative z-10 w-full max-w-[1920px] text-center px-4 flex flex-col items-center">
         {/* Header */}
         <div className="flex flex-col items-center">
           <Image
@@ -383,13 +383,13 @@ export default function Step5({
         </div>
 
         {/* Main content */}
-        <div className="flex flex-col items-center justify-center w-full max-w-[907px] mx-auto gap-[30px]">
+        <div className="flex flex-col items-center justify-center w-full max-w-[1150px] mx-auto gap-[30px]">
           <h2 className="text-[20px] font-[500] self-start text-white">
             Select up to 6 of the top skills you can offer.
           </h2>
 
           {/* Skills grid */}
-          <div className="grid grid-cols-4 gap-[20px] w-full max-w-[907px] justify-center place-items-center mx-auto">
+          <div className="grid grid-cols-5 gap-[20px] w-full max-w-[1150px] justify-center place-items-center mx-auto">
             {skills.map((skill) => {
               const isSelected = selectedSkills.includes(skill.id);
 
@@ -397,7 +397,7 @@ export default function Step5({
                 <div
                   key={skill.id}
                   onClick={() => toggleSkill(skill.id)}
-                  className={`flex items-center p-5 gap-3 rounded-[20px] cursor-pointer transition-all duration-300 h-[80px] w-full`}
+                  className={`flex items-center p-5 gap-3 rounded-[20px] cursor-pointer transition-all duration-300 h-[90px] w-full`}
                   style={{
                     background: isSelected
                       ? "radial-gradient(100% 275% at 100% 0%, #3D2490 0%, #120A2A 69.23%)"
@@ -464,7 +464,7 @@ export default function Step5({
         </div>
 
         {/* Continue Button */}
-        <div className="flex justify-center mt-[119px] mb-[47.5px]">
+        <div className="flex justify-center mt-[50px] mb-[47.5px]">
           <Button
             className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
             onClick={handleContinue}

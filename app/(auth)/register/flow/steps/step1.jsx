@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useSession, signOut } from "next-auth/react"; // Added useSession import
+import { useSession, signOut } from "next-auth/react";
 import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import Image from "next/image";
@@ -11,22 +11,26 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Step1({ step1Data, onDataSubmit, onNext }) {
-  const { data: session, status } = useSession(); // Added NextAuth session hook
-  
+  const { data: session, status } = useSession();
+
   const [firstName, setFirstName] = useState(step1Data?.firstname || "");
   const [lastName, setLastName] = useState(step1Data?.lastname || "");
   const [email, setEmail] = useState(step1Data?.email || "");
   const [username, setUsername] = useState(step1Data?.username || "");
   const [password, setPassword] = useState(step1Data?.password || "");
-  const [repeatPassword, setRepeatPassword] = useState("");
-  const [isGoogleUser, setIsGoogleUser] = useState(false); // Track if user came from Google
+  const [repeatPassword, setaRepeatPassword] = useState("");
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [usernameError, setUsernameError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
   useEffect(() => {
-    // Handle existing step1Data (from previous form submissions)
     if (step1Data) {
       setFirstName(step1Data.firstname || "");
       setLastName(step1Data.lastname || "");
@@ -35,23 +39,21 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
       setPassword(step1Data.password || "");
     }
 
-    // Handle Google OAuth pre-fill data from NextAuth session
-    if (status === "authenticated" && session?.user?.isNewUser && session?.user?.googleData) {
-      console.log("Detected Google OAuth new user, pre-filling form...");
+    if (
+      status === "authenticated" &&
+      session?.user?.isNewUser &&
+      session?.user?.googleData
+    ) {
       const googleData = session.user.googleData;
-      
       setIsGoogleUser(true);
       setFirstName(googleData.first_name || "");
       setLastName(googleData.last_name || "");
       setEmail(googleData.email || "");
-      
-      // Generate suggested username from email (only if not already set)
+
       if (googleData.email && !username) {
         const emailUsername = googleData.email.split("@")[0];
         setUsername(emailUsername);
       }
-      
-      console.log("Pre-filled form with Google data");
       setErrorMessage("");
     }
   }, [step1Data, session, status]);
@@ -60,12 +62,17 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
     { label: "At least one lowercase letter", test: /[a-z]/ },
     { label: "At least one uppercase letter", test: /[A-Z]/ },
     { label: "At least one number", test: /\d/ },
+    { label: "At least one symbol (!@#$%^&*)", test: /[!@#$%^&*]/ },
     { label: "Minimum 8 characters", test: /.{8,}/ },
   ];
 
   const isEmailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const validateForm = () => {
+    if (usernameError || emailError) {
+      setErrorMessage("Please fix the errors before continuing.");
+      return false;
+    }
     if (
       !firstName ||
       !lastName ||
@@ -77,38 +84,25 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
       setErrorMessage("Please fill in all fields.");
       return false;
     }
-
     if (!isEmailValid(email)) {
       setErrorMessage("Please enter a valid email address.");
       return false;
     }
-
     if (password !== repeatPassword) {
       setErrorMessage("Passwords do not match.");
       return false;
     }
-
-    const allValid = passwordRules.every((rule) => rule.test.test(password));
-    if (!allValid) {
+    if (!passwordRules.every((rule) => rule.test.test(password))) {
       setErrorMessage("Password does not meet all requirements.");
       return false;
     }
-
     setErrorMessage("");
     return true;
   };
 
   const handleContinue = () => {
     if (!validateForm()) return;
-
-    onDataSubmit?.({
-      firstName,
-      lastName,
-      email,
-      username,
-      password,
-    });
-
+    onDataSubmit?.({ firstName, lastName, email, username, password });
     onNext?.();
   };
 
@@ -126,13 +120,102 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
     );
   };
 
+  const useDebounce = (value, delay) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+      const handler = setTimeout(() => setDebouncedValue(value), delay);
+      return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+  };
+
+  const debouncedUsername = useDebounce(username, 500);
+  const debouncedEmail = useDebounce(email, 500);
+
+  const checkAvailability = async (field, value) => {
+    // 1. Check for the BASE_URL
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!baseUrl) {
+      console.error("NEXT_PUBLIC_BACKEND_URL is not set!");
+      // Set a general error state to prevent submission
+      setErrorMessage("Configuration Error: Backend URL not found.");
+      return true; // Treat as 'exists' to block submission
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/api/validate-field/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ field, value }),
+      });
+
+      // 2. Throw an error if the API call was unsuccessful (e.g., 404, 500)
+      if (!response.ok) {
+        // Read the body for a Django error, but continue to throw
+        const errorText = await response.text();
+        throw new Error(
+          `API call failed with status: ${
+            response.status
+          }. Response: ${errorText.substring(0, 100)}...`
+        );
+      }
+
+      const data = await response.json();
+      return data.exists;
+    } catch (error) {
+      // This catch block handles both the initial 'Failed to fetch'
+      // and the 'API call failed' errors we throw above.
+      console.error(`Error checking ${field} for value "${value}":`, error);
+
+      // This is the key fix: if fetch fails, assume the worst (network down)
+      // and prevent the user from continuing without confirmation.
+      setErrorMessage(
+        `Network Error: Could not verify ${field} availability. Please check server or try again.`
+      );
+
+      // Returning true means "it exists" and will block the user.
+      // This is a safer default when a critical network check fails.
+      return true;
+    }
+  };
+
+  useEffect(() => {
+    if (!debouncedUsername || debouncedUsername.length < 3) {
+      setUsernameError("");
+      return;
+    }
+    const checkUsername = async () => {
+      setIsCheckingUsername(true);
+      const exists = await checkAvailability("username", debouncedUsername);
+      setUsernameError(exists ? "Username already taken." : "");
+      setIsCheckingUsername(false);
+    };
+    checkUsername();
+  }, [debouncedUsername]);
+
+  useEffect(() => {
+    if (!debouncedEmail || !isEmailValid(debouncedEmail)) {
+      setEmailError("");
+      return;
+    }
+    const checkEmail = async () => {
+      setIsCheckingEmail(true);
+      const exists = await checkAvailability("email", debouncedEmail);
+      setEmailError(exists ? "Account with this email already exists." : "");
+      setIsCheckingEmail(false);
+    };
+    checkEmail();
+  }, [debouncedEmail]);
+  // ✅ END: Updated Validation Logic
+
   return (
     <div
       className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center px-4 ${inter.className}`}
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
       <div className="relative z-10 w-full max-w-4xl text-center">
-        {/* Updated Header - Show different message for Google users */}
         <div className="flex flex-col items-center">
           <Image
             src="/assets/logos/Logotype=Logotype M.png"
@@ -141,7 +224,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             height={76}
             className="rounded-full mb-[30px]"
           />
-        
           {isGoogleUser ? (
             <div className="text-center mb-[50px]">
               <h1 className="font-[600] text-[25px] text-center mb-[10px]">
@@ -158,9 +240,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
           )}
         </div>
 
-        {/* Form Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-[44px] gap-y-[20px] justify-center">
-          {/* First Name */}
           <div className="w-full max-w-[400px] text-left">
             <p className="text-white font-normal mb-[8px]">First name</p>
             <Input
@@ -170,7 +250,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             />
           </div>
 
-          {/* Last Name */}
           <div className="w-full max-w-[400px] text-left">
             <p className="text-white font-normal mb-[8px]">Last name</p>
             <Input
@@ -180,27 +259,44 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             />
           </div>
 
-          {/* Username */}
           <div className="w-full max-w-[400px] text-left">
             <p className="text-white font-normal mb-[8px]">Username</p>
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-[50px] p-4"
+              className={`w-full h-[50px] p-4 ${
+                usernameError ? "border-red-500" : ""
+              }`}
             />
+            {isCheckingUsername && (
+              <p className="text-gray-400 text-xs mt-1">
+                Checking availability...
+              </p>
+            )}
+            {usernameError && (
+              <p className="text-red-500 text-xs mt-1">{usernameError}</p>
+            )}
           </div>
 
-          {/* Email */}
           <div className="w-full max-w-[400px] text-left">
             <p className="text-white font-normal mb-[8px]">Email address</p>
             <Input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full h-[50px] p-4"
+              className={`w-full h-[50px] p-4 ${
+                emailError ? "border-red-500" : ""
+              }`}
             />
+            {isCheckingEmail && (
+              <p className="text-gray-400 text-xs mt-1">
+                Checking availability...
+              </p>
+            )}
+            {emailError && (
+              <p className="text-red-500 text-xs mt-1">{emailError}</p>
+            )}
           </div>
 
-          {/* Password */}
           <div className="relative w-full max-w-[400px] text-left">
             <p className="text-white font-normal mb-[8px]">Password</p>
             <div className="relative flex items-center">
@@ -221,7 +317,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
               </div>
             </div>
 
-            {/* Password checklist (fixed height) */}
             <div className="mt-2 space-y-1 text-sm min-h-[90px]">
               {password &&
                 passwordRules.map((rule, idx) => {
@@ -244,7 +339,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
             </div>
           </div>
 
-          {/* Repeat Password */}
           <div className="relative w-full max-w-[400px] text-left">
             <p className="text-white font-normal mb-[8px]">Repeat password</p>
             <div className="relative flex items-center">
@@ -271,31 +365,25 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
           </div>
         </div>
 
-        {/* Error Message (fixed height) */}
-        <div className="h-[10px] mt-4">
+        <div className="h-[10px] mt-2">
           {errorMessage && (
             <p className="text-red-500 text-sm">{errorMessage}</p>
           )}
         </div>
 
-        {/* Already have account - Updated for Google users */}
-        <p className="underline text-center text-sm text-[16px] mt-[44px] mb-[100px]">
+        <p className="underline text-center text-sm text-[16px] mt-[px] mb-[60px]">
           <a
             href="/signin"
             className="text-[#6DDFFF]"
             onClick={async (e) => {
-              e.preventDefault(); // stop the immediate nav
+              e.preventDefault();
               try {
-              
-                // Clear any stored Google data
                 if (isGoogleUser) {
-                  console.log("Clearing Google OAuth session...");
-                  await signOut({ redirect: false }); // Don't redirect automatically
+                  await signOut({ redirect: false });
                 }
               } catch (error) {
                 console.error("Error signing out:", error);
               }
-              // Navigate to sign-in page
               window.location.href = "/signin";
             }}
           >
@@ -303,7 +391,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
           </a>
         </p>
 
-        {/* Continue Button */}
         <div className="flex justify-center mb-[47.5px]">
           <Button
             className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-normal transition rounded-[15px]"
@@ -313,7 +400,6 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
           </Button>
         </div>
 
-        {/* Pagination */}
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex justify-center items-center gap-2 text-[16px] text-white opacity-60 z-50">
           <span>1 of 6</span>
           <ChevronRight

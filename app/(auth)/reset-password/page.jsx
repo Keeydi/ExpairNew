@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
 import { useState } from "react";
 import { Input } from "../../../components/ui/input";
 import { Button } from "../../../components/ui/button";
@@ -39,30 +38,31 @@ export default function ResetPasswordPage() {
   const token = searchParams.get("token");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
-  const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: async ({ password }) => {
-      // 1. Get the Supabase client
-      const supabase = createClient();
-
-      // 2. Perform client-side validation first
-      const validationErrors = validatePassword(password);
-      if (validationErrors.length > 0) {
-        throw new Error(validationErrors.join(" "));
-      }
-
-      // 3. Update the user's password using the existing session from the email link
-      const { data, error } = await supabase.auth.updateUser({
-        password: password,
+    mutationFn: async () => {
+      const response = await fetch("http://127.0.0.1:8000/reset-password/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
       });
 
-      if (error) {
-        throw new Error(error.message || "Failed to reset password.");
+      // Check if response is JSON
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        throw new Error("Server returned invalid response.");
+      }
+
+      if (!response.ok) {
+        // Backend should send something like { "error": "Email does not exist" }
+        throw new Error(data.error || "Failed to reset password.");
       }
 
       return data;
@@ -71,23 +71,31 @@ export default function ResetPasswordPage() {
       setIsSuccessDialogOpen(true);
     },
     onError: (error) => {
-      console.warn("Error:", error.message);
       setErrorMessage(error.message);
     },
   });
 
-  const handleSubmit = (e) => {
+  const onSubmit = (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    
-    // Check if passwords match first
-    if (newPassword !== repeatPassword) {
+    setErrorMessage("");
+
+    // Client-side validation
+    const validationErrors = validatePassword(password);
+    if (validationErrors.length > 0) {
+      setErrorMessage(validationErrors.join(" "));
+      return;
+    }
+
+    if (!token) {
+      setErrorMessage("Invalid or missing token.");
+      return;
+    }
+    if (password !== repeatPassword) {
       setErrorMessage("Passwords do not match.");
       return;
     }
 
-    // Call the mutation function, passing the new password
-    mutation.mutate({ password: newPassword }); 
+    mutation.mutate();
   };
 
   return (
@@ -108,7 +116,7 @@ export default function ResetPasswordPage() {
         </p>
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={onSubmit}
           className="w-full space-y-4 flex flex-col items-center"
         >
           {/* Password Field */}

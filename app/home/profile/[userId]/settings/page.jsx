@@ -1367,33 +1367,3 @@ function ConfirmSaveModal({ isOpen, onClose, onConfirm, saving }) {
     </div>
   );
 }
-
-function SavedPopup({ isOpen, onClose }) {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-[380px] px-6 py-6 bg-black/40 border-2 border-[#0038FF] rounded-[12px] shadow-[0px_4px_15px_#D78DE5] z-50 text-center">
-        <button
-          className="absolute top-3 right-3 text-white/80"
-          onClick={onClose}
-          type="button"
-        >
-          ✕
-        </button>
-        <p className="text-sm text-white/70 mb-4">
-          Your changes have been saved.
-        </p>
-        <div className="flex justify-center">
-          <button
-            className="px-4 py-2 rounded bg-[#0038FF] text-white"
-            onClick={onClose}
-            type="button"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
