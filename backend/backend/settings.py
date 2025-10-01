@@ -100,7 +100,11 @@ AUTH_USER_MODEL = 'accounts.User'
 # }
 
 DATABASES = {
-    'default': dj_database_url.parse(os.environ.get("DATABASE_URL"))
+    'default': dj_database_url.config(
+        default='postgresql://expair_db_user:znAdhtOXCK14Q2foUB6JMYYxCH1aJS6X@dpg-d3ehnfr3fgac7386t940-a/expair_db',
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 REST_FRAMEWORK = {
