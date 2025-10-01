@@ -20,6 +20,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
 
 from .models import (
     Evaluation, GenSkill, ReputationSystem, TradeDetail, TradeHistory, UserInterest, User, VerificationStatus, UserCredential,
@@ -31,41 +32,61 @@ from .serializers import (
     UserSerializer, GenSkillSerializer, UserInterestBulkSerializer
 )
 
-# Add this line to your code to print the expected path
-print(f"DEBUG: Expected template path: {os.path.join(settings.BASE_DIR, 'accounts', 'templates', 'emails', 'password_reset_email.html')}")
+# In views.py
+
+@csrf_exempt
+@api_view(['POST']) 
+@permission_classes([AllowAny])
+def validate_field(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            field_name = data.get('field')
+            value = data.get('value')
+
+            if not field_name or not value:
+                return JsonResponse({'error': 'Field and value are required.'}, status=400)
+
+            if field_name == 'username':
+                exists = User.objects.filter(username__iexact=value).exists()
+            elif field_name == 'email':
+                exists = User.objects.filter(email__iexact=value).exists()
+            else:
+                return JsonResponse({'error': 'Invalid field for validation.'}, status=400)
+
+            return JsonResponse({'exists': exists})
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+
+    return JsonResponse({'error': 'Only POST method is allowed.'}, status=405)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def forgot_password(request):
     """
-    Handles a forgot password request by creating a token and sending a reset email.
+    Handles a forgot password request.
+    Always returns a successful response to prevent user enumeration.
     """
+    email = request.data.get('email')
+    if not email:
+        return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
-        email = request.data.get('email')
-        if not email:
-            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.get(email=email)
 
-        user = get_object_or_404(User, email=email)
-
+        # Invalidate old tokens and create a new one
         PasswordResetToken.objects.filter(user=user).delete()
         token = PasswordResetToken.objects.create(user=user)
-        
+
         # Link to your frontend password reset page
         reset_link = f"http://localhost:3000/reset-password?token={token.token}"
-        
-        # Use a context dictionary to pass data to the template
-        context = {
-            'user': user,
-            'reset_link': reset_link,
-        }
-        
-        # Render the HTML template
+        context = {'user': user, 'reset_link': reset_link}
+
+        # Render email content
         html_message = render_to_string('emails/password_reset_email.html', context)
-        
-        # Create a plain text version for email clients that don't support HTML
         plain_message = f"Hello {user.first_name},\n\nClick the following link to reset your password:\n{reset_link}"
 
-        # Send the email with both HTML and plain text versions
+        # Send the email
         send_mail(
             'Expair Password Reset Request',
             plain_message,
@@ -74,13 +95,20 @@ def forgot_password(request):
             fail_silently=False,
             html_message=html_message,
         )
-
-        return Response({'message': 'Password reset link sent to your email.'}, status=status.HTTP_200_OK)
-
+    except User.DoesNotExist:
+        # If the user does not exist, we do nothing.
+        # This prevents revealing that the email is not in our system.
+        pass
     except Exception as e:
+        # It's good practice to log the actual error for debugging
         print(f"Error in forgot_password view: {e}")
-        return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+    # ✅ Always return this generic success message
+    return Response(
+        {'message': 'If an account with that email exists, a password reset link has been sent.'},
+        status=status.HTTP_200_OK
+    )
+        
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
@@ -115,87 +143,7 @@ def reset_password(request):
         return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 print(f"DEBUG: Expected template path: {os.path.join(settings.BASE_DIR, 'accounts', 'templates', 'emails', 'password_reset_email.html')}")
-
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def forgot_password(request):
-    """
-    Handles a forgot password request by creating a token and sending a reset email.
-    """
-    try:
-        email = request.data.get('email')
-        if not email:
-            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = get_object_or_404(User, email=email)
-
-        PasswordResetToken.objects.filter(user=user).delete()
-        token = PasswordResetToken.objects.create(user=user)
-        
-        # Link to your frontend password reset page
-        reset_link = f"http://localhost:3000/reset-password?token={token.token}"
-        
-        # Use a context dictionary to pass data to the template
-        context = {
-            'user': user,
-            'reset_link': reset_link,
-        }
-        
-        # Render the HTML template
-        html_message = render_to_string('emails/password_reset_email.html', context)
-        
-        # Create a plain text version for email clients that don't support HTML
-        plain_message = f"Hello {user.first_name},\n\nClick the following link to reset your password:\n{reset_link}"
-
-        # Send the email with both HTML and plain text versions
-        send_mail(
-            'Expair Password Reset Request',
-            plain_message,
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=False,
-            html_message=html_message,
-        )
-
-        return Response({'message': 'Password reset link sent to your email.'}, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        print(f"Error in forgot_password view: {e}")
-        return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def reset_password(request):
-    """
-    Handles a password reset request by validating the token and updating the password.
-    """
-    try:
-        token_value = request.data.get('token')
-        new_password = request.data.get('password')
-        
-        if not token_value or not new_password:
-            return Response({'error': 'Token and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Find the token and validate it
-        token_obj = get_object_or_404(PasswordResetToken, token=token_value)
-        if not token_obj.is_valid():
-            return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = token_obj.user
-        
-        # Update the user's password and delete the token
-        user.set_password(new_password)
-        user.save()
-        token_obj.delete()
-
-        return Response({'message': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
-
-    except PasswordResetToken.DoesNotExist:
-        return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        print(f"Error in reset_password view: {e}")
-        return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+   
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser, JSONParser])

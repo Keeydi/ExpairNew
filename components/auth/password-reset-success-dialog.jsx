@@ -35,7 +35,7 @@ export default function PasswordResetSuccessDialog({ isOpen, onClose }) {
 
         <div className="flex flex-col items-center gap-[25px]">
           {/* Check icon */}
-          <div className="w-[70px] h-[70px] rounded-full bg-[#0038FF] flex items-center justify-center shadow-[0px_0px_15px_#284CCC]">
+          <div className="w-[50px] h-[50px] rounded-full bg-[#0038FF] flex items-center justify-center shadow-[0px_0px_15px_#284CCC]">
             <Icon icon="lucide:check" className="w-[35px] h-[25px] text-white" />
           </div>
           

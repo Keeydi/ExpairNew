@@ -324,12 +324,12 @@ export default function Step6({
 
   return (
     <div
-      className={`pt-[50px] pb-[50px] flex min-h-screen items-center justify-center bg-cover bg-center ${inter.className}`}
+      className={`pt-[60px] pb-[50px] flex min-h-screen bg-cover bg-center ${inter.className}`}
       style={{ backgroundImage: "url('/assets/bg_register.png')" }}
     >
-      <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center">
-        {/* Header */}
-        <div className="flex flex-col items-center">
+      <div className="relative z-10 w-full max-w-5xl text-center px-4 flex flex-col items-center mx-auto">
+        {/* Header - Fixed at top */}
+        <div className="flex flex-col items-center flex-shrink-0">
           <Image
             src="/assets/logos/Logotype=Logotype M.png"
             alt="Logo"
@@ -337,7 +337,7 @@ export default function Step6({
             height={76}
             className="mb-[30px]"
           />
-          <h1 className="font-[600] text-[25px] text-center mb-[30px]">
+          <h1 className="font-[600] text-[25px] text-center mb-[60px]">
             Set up your skills.
           </h1>
         </div>
@@ -353,14 +353,20 @@ export default function Step6({
           </div>
         )}
 
-        {/* Main content */}
+        {/* Main content - Grows to fill space */}
         {categories.length > 0 && (
-          <div className="flex flex-col items-center justify-center w-full max-w-[922px] mx-auto">
+          <div className="flex flex-col items-center justify-start w-full max-w-[922px] mx-auto flex-grow">
             <h2 className="text-[20px] font-[500] text-center text-white mb-[20px]">
               Select your specializations in each skill category.
             </h2>
 
-            <div className="flex flex-row gap-[120px] w-full">
+            {/* Your existing dropdown content */}
+            <div
+              className={`flex flex-row gap-[120px] w-full ${
+                categories.length === 1 ? "justify-center" : ""
+              }`}
+            >
+              {" "}
               <div className="flex flex-col gap-[20px] w-[401px]">
                 {categories
                   .slice(0, Math.ceil(categories.length / 2))
@@ -430,82 +436,83 @@ export default function Step6({
                     </div>
                   ))}
               </div>
-
-              <div className="flex flex-col gap-[20px] w-[401px]">
-                {categories
-                  .slice(Math.ceil(categories.length / 2))
-                  .map((category) => (
-                    <div key={category.id} className="w-full">
-                      <div className="flex flex-col gap-[15px]">
-                        <label className="text-white text-[16px] text-left">
-                          {category.name}
-                        </label>
-                        <div className="relative">
-                          {!openDropdowns[category.id] && (
-                            <div
-                              className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
-                              onClick={() => toggleDropdown(category.id)}
-                            >
-                              <span className="text-[#413663] text-[16px]">
-                                Select subcategory
-                              </span>
-                              <ChevronDown className="w-6 h-6 text-white" />
-                            </div>
-                          )}
-
-                          {openDropdowns[category.id] && (
-                            <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
-                              {specByGen[category.id]?.map((spec) => (
-                                <div
-                                  key={spec.id}
-                                  className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
-                                  onClick={() =>
-                                    toggleCheckbox(category.id, spec.id)
-                                  }
-                                >
-                                  <div className="w-[18px] h-[18px] flex items-center justify-center">
-                                    {isOptionChecked(category.id, spec.id) ? (
-                                      <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          width="12"
-                                          height="12"
-                                          viewBox="0 0 12 12"
-                                          fill="none"
-                                        >
-                                          <path
-                                            d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z"
-                                            fill="white"
-                                            strokeWidth="1.5"
-                                          />
-                                        </svg>
-                                      </div>
-                                    ) : (
-                                      <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
-                                    )}
-                                  </div>
-                                  <span className="text-white text-[16px] font-[400] leading-[19px] select-none">
-                                    {spec.name}
-                                  </span>
-                                </div>
-                              ))}
-                              <ChevronDown
-                                className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+              {categories.length > 1 && (
+                <div className="flex flex-col gap-[20px] w-[401px]">
+                  {categories
+                    .slice(Math.ceil(categories.length / 2))
+                    .map((category) => (
+                      <div key={category.id} className="w-full">
+                        <div className="flex flex-col gap-[15px]">
+                          <label className="text-white text-[16px] text-left">
+                            {category.name}
+                          </label>
+                          <div className="relative">
+                            {!openDropdowns[category.id] && (
+                              <div
+                                className="w-[400px] h-[50px] bg-[#120A2A] border border-white/40 rounded-[15px] flex items-center justify-between px-4 cursor-pointer"
                                 onClick={() => toggleDropdown(category.id)}
-                              />
-                            </div>
-                          )}
+                              >
+                                <span className="text-[#413663] text-[16px]">
+                                  Select subcategory
+                                </span>
+                                <ChevronDown className="w-6 h-6 text-white" />
+                              </div>
+                            )}
+
+                            {openDropdowns[category.id] && (
+                              <div className="w-[400px] bg-[#120A2A] border border-white/40 rounded-[15px] p-[20px_15px_10px_20px] flex flex-col justify-between transition-all duration-300">
+                                {specByGen[category.id]?.map((spec) => (
+                                  <div
+                                    key={spec.id}
+                                    className="flex flex-row items-center gap-[15px] cursor-pointer hover:bg-white/5 rounded-[8px] p-[5px] transition-colors duration-200"
+                                    onClick={() =>
+                                      toggleCheckbox(category.id, spec.id)
+                                    }
+                                  >
+                                    <div className="w-[18px] h-[18px] flex items-center justify-center">
+                                      {isOptionChecked(category.id, spec.id) ? (
+                                        <div className="w-[18px] h-[18px] bg-gradient-to-br from-[#0038FF] to-[#906EFF] rounded-[4px] border border-[#0038FF] flex items-center justify-center shadow-[0px_2px_8px_rgba(0,56,255,0.3)]">
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 12 12"
+                                            fill="none"
+                                          >
+                                            <path
+                                              d="M4.5 8.7L1.95 6.15L2.85 5.25L4.5 6.9L9.15 2.25L10.05 3.15L4.5 8.7Z"
+                                              fill="white"
+                                              strokeWidth="1.5"
+                                            />
+                                          </svg>
+                                        </div>
+                                      ) : (
+                                        <div className="w-[18px] h-[18px] border-2 border-white/40 rounded-[4px] hover:border-white/60 transition-colors duration-200 bg-transparent"></div>
+                                      )}
+                                    </div>
+                                    <span className="text-white text-[16px] font-[400] leading-[19px] select-none">
+                                      {spec.name}
+                                    </span>
+                                  </div>
+                                ))}
+                                <ChevronDown
+                                  className="w-6 h-6 text-white self-end transform rotate-180 cursor-pointer mt-[10px]"
+                                  onClick={() => toggleDropdown(category.id)}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-              </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Error Message (fixed height) */}
-        <div className="h-[10px] mt-4">
+        {/* Error Message */}
+        <div className="h-[10px] mt-4 flex-shrink-0">
           {errorMessage && (
             <p className="text-red-500 text-sm whitespace-pre-line">
               {errorMessage}
@@ -513,9 +520,9 @@ export default function Step6({
           )}
         </div>
 
-        {/* Continue Button */}
+        {/* Continue Button - Fixed at bottom */}
         {categories.length > 0 && (
-          <div className="flex justify-center mt-[50px] mb-[47.5px]">
+          <div className="flex justify-center mt-[60px] mb-[47.5px] flex-shrink-0">
             <Button
               className="cursor-pointer flex w-[240px] h-[50px] justify-center items-center px-[38px] py-[13px] shadow-[0px_0px_15px_0px_#284CCC] bg-[#0038FF] hover:bg-[#1a4dff] text-white text-sm sm:text-[20px] font-[500] transition rounded-[15px]"
               onClick={() => {
@@ -527,7 +534,7 @@ export default function Step6({
                   return;
                 }
                 setErrorMessage("");
-                setShowConfirmModal(true); // open confirmation modal
+                setShowConfirmModal(true);
               }}
             >
               Continue

@@ -1,4 +1,5 @@
 from django.urls import path, include
+from accounts.views import validate_field 
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -80,6 +81,8 @@ urlpatterns = [
     
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/', views.reset_password, name='reset_password'),
+    
+    path('validate-field/', validate_field, name='validate_field'),
 ]
 
 

@@ -23,16 +23,13 @@ export default function ForgotPasswordPage() {
       }
 
       // API call to your Django backend
-      const response = await fetch(
-        "http://127.0.0.1:8000/forgot-password/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email }),
-        }
-      );
+      const response = await fetch("http://127.0.0.1:8000/forgot-password/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -52,7 +49,7 @@ export default function ForgotPasswordPage() {
       setErrorMessage(error.message);
     },
   });
-  
+
   return (
     <div
       className={`min-h-screen flex items-center justify-center bg-cover bg-center text-white px-4 ${inter.className}`}
@@ -89,7 +86,12 @@ export default function ForgotPasswordPage() {
             required
           />
 
-          {/* TEMP: No error messages for now */}
+          {/* Error message */}
+          {errorMessage && (
+            <p className="text-red-500 text-sm mb-2 w-[400px] max-w-full text-left">
+              {errorMessage}
+            </p>
+          )}
 
           <Button
             type="submit"
