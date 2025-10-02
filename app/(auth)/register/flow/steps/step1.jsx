@@ -18,7 +18,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
   const [email, setEmail] = useState(step1Data?.email || "");
   const [username, setUsername] = useState(step1Data?.username || "");
   const [password, setPassword] = useState(step1Data?.password || "");
-  const [repeatPassword, setaRepeatPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
   const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -143,7 +143,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
     }
 
     try {
-      const response = await fetch(`${baseUrl}/api/validate-field/`, {
+      const response = await fetch(`http://127.0.0.1:8000/api/validate-field/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

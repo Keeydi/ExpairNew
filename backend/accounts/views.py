@@ -32,8 +32,6 @@ from .serializers import (
     UserSerializer, GenSkillSerializer, UserInterestBulkSerializer
 )
 
-# In views.py
-
 @csrf_exempt
 @api_view(['POST']) 
 @permission_classes([AllowAny])
@@ -582,12 +580,16 @@ def google_login(request):
 def login_user(request):
     print("=== DJANGO LOGIN DEBUG ===")
     print(f"Request method: {request.method}")
+    print(f"Request content type: {request.content_type}")
+    print(f"Request data: {request.data}")
     
     # Extract credentials
     identifier = request.data.get('identifier', '').strip()
     password = request.data.get('password', '')
     
     print(f"Login attempt for identifier: '{identifier}'")
+    print(f"Identifier length: {len(identifier)}")
+    print(f"Identifier repr: {repr(identifier)}")
 
     if not identifier or not password:
         return Response({
@@ -595,17 +597,22 @@ def login_user(request):
         }, status=400)
 
     try:
-        # Find user by username or email (case-insensitive for email)
+        # Find user by username or email (case-insensitive)
         user_query = Q(username__iexact=identifier) | Q(email__iexact=identifier)
         user = User.objects.filter(user_query).first()
         
+        print(f"Query result: {user}")
+        
         if not user:
             print("No user found with that identifier")
+            # Debug: Show what users exist
+            all_usernames = User.objects.values_list('username', 'email')
+            print(f"Existing users: {list(all_usernames)}")
             return Response({
                 "error": "Invalid username/email or password."
             }, status=401)
         
-            print(f"User found: ID={user.id}, username='{user.username}'") 
+        print(f"User found: ID={user.id}, username='{user.username}'")
         
         # Check password
         if not check_password(password, user.password):
@@ -617,20 +624,9 @@ def login_user(request):
         print("Password check successful")
 
         # Generate JWT tokens
-        try:
-            refresh = RefreshToken.for_user(user)
-            access_token = str(refresh.access_token)
-            refresh_token = str(refresh)
-            print("JWT tokens generated successfully")
-            print(f"Access token length: {len(access_token)}")
-            print(f"Refresh token length: {len(refresh_token)}")
-        except Exception as token_error:
-            print(f"CRITICAL: Token generation failed: {token_error}")
-            import traceback
-            traceback.print_exc()
-            return Response({
-                "error": "Authentication system error. Please try again."
-            }, status=500)
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
         
         # Get user payload
         user_payload = _public_user_payload(user, request)
@@ -650,7 +646,6 @@ def login_user(request):
             "refresh": refresh_token,
         }
         
-        print(f"Returning response with access token: {access_token[:50]}...")
         return Response(response_data, status=200)
         
     except Exception as e:
@@ -660,7 +655,6 @@ def login_user(request):
         return Response({
             "error": "Login failed. Please try again."
         }, status=500)
-
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
