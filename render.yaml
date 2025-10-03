@@ -1,22 +1,35 @@
 services:
+  # Django Backend Service
   - type: web
-    name: expair
+    name: expair-backend
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend.wsgi:application
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "expair-backend.onrender.com"
+
+  # Frontend Next.js Service  
+  - type: web
+    name: expair-frontend
     env: node
     plan: free
     region: oregon
-    buildCommand: npm ci && npm run build
+    buildCommand: cd / && npm ci && npm run build
     startCommand: npm run start
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: 20
-      # Uncomment and set these when you have the values
-      # - key: NEXTAUTH_URL
-      #   value: https://expair.onrender.com
-      # - key: NEXTAUTH_SECRET
-      #   generateValue: true
-      # - key: NEXT_PUBLIC_SUPABASE_URL
-      #   value: https://YOUR_PROJECT.supabase.co
-      # - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-      #   value: YOUR_SUPABASE_ANON_KEY
+      - key: NEXT_PUBLIC_API_URL
+        value: https://expair-backend.onrender.com
 
