@@ -1,10 +1,10 @@
 services:
-  # Django Backend Service
   - type: web
     name: expair-backend
     env: python
     plan: free
     region: oregon
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn backend.wsgi:application
     autoDeploy: true
@@ -17,19 +17,4 @@ services:
         value: "False"
       - key: ALLOWED_HOSTS
         value: "expair-backend.onrender.com"
-
-  # Frontend Next.js Service  
-  - type: web
-    name: expair-frontend
-    env: node
-    plan: free
-    region: oregon
-    buildCommand: cd / && npm ci && npm run build
-    startCommand: npm run start
-    autoDeploy: true
-    envVars:
-      - key: NODE_VERSION
-        value: 20
-      - key: NEXT_PUBLIC_API_URL
-        value: https://expair-backend.onrender.com
 
