@@ -38,10 +38,16 @@ export default function PendingTradesPage() {
   const [tradeToDelete, setTradeToDelete] = useState(null);
   const [showDeleteModalForCard, setShowDeleteModalForCard] = useState(null);
   
-  const handleDeleteTrade = async () => {
+  const handleDeleteTrade = async (trade) => {
+    const tradereqId = trade?.tradereq_id || trade?.id || tradeToDelete?.tradereq_id;
+    if (!tradereqId) {
+      console.error("No tradereq_id provided for delete.", { trade, tradeToDelete });
+      alert("Unable to delete: missing trade identifier.");
+      return;
+    }
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradeToDelete.tradereq_id}/delete/`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${tradereqId}/delete/`,
         {
           method: "DELETE",
           headers: {
@@ -53,9 +59,10 @@ export default function PendingTradesPage() {
 
       if (response.ok) {
         setPostedTrades((prevTrades) =>
-          prevTrades.filter((t) => t.tradereq_id !== tradeToDelete.tradereq_id)
+          prevTrades.filter((t) => t.tradereq_id !== tradereqId)
         );
         setShowModal(false);
+        setShowDeleteModalForCard(null);
       } else {
         const errorData = await response.json();
         alert(errorData.error || "Failed to delete trade request");
@@ -233,15 +240,12 @@ export default function PendingTradesPage() {
         if (activeResponse.ok) {
           const activeData = await activeResponse.json();
 
-          // Fetch trade details status, actual trade details, AND evaluation status
+          // Fetch trade details status and details; only fetch evaluation if both submitted
           const tradesWithStatus = await Promise.all(
             activeData.active_trades.map(async (trade) => {
               try {
-                const [
-                  statusResponse,
-                  tradeDetailsResponse,
-                  evaluationResponse,
-                ] = await Promise.all([
+                // First: status and details in parallel
+                const [statusResponse, tradeDetailsResponse] = await Promise.all([
                   fetch(
                     `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/details/status/`,
                     {
@@ -253,15 +257,6 @@ export default function PendingTradesPage() {
                   ),
                   fetch(
                     `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-details/${trade.trade_request_id}/`,
-                    {
-                      headers: {
-                        Authorization: `Bearer ${session.access}`,
-                        "Content-Type": "application/json",
-                      },
-                    }
-                  ),
-                  fetch(
-                    `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/evaluation/`,
                     {
                       headers: {
                         Authorization: `Bearer ${session.access}`,
@@ -281,10 +276,7 @@ export default function PendingTradesPage() {
 
                 if (tradeDetailsResponse.ok) {
                   const detailsData = await tradeDetailsResponse.json();
-                  if (
-                    detailsData.details &&
-                    Array.isArray(detailsData.details)
-                  ) {
+                  if (detailsData.details && Array.isArray(detailsData.details)) {
                     const otherUserId = trade.is_requester
                       ? trade.responder?.id
                       : trade.requester?.id;
@@ -299,8 +291,20 @@ export default function PendingTradesPage() {
                   }
                 }
 
-                if (evaluationResponse.ok) {
-                  evaluationData = await evaluationResponse.json();
+                // Only fetch evaluation if both users have submitted details to avoid 400
+                if (statusData?.submission_status?.both_submitted) {
+                  const evaluationResponse = await fetch(
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-requests/${trade.trade_request_id}/evaluation/`,
+                    {
+                      headers: {
+                        Authorization: `Bearer ${session.access}`,
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  );
+                  if (evaluationResponse.ok) {
+                    evaluationData = await evaluationResponse.json();
+                  }
                 }
 
                 return {
@@ -525,6 +529,13 @@ export default function PendingTradesPage() {
     return (
       deliveryMap[trade.tradeDetails.modedel] || trade.tradeDetails.modedel
     );
+  };
+
+  // Helper to get the other user's username for messaging deep-link
+  const getOtherUserUsername = (trade) => {
+    if (!trade) return "";
+    const otherUser = trade.is_requester ? trade.responder : trade.requester;
+    return otherUser?.username || "";
   };
 
   // Memoize expensive computations
@@ -1343,6 +1354,20 @@ export default function PendingTradesPage() {
                                 </div>
                               </button>
                             </Tooltip>
+                            {/* Message CTA - always available once trade exists */}
+                            <Link
+                              href={`/home/messages${getOtherUserUsername(trade) ? `?user=${encodeURIComponent(getOtherUserUsername(trade))}` : ""}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              <button className="min-w-[120px] h-[40px] flex justify-center items-center rounded-[15px] border-2 border-[#0038FF] bg-[#0038FF] shadow-[0_0_15px_#284CCC] hover:bg-[#1a4dff] transition-colors">
+                                <div className="flex items-center gap-[8px]">
+                                  <Icon icon="lucide:message-square" className="w-4 h-4 text-white" />
+                                  <span className="text-[14px] font-normal text-white">Message</span>
+                                </div>
+                              </button>
+                            </Link>
                           </div>
                         </div>
                       </div>

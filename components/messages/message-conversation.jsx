@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 import Image from "next/image";
 import { Icon } from "@iconify/react";
 import { Button } from "../ui/button";
@@ -12,6 +14,7 @@ import { Star } from "lucide-react";
 import Tooltip from "../ui/tooltip";
 
 export default function MessageConversation({ conversation, onSendMessage, onConversationViewed }) {
+  const { data: session } = useSession();
   const [newMessage, setNewMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -23,16 +26,55 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
   const fileInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  // Initialize messages when conversation changes and mark as read
+  // Initialize messages when conversation changes and mark as read (fetch from backend if thread id present)
   useEffect(() => {
-    if (conversation?.messages) {
-      setMessages([...conversation.messages]);
-      
-      // Mark conversation as read when viewed
+    const load = async () => {
+      if (!conversation?.id) return;
+      try {
+        const resp = await fetch(`${BACKEND_URL}/conversations/${conversation.id}/messages/`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access ? { Authorization: `Bearer ${session.access}` } : {}),
+          },
+          credentials: 'include',
+        });
+        if (!resp.ok) {
+          // fall back to local messages if any
+          if (conversation?.messages) setMessages([...conversation.messages]);
+          return;
+        }
+        const data = await resp.json();
+        const currentId = (session?.user?.user_id ?? session?.user?.id) ? String(session?.user?.user_id ?? session?.user?.id) : null;
+        const loaded = (data.messages || []).map(m => {
+          const senderId = String(m.sender_id);
+          const isUser = currentId && senderId === currentId;
+          return {
+            sender: isUser ? 'You' : 'Partner',
+          content: m.content,
+          time: '',
+            isUser,
+          };
+        });
+        setMessages(loaded);
+      } catch {
+        if (conversation?.messages) setMessages([...conversation.messages]);
+      }
+
       if (onConversationViewed && conversation.unread) {
         onConversationViewed();
       }
-    }
+
+      // Persist unread count reset for this conversation
+      try {
+        const key = 'unread_counts';
+        const store = JSON.parse(localStorage.getItem(key) || '{}');
+        if (conversation?.id && store[String(conversation.id)]) {
+          store[String(conversation.id)] = 0;
+          localStorage.setItem(key, JSON.stringify(store));
+        }
+      } catch {}
+    };
+    load();
   }, [conversation?.id, onConversationViewed]);
 
   // Scroll to bottom when messages change
@@ -46,7 +88,7 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
     }
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (newMessage.trim() === "" && !attachedFile) return;
     
@@ -65,13 +107,28 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
       replyTo: replyingTo
     };
     
-    // Add to local state
-    setMessages(prevMessages => [...prevMessages, newMessageObj]);
-    
-    // Update parent component state (for sidebar preview)
-    if (onSendMessage) {
-      onSendMessage(newMessageObj);
+    // give a local id for client-side delete-only
+    const withId = { ...newMessageObj, __localId: `${Date.now()}-${Math.random().toString(16).slice(2)}` };
+    // Optimistic add to local state
+    setMessages(prevMessages => [...prevMessages, withId]);
+
+    // Send to backend if we have a conversation id
+    if (conversation?.id) {
+      try {
+        await fetch(`${BACKEND_URL}/conversations/${conversation.id}/messages/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access ? { Authorization: `Bearer ${session.access}` } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({ content: newMessage }),
+        });
+      } catch {}
     }
+
+    // Update parent (sidebar preview)
+    if (onSendMessage) onSendMessage(withId);
     
     // Clear form
     setNewMessage("");
@@ -178,11 +235,7 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
           </div>
         </div>
         
-        <div className="flex items-center">
-          <button className="w-[40px] h-[40px] flex items-center justify-center text-white transition">
-            <Icon icon="lucide:more-horizontal" className="w-5 h-5" />
-          </button>
-        </div>
+        <div className="flex items-center gap-2"></div>
       </div>
       
       {/* Request/Exchange info */}
@@ -264,10 +317,17 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
             <MessageBubble
               key={index}
               message={message}
+              bubbleIndex={index}
               showAvatar={index === 0 || messages[index - 1].isUser !== message.isUser}
               showTime={index === messages.length - 1 || 
                 messages[index + 1]?.isUser !== message.isUser}
               onReply={(msg) => setReplyingTo(msg)}
+              onDelete={(i) => {
+                setMessages(prev => prev.filter((_, idx) => idx !== i));
+              }}
+              onHeart={(i) => {
+                setMessages(prev => prev.map((m, idx) => idx === i ? { ...m, reactions: { ...(m.reactions||{}), heart: !m.reactions?.heart } } : m));
+              }}
             />
           ))}
           <div ref={messagesEndRef} />

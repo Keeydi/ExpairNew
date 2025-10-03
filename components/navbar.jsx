@@ -31,7 +31,9 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [bellRect, setBellRect] = useState(null);
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+  const [notifItems, setNotifItems] = useState([]);
   const bellRef = useRef(null);
 
   // Directly derive the avatar URL from the session object.
@@ -69,6 +71,59 @@ export default function Navbar() {
     };
   }, []);
 
+  // Poll for newly accepted trades to show as notifications
+  useEffect(() => {
+    let timer;
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
+    const storageKey = "seen_active_trade_ids";
+
+    const loadSeen = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+      } catch { return new Set(); }
+    };
+    const saveSeen = (setIds) => {
+      try { localStorage.setItem(storageKey, JSON.stringify(Array.from(setIds))); } catch {}
+    };
+
+    const fetchNotifications = async () => {
+      try {
+        if (!session?.access && !session?.accessToken) return;
+        const headers = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access || session?.accessToken}`,
+        };
+        const resp = await fetch(`${BACKEND_URL}/active-trades/`, { headers });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const active = Array.isArray(data?.active_trades) ? data.active_trades : [];
+        const ids = active.map(t => t.trade_request_id).filter(Boolean);
+        const seen = loadSeen();
+        const newIds = ids.filter(id => !seen.has(id));
+
+        // Build simple items for portal
+        const items = newIds.map(id => ({
+          id: `active-${id}`,
+          icon: 'match',
+          message: 'Your trade request was accepted. Complete details to proceed.',
+          time: '',
+          dotColor: '#6DDFFF',
+        }));
+        setNotifItems(items);
+        setNotifCount(newIds.length);
+        setHasUnreadNotifications(newIds.length > 0);
+      } catch {
+        // ignore
+      }
+    };
+
+    // initial + poll
+    fetchNotifications();
+    timer = setInterval(fetchNotifications, 20000);
+    return () => clearInterval(timer);
+  }, [session]);
+
   const toggleNotification = () => {
     if (!notificationOpen && bellRef.current) {
       setBellRect(bellRef.current.getBoundingClientRect());
@@ -77,6 +132,19 @@ export default function Navbar() {
   };
 
   const handleAllNotificationsRead = () => {
+    // mark all current active trades as seen
+    try {
+      const storageKey = "seen_active_trade_ids";
+      const rawIds = notifItems
+        .map(i => i.id)
+        .filter(k => k.startsWith('active-'))
+        .map(k => Number(k.replace('active-','')));
+      const current = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+      rawIds.forEach(id => current.add(id));
+      localStorage.setItem(storageKey, JSON.stringify(Array.from(current)));
+    } catch {}
+    setNotifItems([]);
+    setNotifCount(0);
     setHasUnreadNotifications(false);
   };
 
@@ -169,14 +237,28 @@ export default function Navbar() {
           <Link href="/home/messages">
             <div className="relative cursor-pointer">
               <MessageSquareText className="text-white w-5 h-5" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full" />
+              {/* per-conversation unread count aggregated; read from localStorage key 'unread_counts' */}
+              {(() => {
+                try {
+                  const data = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem('unread_counts') || '{}') : '{}');
+                  const total = Object.values(data).reduce((a, b) => a + Number(b || 0), 0);
+                  if (total > 0) {
+                    return (
+                      <span className="absolute -top-1 -right-2 min-w-[16px] h-[16px] px-[3px] bg-[#0038FF] text-white text-[10px] leading-[16px] rounded-full text-center">{total}</span>
+                    );
+                  }
+                } catch {}
+                return null;
+              })()}
             </div>
           </Link>
           <div className="relative" ref={bellRef}>
             <div className="cursor-pointer" onClick={toggleNotification}>
               <Bell className="text-white w-5 h-5" />
               {hasUnreadNotifications && (
-                <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full" />
+                <span className="absolute -top-1 -right-2 min-w-[16px] h-[16px] px-[3px] bg-[#0038FF] text-white text-[10px] leading-[16px] rounded-full text-center">
+                  {notifCount}
+                </span>
               )}
             </div>
           </div>
@@ -185,6 +267,7 @@ export default function Navbar() {
             onClose={() => setNotificationOpen(false)}
             onMarkAllAsRead={handleAllNotificationsRead}
             anchorRect={bellRect}
+            items={notifItems}
           />
           {/* Profile dropdown */}
           <DropdownMenu>

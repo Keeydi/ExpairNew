@@ -24,13 +24,94 @@ from django.http import JsonResponse
 
 from .models import (
     Evaluation, GenSkill, ReputationSystem, TradeDetail, TradeHistory, UserInterest, User, VerificationStatus, UserCredential,
-    SpecSkill, UserSkill, TradeRequest, TradeInterest, PasswordResetToken
+    SpecSkill, UserSkill, TradeRequest, TradeInterest, PasswordResetToken,
+    Conversation, Message
 )
 from .serializers import (
     ProfileUpdateSerializer, UserCredentialSerializer,
     SpecSkillSerializer, UserSkillBulkSerializer,
     UserSerializer, GenSkillSerializer, UserInterestBulkSerializer
 )
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_or_create_conversation(request, tradereq_id):
+    try:
+        trade = TradeRequest.objects.get(tradereq_id=tradereq_id)
+    except TradeRequest.DoesNotExist:
+        return Response({"error": "Trade not found"}, status=404)
+
+    if request.user.id not in [trade.requester_id, trade.responder_id]:
+        return Response({"error": "Not a participant in this trade"}, status=403)
+
+    convo, _ = Conversation.objects.get_or_create(
+        trade_request=trade,
+        defaults={'requester': trade.requester, 'responder': trade.responder or request.user}
+    )
+
+    return Response({
+        'conversation_id': convo.conversation_id,
+        'trade_request_id': trade.tradereq_id,
+        'requester_id': trade.requester_id,
+        'responder_id': trade.responder_id,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_conversations(request):
+    qs = Conversation.objects.filter(Q(requester=request.user) | Q(responder=request.user)).order_by('-created_at')
+    data = [
+        {
+            'conversation_id': c.conversation_id,
+            'trade_request_id': c.trade_request_id,
+            'reqname': getattr(c.trade_request, 'reqname', None),
+            'exchange': getattr(c.trade_request, 'exchange', None),
+            'other_user_id': c.responder_id if c.requester_id == request.user.id else c.requester_id,
+            'other_user_username': c.responder.username if c.requester_id == request.user.id else c.requester.username,
+            'other_user_name': (f"{c.responder.first_name} {c.responder.last_name}".strip() if c.requester_id == request.user.id else f"{c.requester.first_name} {c.requester.last_name}".strip()) or (c.responder.username if c.requester_id == request.user.id else c.requester.username),
+            'created_at': c.created_at,
+            # Last message summary
+            'last_message': (lambda m: m.content if m else None)(Message.objects.filter(conversation=c).order_by('-created_at').first()),
+            'last_sender_id': (lambda m: m.sender_id if m else None)(Message.objects.filter(conversation=c).order_by('-created_at').first()),
+            'last_timestamp': (lambda m: m.created_at.isoformat() if m else None)(Message.objects.filter(conversation=c).order_by('-created_at').first()),
+        }
+        for c in qs
+    ]
+    return Response({'conversations': data})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def messages_handler(request, conversation_id):
+    try:
+        convo = Conversation.objects.get(conversation_id=conversation_id)
+    except Conversation.DoesNotExist:
+        return Response({"error": "Conversation not found"}, status=404)
+
+    if request.user.id not in [convo.requester_id, convo.responder_id]:
+        return Response({"error": "Forbidden"}, status=403)
+
+    if request.method == 'GET':
+        msgs = Message.objects.filter(conversation=convo).order_by('created_at')
+        return Response({'messages': [
+            {
+                'message_id': m.message_id,
+                'sender_id': m.sender_id,
+                'content': m.content,
+                'created_at': m.created_at,
+            } for m in msgs
+        ]})
+
+    content = (request.data.get('content') or '').strip()
+    if not content:
+        return Response({"error": "content is required"}, status=400)
+    msg = Message.objects.create(conversation=convo, sender=request.user, content=content)
+    return Response({
+        'message_id': msg.message_id,
+        'sender_id': msg.sender_id,
+        'content': msg.content,
+        'created_at': msg.created_at,
+    }, status=201)
 
 @csrf_exempt
 @api_view(['POST']) 
@@ -1572,7 +1653,23 @@ def delete_trade_request(request, tradereq_id):
                 "error": "Cannot delete trade request that has been accepted by someone"
             }, status=400)
         
-        # Delete the trade request (this will cascade delete related interests)
+        # Delete related messaging and details explicitly for safety
+        try:
+            Conversation.objects.filter(trade_request=trade_request).delete()
+        except Exception as e:
+            print(f"Warning: failed deleting conversations for trade {tradereq_id}: {e}")
+
+        try:
+            TradeDetail.objects.filter(trade_request=trade_request).delete()
+        except Exception as e:
+            print(f"Warning: failed deleting trade details for trade {tradereq_id}: {e}")
+
+        try:
+            TradeInterest.objects.filter(trade_request=trade_request).delete()
+        except Exception as e:
+            print(f"Warning: failed deleting trade interests for trade {tradereq_id}: {e}")
+
+        # Delete the trade request (cascade should handle remaining relations)
         trade_request.delete()
         
         return Response({
@@ -1795,7 +1892,16 @@ def accept_trade_interest(request, interest_id):
             print(f"Trade {trade_request.tradereq_id} is now PENDING (waiting for evaluation)")
             print(f"{declined_count} other interests were declined")
             print(f"Exchange field set to: {trade_request.exchange}")
-            
+
+            # Ensure a conversation exists for this trade
+            convo, _ = Conversation.objects.get_or_create(
+                trade_request=trade_request,
+                defaults={
+                    'requester': trade_request.requester,
+                    'responder': trade_request.responder,
+                }
+            )
+
             return Response({
                 "message": "Trade interest accepted successfully - proceed to evaluation",
                 "interest_id": trade_interest.trade_interests_id,
@@ -1813,6 +1919,7 @@ def accept_trade_interest(request, interest_id):
                     },
                     "requires_evaluation": True  # Indicate that evaluation is needed
                 },
+                "conversation_id": getattr(convo, 'conversation_id', None),
                 "other_interests_declined": declined_count
             }, status=200)
             

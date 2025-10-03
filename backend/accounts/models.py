@@ -372,3 +372,39 @@ class ReputationSystem(models.Model):
     class Meta:
         db_table = 'repsys_tbl'
         managed = True
+
+
+# --- Simple messaging models ---
+class Conversation(models.Model):
+    """A 1:1 conversation anchored to a TradeRequest.
+    We keep explicit requester/responder references for quick filtering.
+    """
+    conversation_id = models.AutoField(primary_key=True)
+    trade_request = models.ForeignKey('TradeRequest', on_delete=models.CASCADE, db_column='tradereq_id', related_name='conversations')
+    requester = models.ForeignKey('User', on_delete=models.CASCADE, db_column='requester_id', related_name='conversations_as_requester')
+    responder = models.ForeignKey('User', on_delete=models.CASCADE, db_column='responder_id', related_name='conversations_as_responder')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'conversations_tbl'
+        managed = True
+        unique_together = ('trade_request',)
+
+    def __str__(self):
+        return f"Conversation #{self.conversation_id} (trade {self.trade_request_id})"
+
+
+class Message(models.Model):
+    message_id = models.AutoField(primary_key=True)
+    conversation = models.ForeignKey('Conversation', on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey('User', on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'messages_tbl'
+        managed = True
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Message #{self.message_id} in convo {self.conversation_id}"

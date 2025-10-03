@@ -30,53 +30,7 @@ export function NotificationDialog({ isOpen, onClose }) {
       </div>
       
       <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: "400px" }}>
-        <NotificationItem 
-          avatar="/defaultavatar.png"
-          message="for gardening services."
-          time="2h ago"
-          isRead={true}
-          isHighlighted={false}
-        />
-        
-        <NotificationItem 
-          avatar="/defaultavatar.png"
-          message="Michael Lee finished their trade. Check out their proof!"
-          time="5h ago"
-          isRead={false}
-          isHighlighted={true}
-        />
-        
-        <NotificationItem 
-          icon="match"
-          message="You have a new skill exchange match! Check it out and start trading now."
-          time="1d ago"
-          isRead={false}
-          isHighlighted={true}
-        />
-        
-        <NotificationItem 
-          icon="star"
-          message="Don't forget to rate your trade with Barbara Pegg to gain XP!"
-          time="Due on July 9"
-          isRead={false}
-          isHighlighted={true}
-        />
-        
-        <NotificationItem 
-          icon="alert"
-          message="Heads up! Your skill trade with Sarah Thompson is due in 3 days."
-          time="3d ago"
-          isRead={false}
-          isHighlighted={true}
-        />
-        
-        <NotificationItem 
-          avatar="/defaultavatar.png"
-          message="Successful trade! Mary Jean approved your output proof."
-          time="5d ago"
-          isRead={false}
-          isHighlighted={true}
-        />
+        {/* No notifications to display */}
       </div>
     </div>
   );

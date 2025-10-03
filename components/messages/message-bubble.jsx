@@ -6,7 +6,7 @@ import { Icon } from "@iconify/react";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/use-toast";
 
-export function MessageBubble({ message, showAvatar = true, showTime = true, onReply }) {
+export function MessageBubble({ message, bubbleIndex, showAvatar = true, showTime = true, onReply, onDelete, onHeart }) {
   const [showActions, setShowActions] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [actionButtonsHovered, setActionButtonsHovered] = useState(false);
@@ -35,7 +35,7 @@ export function MessageBubble({ message, showAvatar = true, showTime = true, onR
   };
 
   return (
-    <div 
+      <div 
       className={cn(
         "flex gap-3 group/message relative",
         message.isUser ? "justify-end" : "justify-start"
@@ -74,6 +74,17 @@ export function MessageBubble({ message, showAvatar = true, showTime = true, onR
                 : "bg-[#120A2A] text-white rounded-bl-none"
             )}
           >
+            {/* Heart reaction bubble at bottom-right like iMessage */}
+            {message.reactions?.heart && (
+              <span
+                className={cn(
+                  "absolute -bottom-3 right-2 text-lg",
+                  message.isUser ? "" : ""
+                )}
+              >
+                ❤️
+              </span>
+            )}
             {message.replyTo && (
               <div className={cn(
                 "mb-2 p-2 rounded border-l-2",
@@ -205,6 +216,7 @@ export function MessageBubble({ message, showAvatar = true, showTime = true, onR
                 setShowActions(false);
               }}
             >
+              {/* Reply */}
               <button 
                 className={cn(
                   "w-7 h-7 rounded-full flex items-center justify-center transition-all",
@@ -213,9 +225,11 @@ export function MessageBubble({ message, showAvatar = true, showTime = true, onR
                 onMouseEnter={() => setActiveAction("reply")}
                 onMouseLeave={() => setActiveAction(null)}
                 onClick={handleReply}
+                title="Reply"
               >
                 <Icon icon="lucide:reply" className="w-4 h-4" />
               </button>
+              {/* Copy text */}
               <button 
                 className={cn(
                   "w-7 h-7 rounded-full flex items-center justify-center transition-all",
@@ -226,6 +240,7 @@ export function MessageBubble({ message, showAvatar = true, showTime = true, onR
                 onMouseEnter={() => message.content && setActiveAction("copy")}
                 onMouseLeave={() => setActiveAction(null)}
                 onClick={handleCopy}
+                title="Copy"
               >
                 <Icon icon="lucide:copy" className="w-4 h-4" />
               </button>
@@ -236,19 +251,27 @@ export function MessageBubble({ message, showAvatar = true, showTime = true, onR
                 )}
                 onMouseEnter={() => setActiveAction("heart")}
                 onMouseLeave={() => setActiveAction(null)}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onClick={() => onHeart && onHeart(bubbleIndex)}
+                title="Heart"
               >
                 <Icon icon="lucide:heart" className="w-4 h-4" />
               </button>
-              <button 
-                className={cn(
-                  "w-7 h-7 rounded-full flex items-center justify-center transition-all",
-                  activeAction === "more" ? "bg-[#906EFF] text-white" : "hover:bg-[#1A0F3E] text-[#8E7EB3]"
-                )}
-                onMouseEnter={() => setActiveAction("more")}
-                onMouseLeave={() => setActiveAction(null)}
-              >
-                <Icon icon="lucide:more-horizontal" className="w-4 h-4" />
-              </button>
+              
+              {message.isUser && (
+                <button 
+                  className={cn(
+                    "w-7 h-7 rounded-full flex items-center justify-center transition-all",
+                    activeAction === "delete" ? "bg-[#906EFF] text-white" : "hover:bg-[#1A0F3E] text-[#8E7EB3]"
+                  )}
+                  onMouseEnter={() => setActiveAction("delete")}
+                  onMouseLeave={() => setActiveAction(null)}
+                  onClick={() => onDelete && onDelete(bubbleIndex)}
+                  title="Delete for me"
+                >
+                  <Icon icon="lucide:trash-2" className="w-4 h-4" />
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -41,7 +41,8 @@ export default function ActiveTradesPage() {
     let isMounted = true;
 
     const fetchActiveTrades = async () => {
-      if (!session?.access) {
+      const token = session?.access || session?.accessToken;
+      if (!token) {
         console.log("No session access token available");
         setLoading(false);
         return;
@@ -53,7 +54,7 @@ export default function ActiveTradesPage() {
         
         const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/home/active-trades/`, {
           headers: {
-            'Authorization': `Bearer ${session.access}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -72,7 +73,7 @@ export default function ActiveTradesPage() {
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}/home/trade-proof-status/${trade.tradereq_id}/`,
                 {
                   headers: {
-                    'Authorization': `Bearer ${session.access}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                   },
                 }
@@ -82,7 +83,7 @@ export default function ActiveTradesPage() {
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}/trade-details/${trade.tradereq_id}/`,
                 {
                   headers: {
-                    'Authorization': `Bearer ${session.access}`,
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                   },
                 }

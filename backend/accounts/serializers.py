@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import TradeDetail, User
+from .models import TradeDetail, User, Conversation, Message
 from .models import GenSkill, UserInterest
 from rest_framework import serializers
 from .models import SpecSkill, UserSkill 
@@ -456,3 +456,22 @@ class TradeDetailSerializer(serializers.ModelSerializer):
             validated_data['total_xp'] = skill_xp + delivery_xp + request_xp
         
         return super().update(instance, validated_data)
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    requester_username = serializers.CharField(source='requester.username', read_only=True)
+    responder_username = serializers.CharField(source='responder.username', read_only=True)
+
+    class Meta:
+        model = Conversation
+        fields = ['conversation_id', 'trade_request', 'requester', 'responder', 'requester_username', 'responder_username', 'created_at']
+        read_only_fields = ['conversation_id', 'created_at']
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+
+    class Meta:
+        model = Message
+        fields = ['message_id', 'conversation', 'sender', 'sender_username', 'content', 'created_at']
+        read_only_fields = ['message_id', 'created_at']

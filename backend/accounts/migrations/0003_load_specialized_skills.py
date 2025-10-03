@@ -62,7 +62,7 @@ def load_specialized_skills(apps, schema_editor):
         {'specSkills_id': 53, 'genskills_id': 11, 'specName': 'Financial Planning'},
         {'specSkills_id': 54, 'genskills_id': 11, 'specName': 'Payroll Services'},
         {'specSkills_id': 55, 'genskills_id': 11, 'specName': 'Auditing'},
-        {'specSkills_id': 56, 'genskills_id': 12, 'specName': 'Personal Training'},
+        {'specSkills_id': 56, 'genskills_id': 12, 'specName': 'Exercise Coaching'},
         {'specSkills_id': 57, 'genskills_id': 12, 'specName': 'Group Fitness Instruction'},
         {'specSkills_id': 58, 'genskills_id': 12, 'specName': 'Sports Coaching'},
         {'specSkills_id': 59, 'genskills_id': 12, 'specName': 'Nutrition for Athletes'},

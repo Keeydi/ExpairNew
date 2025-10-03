@@ -36,6 +36,7 @@ export default function ExploreCard({
   const [showMenu, setShowMenu] = useState(false);
   const [imageError, setImageError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const hiddenKey = 'explore_hidden_usernames';
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -69,8 +70,19 @@ export default function ExploreCard({
   // Handle not interested action
   const handleNotInterested = () => {
     setShowMenu(false);
-    // Implement your not interested logic here
-    console.log(`Marked not interested for user ${userId}`);
+    try {
+      const key = hiddenKey;
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      const set = new Set<string>(Array.isArray(list) ? list : []);
+      if (username) set.add(username.toLowerCase());
+      localStorage.setItem(key, JSON.stringify(Array.from(set)));
+      // Optimistically hide by dispatching a custom event so parent page can refetch/filter
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('explore:hide-updated'));
+      }
+    } catch (e) {
+      console.error('Failed to persist not interested:', e);
+    }
   };
 
   return (

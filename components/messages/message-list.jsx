@@ -130,6 +130,11 @@ export default function MessageList({ conversations = [], selectedId, onSelect }
                   height={45}
                   className="rounded-full"
                 />
+                {conversation.unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-[4px] bg-[#0038FF] text-white text-[10px] leading-[18px] rounded-full text-center">
+                    {conversation.unreadCount}
+                  </span>
+                )}
               </div>
               
               <div className="flex-1 min-w-0">
@@ -142,17 +147,16 @@ export default function MessageList({ conversations = [], selectedId, onSelect }
                     "text-sm truncate flex-1",
                     conversation.unread ? "text-white" : "text-[#8E7EB3]"
                   )}>
-                    {conversation.messages && 
-                     conversation.messages.length > 0 && 
-                     conversation.messages[conversation.messages.length - 1].isUser 
-                      ? "You: " 
-                      : ""}
-                    {conversation.messages && 
-                     conversation.messages.length > 0 && 
-                     conversation.messages[conversation.messages.length - 1].attachment &&
-                     !conversation.messages[conversation.messages.length - 1].content
-                      ? `📎 ${conversation.messages[conversation.messages.length - 1].attachment.type.startsWith('image/') ? 'Image' : 'File'}`
-                      : conversation.lastMessage}
+                    {conversation.messages && conversation.messages.length > 0 ? (
+                      <>
+                        {conversation.messages[conversation.messages.length - 1].isUser ? "You: " : `${conversation.name.split(' ')[0]}: `}
+                        {conversation.messages[conversation.messages.length - 1].attachment && !conversation.messages[conversation.messages.length - 1].content
+                          ? `📎 ${conversation.messages[conversation.messages.length - 1].attachment.type.startsWith('image/') ? 'Image' : 'File'}`
+                          : (conversation.messages[conversation.messages.length - 1].content || conversation.lastMessage)}
+                      </>
+                    ) : (
+                      conversation.lastMessage
+                    )}
                   </p>
                   {conversation.unread && (
                     <div className="w-2 h-2 bg-[#0038FF] rounded-full flex-shrink-0"></div>

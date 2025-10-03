@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { AlertCircle, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 
-export function NotificationPortal({ isOpen, onClose, onMarkAllAsRead, anchorRect }) {
+export function NotificationPortal({ isOpen, onClose, onMarkAllAsRead, anchorRect, items = [] }) {
   const [mounted, setMounted] = useState(false);
   const [readNotifications, setReadNotifications] = useState({});
 
@@ -22,14 +22,7 @@ export function NotificationPortal({ isOpen, onClose, onMarkAllAsRead, anchorRec
   };
   
   const markAllAsRead = () => {
-    setReadNotifications({
-      1: true,
-      2: true,
-      3: true,
-      4: true,
-      5: true,
-      6: true
-    });
+    setReadNotifications({});
     if (onMarkAllAsRead) {
       onMarkAllAsRead();
     }
@@ -75,69 +68,22 @@ export function NotificationPortal({ isOpen, onClose, onMarkAllAsRead, anchorRec
       </div>
       
       <div className="w-full flex flex-col gap-[15px] overflow-y-auto custom-scrollbar pr-2 pl-1" style={{ maxHeight: "452px" }}>
-        <NotificationItem 
-          id={1}
-          avatar="/defaultavatar.png"
-          name="Emily Johnson"
-          message="accepted your request for gardening services."
-          time="2h ago"
-          isRead={readNotifications[1]}
-          dotColor="#0038FF"
-          onClick={() => markAsRead(1)}
-        />
-        
-        <NotificationItem 
-          id={2}
-          avatar="/defaultavatar.png"
-          name="Michael Lee"
-          message="finished their trade. Check out their proof!"
-          time="5h ago"
-          isRead={readNotifications[2]}
-          dotColor="#0038FF"
-          onClick={() => markAsRead(2)}
-        />
-        
-        <NotificationItem 
-          id={3}
-          icon="match"
-          message="You have a new skill exchange match! Check it out and start trading now."
-          time="1d ago"
-          isRead={readNotifications[3]}
-          dotColor="#906EFF"
-          onClick={() => markAsRead(3)}
-        />
-        
-        <NotificationItem 
-          id={4}
-          icon="star"
-          message="Don't forget to rate your trade with Barbara Pegg to gain XP!"
-          time="Due on July 9"
-          isRead={readNotifications[4]}
-          dotColor="#906EFF"
-          onClick={() => markAsRead(4)}
-        />
-        
-        <NotificationItem 
-          id={5}
-          icon="alert"
-          message="Heads up! Your skill trade with Sarah Thompson is due in 3 days."
-          time="3d ago"
-          isRead={readNotifications[5]}
-          dotColor="#906EFF"
-          onClick={() => markAsRead(5)}
-        />
-        
-        <NotificationItem 
-          id={6}
-          avatar="/defaultavatar.png"
-          name="Mary Jean"
-          message="approved your output proof."
-          time="5d ago"
-          isRead={readNotifications[6]}
-          dotColor="#0038FF"
-          prefix="Successful trade! "
-          onClick={() => markAsRead(6)}
-        />
+        {items.length === 0 ? (
+          <div className="text-white/60 text-sm">No new notifications</div>
+        ) : (
+          items.map((n) => (
+            <NotificationItem
+              key={n.id}
+              id={n.id}
+              icon={n.icon}
+              message={n.message}
+              time={n.time}
+              isRead={false}
+              dotColor={n.dotColor}
+              onClick={() => {}}
+            />
+          ))
+        )}
       </div>
     </div>,
     document.body

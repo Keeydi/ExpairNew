@@ -71,6 +71,54 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
     }
   }, [tradeData]);
 
+  // Fetch AI perspective when dialog opens
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  useEffect(() => {
+    const fetchAi = async () => {
+      if (!isOpen || !tradeData) return;
+      try {
+        setAiLoading(true);
+        setAiError(null);
+        const base = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:5055';
+        const resp = await fetch(`${base}/api/evaluate-trade`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requested: tradeData.requestTitle,
+            offered: tradeData.offerTitle,
+            context: tradeData.feedback || '',
+          }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        // Apply AI results
+        setEvaluation(prev => ({
+          ...prev,
+          tradeScore: Number.isFinite(data.tradeScore) ? data.tradeScore : prev.tradeScore,
+          taskComplexity: Number.isFinite(data.taskComplexity) ? data.taskComplexity : prev.taskComplexity,
+          timeCommitment: Number.isFinite(data.timeCommitment) ? data.timeCommitment : prev.timeCommitment,
+          skillLevel: Number.isFinite(data.skillLevel) ? data.skillLevel : prev.skillLevel,
+        }));
+        // Put AI feedback into data.feedback rendering by mutating a local object copy
+        if (data.feedback) {
+          // We cannot set props; keep a mirrored local state for text
+          setAiFeedback(data.feedback);
+        }
+      } catch (e) {
+        console.error('AI evaluation error:', e);
+        setAiError(e.message);
+      } finally {
+        setAiLoading(false);
+      }
+    };
+    fetchAi();
+  }, [isOpen, tradeData]);
+
+  const [aiFeedback, setAiFeedback] = useState('');
 
   // Trigger staggered animations after evaluation updates
   useEffect(() => {
@@ -542,9 +590,16 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                 What we think...
               </span>
             </div>
-            <p className="w-[792px] h-[76px] text-[16px] leading-[120%] text-white">
-              {data.feedback}
-            </p>
+            {aiLoading ? (
+              <p className="w-[792px] h-[76px] text-[16px] leading-[120%] text-white/70">Generating AI perspective…</p>
+            ) : (
+              <p className="w-[792px] h-[76px] text-[16px] leading-[120%] text-white">
+                {aiFeedback || data.feedback}
+              </p>
+            )}
+            {aiError && (
+              <p className="w-[792px] text-[13px] text-[#FB9696]">AI error: {aiError}</p>
+            )}
           </div>
 
           {/* Action buttons */}

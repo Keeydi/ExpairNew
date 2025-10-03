@@ -83,6 +83,11 @@ urlpatterns = [
     path('reset-password/', views.reset_password, name='reset_password'),
     
     path('validate-field/', validate_field, name='validate_field'),
+
+    # Messaging endpoints
+    path('trades/<int:tradereq_id>/conversation/', views.get_or_create_conversation, name='get_or_create_conversation'),
+    path('conversations/', views.list_conversations, name='list_conversations'),
+    path('conversations/<int:conversation_id>/messages/', views.messages_handler, name='messages_handler'),
 ]
 
 

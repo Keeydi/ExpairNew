@@ -126,11 +126,18 @@ export default function Onboarding2({ onNext, onPrev }) {
         console.log("Interest expressed successfully:", data);
         setShowSuccessModal(true);
       } else {
-        const errorData = await response.json();
-        console.error("Failed to express interest:", errorData.error);
+        const errorData = await response.json().catch(() => ({ error: "" }));
+        const message = (errorData?.error || "").toString();
+        if (response.status === 400 && /already expressed interest/i.test(message)) {
+          setShowSuccessModal(true);
+          return;
+        }
+        console.error("Failed to express interest:", message);
+        alert(message || "Failed to express interest. Please try again.");
       }
     } catch (error) {
       console.error("Network error:", error);
+      alert("Network error while expressing interest. Please try again.");
     }
   };
 

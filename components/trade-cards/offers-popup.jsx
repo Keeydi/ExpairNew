@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import Image from "next/image";
 import { Icon } from "@iconify/react";
@@ -9,6 +10,7 @@ import { Star } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 export default function OffersPopup({ isOpen, onClose, service, trade, onTradeUpdate }) {
+  const router = useRouter();
   const { data: session } = useSession();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -270,9 +272,13 @@ export default function OffersPopup({ isOpen, onClose, service, trade, onTradeUp
       await onTradeUpdate();
     }
 
-    setTimeout(() => {
-      setShowSuccessModal(true);
-    }, 100);
+    // Immediately go to Messages after a successful accept
+    onClose?.();
+    const targetUser = selectedOffer?.username || selectedOffer?.name || "";
+    const url = data?.conversation_id
+      ? `/home/messages?thread=${encodeURIComponent(data.conversation_id)}`
+      : (targetUser ? `/home/messages?user=${encodeURIComponent(targetUser)}` : '/home/messages');
+    router.push(url);
     
   } catch (error) {
     console.error('Error accepting offer:', error);
@@ -491,12 +497,8 @@ export default function OffersPopup({ isOpen, onClose, service, trade, onTradeUp
                 className="w-[168px] h-[40px] flex justify-center items-center bg-[#0038FF] text-white rounded-[15px] shadow-[0px_0px_15px_#284CCC] hover:bg-[#1a4dff] transition-colors cursor-pointer"
                 onClick={async () => {
                   setShowSuccessModal(false);
-                  onClose(); // Close popup first
-                  
-                  // ✅ Then refresh all trade data
-                  if (onTradeUpdate) {
-                    await onTradeUpdate(); // Wait for refresh to complete
-                  }
+                  onClose();
+                  router.push('/home/messages');
                 }}
               >
                 <span className="text-[16px]">Confirm</span>

@@ -46,6 +46,7 @@ export default function HomePage() {
     skillCategory: "all",
     minLevel: 0,
   });
+  const hiddenKey = 'explore_hidden_usernames';
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,9 +77,17 @@ export default function HomePage() {
   setShowConfirmDialog(false);
   
   try {
+    if (!selectedPartner?.tradereq_id) {
+      alert("Missing trade identifier. Please refresh and try again.");
+      return;
+    }
     const headers = { "Content-Type": "application/json" };
-    const token = session?.access;
+    const token = session?.access || session?.accessToken;
     if (token) headers["Authorization"] = `Bearer ${token}`;
+    else {
+      alert("Please sign in to express interest.");
+      return;
+    }
     
     const response = await fetch(`${BACKEND_URL}/express-interest/`, {
       method: "POST",
@@ -94,13 +103,31 @@ export default function HomePage() {
       console.log("Interest expressed successfully:", data);
       setShowSuccessDialog(true);
     } else {
-      const errorData = await response.json();
-      console.error("Failed to express interest:", errorData.error);
-      // Show error message to user
+      // Robust error parsing: try JSON then fallback to plain text
+      let message = "";
+      try {
+        const text = await response.text();
+        try {
+          const json = JSON.parse(text);
+          message = (json?.error || json?.detail || text || "").toString();
+        } catch {
+          message = text || "";
+        }
+      } catch {
+        message = "";
+      }
+      // If user already expressed interest, treat as success and show the same success dialog
+      if (response.status === 400 && /already expressed interest/i.test(message)) {
+        setShowSuccessDialog(true);
+        return;
+      }
+      const finalMsg = message || `Failed to express interest (HTTP ${response.status}).`;
+      console.error("Failed to express interest:", finalMsg);
+      alert(finalMsg);
     }
   } catch (error) {
     console.error("Network error:", error);
-    // Show error message to user
+    alert("Network error while expressing interest. Please try again.");
   }
 };
 
@@ -264,13 +291,41 @@ useEffect(() => {
       const uniqueItems = Array.from(
         new Map(data.items.map(item => [item.tradereq_id, item])).values()
       );
-
-      setExploreItems(uniqueItems);
+      // Filter out hidden usernames from localStorage
+      let hidden = [];
+      try { hidden = JSON.parse(localStorage.getItem(hiddenKey) || '[]'); } catch {}
+      const hiddenSet = new Set(hidden.map(v => String(v).toLowerCase()));
+      const filtered = uniqueItems.filter(i => !hiddenSet.has((i.username || '').toLowerCase()));
+      setExploreItems(filtered);
     } catch (e) {
       setExploreErr(e?.message || "Network error");
     }
   })();
 }, [session]);
+
+  // Listen for hide updates from cards and refetch
+  const refreshExplore = async () => {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      const token = session?.access || session?.accessToken;
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const resp = await fetch(`${BACKEND_URL}/explore/feed/`, { headers });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const uniqueItems = Array.from(new Map(data.items.map(item => [item.tradereq_id, item])).values());
+      let hidden = [];
+      try { hidden = JSON.parse(localStorage.getItem(hiddenKey) || '[]'); } catch {}
+      const hiddenSet = new Set(hidden.map(v => String(v).toLowerCase()));
+      const filtered = uniqueItems.filter(i => !hiddenSet.has((i.username || '').toLowerCase()));
+      setExploreItems(filtered);
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handler = () => refreshExplore();
+    window.addEventListener('explore:hide-updated', handler);
+    return () => window.removeEventListener('explore:hide-updated', handler);
+  }, [session]);
 
   const fmtUntil = (iso) => {
     if (!iso) return "";
