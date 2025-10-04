@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { Button } from "../../../../../components/ui/button";
 import { ChevronRight, ChevronLeft, Search, MapPin } from "lucide-react";
@@ -207,6 +207,22 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
     }
   };
 
+  // Handle viewport changes with debouncing to prevent infinite loops
+  const handleViewportChange = useCallback((newViewport) => {
+    // Only update if the viewport actually changed significantly
+    const hasSignificantChange = 
+      Math.abs(newViewport.latitude - viewport.latitude) > 0.0001 ||
+      Math.abs(newViewport.longitude - viewport.longitude) > 0.0001 ||
+      Math.abs(newViewport.zoom - viewport.zoom) > 0.1;
+    
+    if (hasSignificantChange) {
+      setViewport(newViewport);
+    }
+  }, [viewport]);
+
+  // Memoize the viewport to prevent unnecessary re-renders
+  const memoizedViewport = useMemo(() => viewport, [viewport.latitude, viewport.longitude, viewport.zoom]);
+
   // Handle marker changes - this is called by your DynamicMap
   const handleMarkerChange = async (newMarker) => {
     console.log("handleMarkerChange called with:", newMarker);
@@ -331,8 +347,8 @@ export default function Step2({ step2Data, onDataSubmit, onNext, onPrev }) {
         {/* Map - Pass marker as coordinate object, not React component */}
         <div className="w-full max-w-[800px] h-[200px] sm:h-[288px] mx-auto rounded-[20px] sm:rounded-[30px] overflow-hidden">
           <MapWrapper
-            viewport={safeViewport}
-            onViewportChange={setViewport}
+            viewport={memoizedViewport}
+            onViewportChange={handleViewportChange}
             marker={safeMarker} // Pass the coordinate object directly
             onMarkerChange={handleMarkerChange}
           />

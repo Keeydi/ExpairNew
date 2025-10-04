@@ -1576,8 +1576,6 @@ COPY public.evaluation_tbl (evaluation_id, tradereq_id, taskcomplexity, timecomm
 1	3	50	40	50	This trade between Nehemiah and Irah involves moderate tasks with low time commitment and requires intermediate skill levels. The exchange of Dog Watcher for Language & Translation offers valuable learning opportunities for both parties and represents a well-balanced trade arrangement.	CONFIRMED	CONFIRMED	2025-09-30 18:40:04.528365	2025-09-30 18:58:01.157188
 2	2	70	65	60	This trade between Francis and Ellianna involves moderate tasks with moderate time commitment and requires intermediate skill levels. The exchange of Chef for Digital & Social Media offers valuable learning opportunities for both parties and represents a well-balanced trade arrangement.	CONFIRMED	CONFIRMED	2025-09-30 19:00:51.907787	2025-09-30 19:00:59.869352
 3	1	50	40	60	This trade between Ellianna and Francis involves moderate tasks with low time commitment and requires intermediate skill levels. The exchange of Plumbing for Digital & Social Media offers valuable learning opportunities for both parties and represents a well-balanced trade arrangement.	\N	\N	\N	\N
-5	14	40	30	50	This trade between karl and DARNAYLA involves simple tasks with low time commitment and requires intermediate skill levels. The exchange of CANTON for Creative & Design offers valuable learning opportunities for both parties and represents a well-balanced trade arrangement.	CONFIRMED	CONFIRMED	2025-10-02 16:05:26.222206	2025-10-02 16:06:09.135603
-6	13	60	55	50	This trade between karl and DARNAYLA involves moderate tasks with moderate time commitment and requires intermediate skill levels. The exchange of dwadadawdawdad for Creative & Design offers valuable learning opportunities for both parties and represents a well-balanced trade arrangement.	CONFIRMED	CONFIRMED	2025-10-02 16:05:53.121757	2025-10-02 16:06:12.812446
 \.
 
 
@@ -1618,8 +1616,6 @@ COPY public.messages_tbl (message_id, content, created_at, conversation_id, send
 3	dwadadwadawdaw	2025-10-02 22:34:55.292665+08	1	5
 4	dwadadawd	2025-10-02 22:34:59.945271+08	1	6
 5	TRADER	2025-10-02 22:35:12.19701+08	1	6
-6	KARL	2025-10-02 22:37:32.968161+08	1	5
-7	Keydi	2025-10-02 22:37:35.656414+08	1	6
 8	dwadawdadadada	2025-10-02 22:50:10.892142+08	1	5
 9	bdajdba;jawbjdbajkbwd	2025-10-02 22:56:32.72443+08	1	5
 10	dbaiodbadbadbdoadba	2025-10-02 22:56:33.972874+08	1	5
@@ -1925,8 +1921,6 @@ COPY public.users_tbl (user_id, first_name, last_name, username, email, password
 2	Francis	Chuaunsu	fjaeeee	chuaunsufrancis@gmail.com	pbkdf2_sha256$1000000$aG80NQMtWkSlzxQxHDYEPv$jogfx1kt2pYqsxb9Q7mTgTZP7AP0bZX9jHKBkzPQauw=	profile_pics/CCCCC.jpg		32 Santan Street Parang, Marikina, Philippines	0	0.00	0	2025-09-30 17:58:51.911164		""	1	f	UNVERIFIED	t
 3	Nehemiah	Dizon	nehemdizon	nehem.dizon@gmail.com	pbkdf2_sha256$1000000$JMpe3t056x6Sf7cMp3yPFE$qXaENVrRCX/GljoGcjfP/6uFBt+eZhoFjb9L2sacfUA=	profile_pics/BBB_fs3NmPK.jpg	yeahhhhhhhhhhhh	M. L. Quezon Street Parang, Marikina, Philippines	0	0.00	0	2025-09-30 18:01:02.418471		""	1	f	UNVERIFIED	t
 4	Irah	Lumbera	irahrap	ayrahpunzel@gmail.com	pbkdf2_sha256$1000000$EUgY56KVeMH60CbNlwBsLE$eQoWYpVfd18kHPyeEWvdWxtdy8kpWk2BkKDECwXhDCs=	profile_pics/GGGG.jpg	booooogsh	Daang Hari Rosario, Rodriguez, Rizal, Philippines	0	0.00	0	2025-09-30 18:07:04.071208		""	1	f	UNVERIFIED	t
-5	DARNAYLA	KARL	kldarnayla7982qc	kldarnayla7982qc@student.fatima.edu.ph	pbkdf2_sha256$600000$0CmjZ23G4IyqnHAr1M4xxU$sWmjbaJjTb4fF3lja+Z2e4271Kf0oosbFGluPjmPCTI=	profile_pics/Naruto27s_Sage_Mode_lD1MMM8.webp		Durian Street Pasong Tamo, Quezon City, Philippines	0	0.00	0	2025-10-02 13:42:49.673677	user_verifications/cold-sores-symptoms-diagnosis-722x406_kr5P6Ju.webp	""	1	f	PENDING	t
-6	karl	darnayla	darnaylakarl	darnaylakarl@gmail.com	pbkdf2_sha256$600000$WThM8Y4HBnzFzKYI32YXpx$wA5ljKWZhILyjXx2/Y2+NNF4SeVcMKGKqE6DsX2CP28=	profile_pics/cold-sores-symptoms-diagnosis-722x406_cWomJFo.webp		Cavite Street Pasong Tamo, Quezon City, Philippines	0	0.00	0	2025-10-02 13:43:07.791468	user_verifications/Naruto27s_Sage_Mode_luREAoU.webp	""	1	f	PENDING	t
 \.
 
 

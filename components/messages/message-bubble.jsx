@@ -6,7 +6,7 @@ import { Icon } from "@iconify/react";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/use-toast";
 
-export function MessageBubble({ message, bubbleIndex, showAvatar = true, showTime = true, onReply, onDelete, onHeart }) {
+export function MessageBubble({ message, bubbleIndex, showAvatar = true, showTime = true, onReply, onDelete, onHeart, userAvatar = "/assets/defaultavatar.png" }) {
   const [showActions, setShowActions] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [actionButtonsHovered, setActionButtonsHovered] = useState(false);
@@ -47,11 +47,14 @@ export function MessageBubble({ message, bubbleIndex, showAvatar = true, showTim
       {!message.isUser && showAvatar && (
         <div className="flex-shrink-0 mt-1">
           <Image
-            src="/assets/defaultavatar.png"
+            src={userAvatar}
             alt={message.sender}
             width={32}
             height={32}
             className="rounded-full"
+            onError={(e) => {
+              e.target.src = "/assets/defaultavatar.png";
+            }}
           />
         </div>
       )}

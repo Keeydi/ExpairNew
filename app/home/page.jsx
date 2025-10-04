@@ -46,7 +46,7 @@ export default function HomePage() {
     skillCategory: "all",
     minLevel: 0,
   });
-  const hiddenKey = 'explore_hidden_usernames';
+  const hiddenKey = 'explore_hidden_trades'; // Changed from usernames to trades
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -291,11 +291,11 @@ useEffect(() => {
       const uniqueItems = Array.from(
         new Map(data.items.map(item => [item.tradereq_id, item])).values()
       );
-      // Filter out hidden usernames from localStorage
+      // Filter out hidden trades from localStorage
       let hidden = [];
       try { hidden = JSON.parse(localStorage.getItem(hiddenKey) || '[]'); } catch {}
-      const hiddenSet = new Set(hidden.map(v => String(v).toLowerCase()));
-      const filtered = uniqueItems.filter(i => !hiddenSet.has((i.username || '').toLowerCase()));
+      const hiddenSet = new Set(hidden.map(v => Number(v))); // Convert to numbers for trade IDs
+      const filtered = uniqueItems.filter(i => !hiddenSet.has(i.tradereq_id));
       setExploreItems(filtered);
     } catch (e) {
       setExploreErr(e?.message || "Network error");
@@ -315,8 +315,8 @@ useEffect(() => {
       const uniqueItems = Array.from(new Map(data.items.map(item => [item.tradereq_id, item])).values());
       let hidden = [];
       try { hidden = JSON.parse(localStorage.getItem(hiddenKey) || '[]'); } catch {}
-      const hiddenSet = new Set(hidden.map(v => String(v).toLowerCase()));
-      const filtered = uniqueItems.filter(i => !hiddenSet.has((i.username || '').toLowerCase()));
+      const hiddenSet = new Set(hidden.map(v => Number(v))); // Convert to numbers for trade IDs
+      const filtered = uniqueItems.filter(i => !hiddenSet.has(i.tradereq_id));
       setExploreItems(filtered);
     } catch {}
   };
@@ -709,6 +709,7 @@ useEffect(() => {
               profilePicUrl={item.profilePicUrl} 
               userId={item.userId}
               username={item.username}
+              tradereqId={item.tradereq_id} // Pass trade request ID
               onInterestedClick={() => handleInterestedClick(item)}
             />
             ))

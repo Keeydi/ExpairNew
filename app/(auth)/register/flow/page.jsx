@@ -210,6 +210,9 @@ export default function RegisterFlow() {
               // Add profile data from step3
               if (step3Data.profilePicFile) {
                 formData.append("profilePic", step3Data.profilePicFile);
+              } else if (session?.user?.googleData?.image) {
+                // If no file uploaded but Google image exists, pass the URL
+                formData.append("google_image_url", session.user.googleData.image);
               }
               if (step3Data.introduction) {
                 formData.append("bio", step3Data.introduction);

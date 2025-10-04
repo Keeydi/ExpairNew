@@ -59,25 +59,95 @@ def get_or_create_conversation(request, tradereq_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_conversations(request):
-    qs = Conversation.objects.filter(Q(requester=request.user) | Q(responder=request.user)).order_by('-created_at')
-    data = [
-        {
-            'conversation_id': c.conversation_id,
-            'trade_request_id': c.trade_request_id,
-            'reqname': getattr(c.trade_request, 'reqname', None),
-            'exchange': getattr(c.trade_request, 'exchange', None),
-            'other_user_id': c.responder_id if c.requester_id == request.user.id else c.requester_id,
-            'other_user_username': c.responder.username if c.requester_id == request.user.id else c.requester.username,
-            'other_user_name': (f"{c.responder.first_name} {c.responder.last_name}".strip() if c.requester_id == request.user.id else f"{c.requester.first_name} {c.requester.last_name}".strip()) or (c.responder.username if c.requester_id == request.user.id else c.requester.username),
-            'created_at': c.created_at,
-            # Last message summary
-            'last_message': (lambda m: m.content if m else None)(Message.objects.filter(conversation=c).order_by('-created_at').first()),
-            'last_sender_id': (lambda m: m.sender_id if m else None)(Message.objects.filter(conversation=c).order_by('-created_at').first()),
-            'last_timestamp': (lambda m: m.created_at.isoformat() if m else None)(Message.objects.filter(conversation=c).order_by('-created_at').first()),
-        }
-        for c in qs
-    ]
-    return Response({'conversations': data})
+    try:
+        # Don't use select_related for orphaned data - it can cause issues
+        qs = Conversation.objects.filter(Q(requester=request.user) | Q(responder=request.user)).order_by('-created_at')
+        
+        print(f"=== LIST CONVERSATIONS DEBUG ===")
+        print(f"User: {request.user.id} ({request.user.username})")
+        print(f"Found {qs.count()} conversations")
+        
+        data = []
+        for c in qs:
+            # Handle orphaned data gracefully
+            try:
+                other_user = c.responder if c.requester_id == request.user.id else c.requester
+                other_user_name = f"{other_user.first_name} {other_user.last_name}".strip() or other_user.username
+                
+                # Safely handle profile picture field
+                try:
+                    other_user_profilepic = other_user.profilePic
+                    # Convert to string if it's a file object
+                    if other_user_profilepic:
+                        other_user_profilepic = str(other_user_profilepic)
+                except Exception as pic_error:
+                    print(f"Error handling profile picture for user {other_user.id}: {pic_error}")
+                    other_user_profilepic = None
+                    
+                other_user_id = other_user.id
+                other_user_username = other_user.username
+            except (User.DoesNotExist, AttributeError):
+                # Handle case where user was deleted but conversation still exists
+                other_user_id = c.responder_id if c.requester_id == request.user.id else c.requester_id
+                other_user_name = "UNKNOWN USER"
+                other_user_profilepic = None
+                other_user_username = f"deleted_user_{other_user_id}"
+                print(f"WARNING: Conversation {c.conversation_id} references non-existent user ID {other_user_id}")
+            
+            print(f"Conversation {c.conversation_id}:")
+            try:
+                requester_name = c.requester.username
+            except User.DoesNotExist:
+                requester_name = "UNKNOWN USER"
+            
+            try:
+                responder_name = c.responder.username
+            except User.DoesNotExist:
+                responder_name = "UNKNOWN USER"
+            
+            print(f"  Requester: {requester_name} (ID: {c.requester_id})")
+            print(f"  Responder: {responder_name} (ID: {c.responder_id})")
+            print(f"  Other user: {other_user_username} (ID: {other_user_id})")
+            print(f"  Other user name: '{other_user_name}'")
+            print(f"  Other user profilepic: '{other_user_profilepic}'")
+            
+            # Get last message safely with encoding handling
+            last_msg = Message.objects.filter(conversation=c).order_by('-created_at').first()
+            last_message_content = None
+            if last_msg and last_msg.content:
+                try:
+                    # Ensure the content is properly encoded as UTF-8
+                    if isinstance(last_msg.content, bytes):
+                        last_message_content = last_msg.content.decode('utf-8', errors='replace')
+                    else:
+                        last_message_content = str(last_msg.content)
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    last_message_content = "Message contains invalid characters"
+            
+            data.append({
+                'conversation_id': c.conversation_id,
+                'trade_request_id': c.trade_request_id,
+                'reqname': getattr(c.trade_request, 'reqname', None),
+                'exchange': getattr(c.trade_request, 'exchange', None),
+                'other_user_id': other_user_id,
+                'other_user_username': other_user_username,
+                'other_user_name': other_user_name,
+                'other_user_profilepic': other_user_profilepic,
+                'created_at': c.created_at,
+                # Last message summary with safe encoding
+                'last_message': last_message_content,
+                'last_sender_id': last_msg.sender_id if last_msg else None,
+                'last_timestamp': last_msg.created_at.isoformat() if last_msg else None,
+            })
+        return Response({'conversations': data})
+    except Exception as e:
+        print(f"Error in list_conversations: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            'error': 'Failed to load conversations',
+            'conversations': []
+        }, status=500)
 
 
 @api_view(['GET', 'POST'])
@@ -93,14 +163,26 @@ def messages_handler(request, conversation_id):
 
     if request.method == 'GET':
         msgs = Message.objects.filter(conversation=convo).order_by('created_at')
-        return Response({'messages': [
-            {
+        messages_data = []
+        for m in msgs:
+            # Safely handle message content encoding
+            content = m.content
+            if content:
+                try:
+                    if isinstance(content, bytes):
+                        content = content.decode('utf-8', errors='replace')
+                    else:
+                        content = str(content)
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    content = "Message contains invalid characters"
+            
+            messages_data.append({
                 'message_id': m.message_id,
                 'sender_id': m.sender_id,
-                'content': m.content,
+                'content': content,
                 'created_at': m.created_at,
-            } for m in msgs
-        ]})
+            })
+        return Response({'messages': messages_data})
 
     content = (request.data.get('content') or '').strip()
     if not content:
@@ -1000,6 +1082,39 @@ def complete_registration(request):
         # Handle file uploads separately since they're not regular fields
         if profilePic:
             user.profilePic = profilePic
+        else:
+            # Check if this is a Google user with profile picture URL
+            google_image_url = request.data.get("google_image_url")
+            if google_image_url:
+                try:
+                    import requests
+                    from django.core.files.base import ContentFile
+                    from urllib.parse import urlparse
+                    
+                    # Download the Google profile picture
+                    response = requests.get(google_image_url, timeout=10)
+                    response.raise_for_status()
+                    
+                    # Get file extension from URL or default to jpg
+                    parsed_url = urlparse(google_image_url)
+                    file_extension = parsed_url.path.split('.')[-1] if '.' in parsed_url.path else 'jpg'
+                    if file_extension not in ['jpg', 'jpeg', 'png', 'webp']:
+                        file_extension = 'jpg'
+                    
+                    # Create filename
+                    filename = f"google_profile_{user.id}.{file_extension}"
+                    
+                    # Save the image
+                    user.profilePic.save(
+                        filename,
+                        ContentFile(response.content),
+                        save=False
+                    )
+                    print(f"Google profile picture saved: {filename}")
+                    
+                except Exception as e:
+                    print(f"Failed to download Google profile picture: {e}")
+                    # Continue without profile picture
             
         if userVerifyId:
             user.userVerifyId = userVerifyId

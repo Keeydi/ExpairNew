@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
@@ -10,10 +11,12 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
+  const { data: session } = useSession();
   const [profilePicFile, setProfilePicFile] = useState(
     step3Data.profilePicFile || null
   );
   const [profilePreview, setProfilePreview] = useState("/defaultavatar.png");
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const [userIDFile, setUserIDFile] = useState(step3Data.userIDFile || null);
   const [userIDFileName, setUserIDFileName] = useState(
@@ -25,13 +28,29 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
   );
   const [links, setLinks] = useState(step3Data.links || [""]); // keep as array
 
+  // Handle Google profile picture preview
+  useEffect(() => {
+    if (session?.user?.isNewUser && session?.user?.googleData?.image) {
+      setIsGoogleUser(true);
+      setProfilePreview(session.user.googleData.image);
+    }
+  }, [session]);
+
   // preview when a profile picture is selected
   useEffect(() => {
-    if (!profilePicFile) return setProfilePreview("/defaultavatar.png");
+    if (!profilePicFile) {
+      // If no file selected, show Google image or default
+      if (session?.user?.isNewUser && session?.user?.googleData?.image) {
+        setProfilePreview(session.user.googleData.image);
+      } else {
+        setProfilePreview("/defaultavatar.png");
+      }
+      return;
+    }
     const url = URL.createObjectURL(profilePicFile);
     setProfilePreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [profilePicFile]);
+  }, [profilePicFile, session]);
 
   useEffect(() => {
     if (step3Data) {
@@ -125,13 +144,20 @@ export default function Step3({ step3Data, onDataSubmit, onNext, onPrev }) {
                 </div>
               </div>
 
+              {/* Google profile picture note */}
+              {isGoogleUser && !profilePicFile && (
+                <p className="text-[#6DDFFF] text-sm mb-2">
+                  Using your Google profile picture
+                </p>
+              )}
+
               {/* Upload button */}
               <label
                 htmlFor="photo-upload"
                 className="cursor-pointer bg-[#0038FF] hover:bg-[#1a4dff] text-white px-5 py-2 sm:px-6 sm:py-3 rounded-[15px] shadow-[0px_0px_15px_#284CCC] flex items-center gap-2"
               >
                 <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
-                <span>Choose Photo</span>
+                <span>{profilePicFile ? "Change Photo" : "Choose Photo"}</span>
               </label>
               <input
                 id="photo-upload"

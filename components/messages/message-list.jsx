@@ -129,6 +129,9 @@ export default function MessageList({ conversations = [], selectedId, onSelect }
                   width={45}
                   height={45}
                   className="rounded-full"
+                  onError={(e) => {
+                    e.target.src = "/assets/defaultavatar.png";
+                  }}
                 />
                 {conversation.unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-[4px] bg-[#0038FF] text-white text-[10px] leading-[18px] rounded-full text-center">

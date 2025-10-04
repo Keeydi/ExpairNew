@@ -16,7 +16,8 @@ interface ExploreCardProps {
   deadline: string;
   profilePicUrl?: string;
   userId?: number;
-  username?: string; 
+  username?: string;
+  tradereqId?: number; // Add trade request ID
   onInterestedClick?: () => void;
 }
 
@@ -30,13 +31,14 @@ export default function ExploreCard({
   deadline,
   profilePicUrl,
   userId,
-  username, // Add username parameter
+  username,
+  tradereqId, // Add trade request ID parameter
   onInterestedClick,
 }: ExploreCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [imageError, setImageError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const hiddenKey = 'explore_hidden_usernames';
+  const hiddenKey = 'explore_hidden_trades'; // Changed from usernames to trades
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -67,14 +69,14 @@ export default function ExploreCard({
     console.log(`Reporting user ${userId}`);
   };
 
-  // Handle not interested action
+  // Handle not interested action - now hides specific trade instead of entire user
   const handleNotInterested = () => {
     setShowMenu(false);
     try {
       const key = hiddenKey;
       const list = JSON.parse(localStorage.getItem(key) || '[]');
-      const set = new Set<string>(Array.isArray(list) ? list : []);
-      if (username) set.add(username.toLowerCase());
+      const set = new Set<number>(Array.isArray(list) ? list : []);
+      if (tradereqId) set.add(tradereqId); // Use trade ID instead of username
       localStorage.setItem(key, JSON.stringify(Array.from(set)));
       // Optimistically hide by dispatching a custom event so parent page can refetch/filter
       if (typeof window !== 'undefined') {

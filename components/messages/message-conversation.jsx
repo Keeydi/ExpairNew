@@ -189,6 +189,9 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
             width={45}
             height={45}
             className="rounded-full"
+            onError={(e) => {
+              e.target.src = "/assets/defaultavatar.png";
+            }}
           />
           <div>
             <h3 className="text-[16px] text-white flex items-center gap-2">
@@ -321,6 +324,7 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
               showAvatar={index === 0 || messages[index - 1].isUser !== message.isUser}
               showTime={index === messages.length - 1 || 
                 messages[index + 1]?.isUser !== message.isUser}
+              userAvatar={conversation.avatar}
               onReply={(msg) => setReplyingTo(msg)}
               onDelete={(i) => {
                 setMessages(prev => prev.filter((_, idx) => idx !== i));

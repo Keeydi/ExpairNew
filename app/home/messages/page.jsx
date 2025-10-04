@@ -29,6 +29,57 @@ export default function MessagesPage() {
     try { localStorage.setItem('unread_counts', JSON.stringify(obj)); } catch {}
   };
 
+  const fetchConversationData = async (conversationId) => {
+    console.log('=== FETCHING CONVERSATION DATA ===', conversationId);
+    if (!session?.access) {
+      console.log('No session access token');
+      return;
+    }
+    try {
+      console.log('Making API call to fetch conversation data...');
+      const resp = await fetch(`${BACKEND_URL}/conversations/`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access}`,
+        },
+        credentials: 'include',
+      });
+      console.log('API response status:', resp.status);
+      if (!resp.ok) {
+        console.log('API response not OK:', resp.status);
+        return;
+      }
+      const data = await resp.json();
+      console.log('API response data:', data);
+      
+      // Find the specific conversation
+      const conv = data.conversations?.find(c => c.conversation_id === conversationId);
+      console.log('Found conversation:', conv);
+      if (conv) {
+        const userName = conv.other_user_name?.trim() || conv.other_user_username?.trim() || `User #${conv.other_user_id}`;
+        console.log('Final userName:', userName);
+        
+        // Update the conversation in the list
+        setConversations(prev => prev.map(c => 
+          c.id === conversationId 
+            ? {
+                ...c,
+                name: userName,
+                otherUsername: conv.other_user_username || null,
+                otherUserId: conv.other_user_id,
+                avatar: conv.other_user_profilepic ? `${BACKEND_URL}/media/${conv.other_user_profilepic}` : "/assets/defaultavatar.png",
+              }
+            : c
+        ));
+        console.log('Updated conversation in state');
+      } else {
+        console.log('Conversation not found in API response');
+      }
+    } catch (error) {
+      console.error('Error fetching conversation data:', error);
+    }
+  };
+
   // Load conversation list from backend so both users see threads
   useEffect(() => {
     const loadConversations = async () => {
@@ -42,13 +93,21 @@ export default function MessagesPage() {
         });
         if (!resp.ok) return;
         const data = await resp.json();
+        console.log('Conversations API response:', data); // Debug log
         const currentId = (session?.user?.user_id ?? session?.user?.id) ? String(session?.user?.user_id ?? session?.user?.id) : null;
         const storedCounts = loadUnreadCounts();
-        const list = (data.conversations || []).map((c) => ({
-          id: c.conversation_id,
-          name: c.other_user_name || c.other_user_username || `Conversation #${c.conversation_id}`,
-          otherUsername: c.other_user_username || null,
-          avatar: "/assets/defaultavatar.png",
+        const list = (data.conversations || []).map((c) => {
+          // Better fallback logic for user names
+          console.log('Processing conversation:', c); // Debug log
+          const userName = c.other_user_name?.trim() || c.other_user_username?.trim() || `User #${c.other_user_id || c.conversation_id}`;
+          console.log('Final userName:', userName); // Debug log
+          
+          return {
+            id: c.conversation_id,
+            name: userName,
+            otherUsername: c.other_user_username || null,
+            otherUserId: c.other_user_id,
+            avatar: c.other_user_profilepic ? `${BACKEND_URL}/media/${c.other_user_profilepic}` : "/assets/defaultavatar.png",
           lastMessage: (() => {
             if (!c.last_message) return "";
             const isUser = currentId && String(c.last_sender_id) === currentId;
@@ -63,7 +122,8 @@ export default function MessagesPage() {
           ratingLabel: "",
           messages: [],
           requests: c.reqname || c.exchange ? { requested: c.reqname || '', exchange: c.exchange || '' } : undefined,
-        }));
+          };
+        });
         setConversations(list);
         // If arriving without a selection but there is a list, keep none selected
       } catch (e) {
@@ -80,7 +140,7 @@ export default function MessagesPage() {
     if (!threadId && !username) return;
 
     if (threadId) {
-      // Ensure a placeholder exists for thread
+      // Try to find the conversation in existing data first
       const idNum = Number(threadId);
       setConversations(prev => {
         const exists = prev.find(c => c.id === idNum);
@@ -88,23 +148,29 @@ export default function MessagesPage() {
           setSelectedConversation(idNum);
           return prev;
         }
-      const storedCounts = loadUnreadCounts();
-      const newConv = {
+        
+        // If not found, create a temporary placeholder and fetch the real data
+        const storedCounts = loadUnreadCounts();
+        const tempConv = {
           id: idNum,
           username: undefined,
-          name: `Conversation #${threadId}`,
+          name: "Loading...", // Temporary name while fetching
           avatar: "/assets/defaultavatar.png",
           lastMessage: "",
           time: "",
-        unread: (storedCounts && storedCounts[String(idNum)] > 0) || false,
-        unreadCount: Number(storedCounts[String(idNum)] || 0),
+          unread: (storedCounts && storedCounts[String(idNum)] > 0) || false,
+          unreadCount: Number(storedCounts[String(idNum)] || 0),
           level: 1,
           rating: "0.0",
           ratingLabel: "",
           messages: [],
         };
         setSelectedConversation(idNum);
-        return [newConv, ...prev];
+        
+        // Fetch the real conversation data
+        fetchConversationData(idNum);
+        
+        return [tempConv, ...prev];
       });
       return;
     }
