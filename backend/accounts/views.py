@@ -119,11 +119,15 @@ def messages_handler(request, conversation_id):
 def validate_field(request):
     if request.method == 'POST':
         try:
+            print(f"DEBUG: Request body: {request.body}")
+            print(f"DEBUG: Content-Type: {request.content_type}")
             data = json.loads(request.body)
             field_name = data.get('field')
             value = data.get('value')
+            print(f"DEBUG: Field: {field_name}, Value: {value}")
 
             if not field_name or not value:
+                print(f"DEBUG: Missing field or value - Field: {field_name}, Value: {value}")
                 return JsonResponse({'error': 'Field and value are required.'}, status=400)
 
             if field_name == 'username':
