@@ -67,10 +67,11 @@ MIDDLEWARE = [
 
 
 
-# Allow localhost frontend
+# Allow localhost frontend and Vercel deployment
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://expair-new.vercel.app",
 ]
 
 
@@ -271,5 +272,6 @@ DEFAULT_FROM_EMAIL = 'expaircs@gmail.com'
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
-    'https://expair.onrender.com'
+    'https://expair.onrender.com',
+    'https://expair-new.vercel.app'
 ]
