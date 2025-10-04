@@ -143,7 +143,7 @@ export default function Step1({ step1Data, onDataSubmit, onNext }) {
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/validate-field/`, {
+      const response = await fetch(`${baseUrl}/api/validate-field/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
