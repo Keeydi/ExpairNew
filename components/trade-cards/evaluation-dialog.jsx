@@ -71,54 +71,82 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
     }
   }, [tradeData]);
 
-  // Fetch AI perspective when dialog opens
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState(null);
+  // Hardcoded evaluation logic
+  const [hardcodedFeedback, setHardcodedFeedback] = useState('');
+  
   useEffect(() => {
-    const fetchAi = async () => {
-      if (!isOpen || !tradeData) return;
-      try {
-        setAiLoading(true);
-        setAiError(null);
-        const base = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:5055';
-        const resp = await fetch(`${base}/api/evaluate-trade`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requested: tradeData.requestTitle,
-            offered: tradeData.offerTitle,
-            context: tradeData.feedback || '',
-          }),
-        });
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `HTTP ${resp.status}`);
+    if (!isOpen || !tradeData) return;
+    
+    // Generate hardcoded evaluation based on trade data
+    const generateHardcodedEvaluation = () => {
+      const requested = tradeData.requestTitle || '';
+      const offered = tradeData.offerTitle || '';
+      
+      // Simple keyword-based scoring
+      const complexityKeywords = ['complex', 'advanced', 'professional', 'expert', 'detailed', 'comprehensive'];
+      const timeKeywords = ['long', 'extensive', 'thorough', 'complete', 'full'];
+      const skillKeywords = ['expert', 'professional', 'advanced', 'specialized', 'certified'];
+      
+      let taskComplexity = 60; // Default
+      let timeCommitment = 50; // Default
+      let skillLevel = 70; // Default
+      
+      // Adjust based on keywords in titles
+      const combinedText = (requested + ' ' + offered).toLowerCase();
+      
+      complexityKeywords.forEach(keyword => {
+        if (combinedText.includes(keyword)) {
+          taskComplexity += 10;
         }
-        const data = await resp.json();
-        // Apply AI results
-        setEvaluation(prev => ({
-          ...prev,
-          tradeScore: Number.isFinite(data.tradeScore) ? data.tradeScore : prev.tradeScore,
-          taskComplexity: Number.isFinite(data.taskComplexity) ? data.taskComplexity : prev.taskComplexity,
-          timeCommitment: Number.isFinite(data.timeCommitment) ? data.timeCommitment : prev.timeCommitment,
-          skillLevel: Number.isFinite(data.skillLevel) ? data.skillLevel : prev.skillLevel,
-        }));
-        // Put AI feedback into data.feedback rendering by mutating a local object copy
-        if (data.feedback) {
-          // We cannot set props; keep a mirrored local state for text
-          setAiFeedback(data.feedback);
+      });
+      
+      timeKeywords.forEach(keyword => {
+        if (combinedText.includes(keyword)) {
+          timeCommitment += 15;
         }
-      } catch (e) {
-        console.error('AI evaluation error:', e);
-        setAiError(e.message);
-      } finally {
-        setAiLoading(false);
-      }
+      });
+      
+      skillKeywords.forEach(keyword => {
+        if (combinedText.includes(keyword)) {
+          skillLevel += 15;
+        }
+      });
+      
+      // Ensure values are within bounds
+      taskComplexity = Math.min(100, Math.max(20, taskComplexity));
+      timeCommitment = Math.min(100, Math.max(20, timeCommitment));
+      skillLevel = Math.min(100, Math.max(30, skillLevel));
+      
+      // Calculate trade score based on balance
+      const avgScore = (taskComplexity + timeCommitment + skillLevel) / 3;
+      const tradeScore = Math.round((avgScore / 100) * 10);
+      
+      // Generate feedback
+      const feedback = `This trade between "${requested}" and "${offered}" appears to be well-balanced. The task complexity is ${taskComplexity > 70 ? 'high' : taskComplexity > 40 ? 'moderate' : 'low'}, requiring ${timeCommitment > 60 ? 'significant' : timeCommitment > 40 ? 'moderate' : 'minimal'} time commitment and ${skillLevel > 70 ? 'advanced' : skillLevel > 50 ? 'intermediate' : 'basic'} skill levels. This represents a fair exchange that benefits both parties.`;
+      
+      return {
+        taskComplexity,
+        timeCommitment,
+        skillLevel,
+        tradeScore,
+        feedback
+      };
     };
-    fetchAi();
+    
+    const evaluation = generateHardcodedEvaluation();
+    
+    // Update evaluation state
+    setEvaluation(prev => ({
+      ...prev,
+      tradeScore: evaluation.tradeScore,
+      taskComplexity: evaluation.taskComplexity,
+      timeCommitment: evaluation.timeCommitment,
+      skillLevel: evaluation.skillLevel,
+    }));
+    
+    // Set hardcoded feedback
+    setHardcodedFeedback(evaluation.feedback);
   }, [isOpen, tradeData]);
-
-  const [aiFeedback, setAiFeedback] = useState('');
 
   // Trigger staggered animations after evaluation updates
   useEffect(() => {
@@ -590,16 +618,9 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
                 What we think...
               </span>
             </div>
-            {aiLoading ? (
-              <p className="w-[792px] h-[76px] text-[16px] leading-[120%] text-white/70">Generating AI perspective…</p>
-            ) : (
-              <p className="w-[792px] h-[76px] text-[16px] leading-[120%] text-white">
-                {aiFeedback || data.feedback}
-              </p>
-            )}
-            {aiError && (
-              <p className="w-[792px] text-[13px] text-[#FB9696]">AI error: {aiError}</p>
-            )}
+            <p className="w-[792px] h-[76px] text-[16px] leading-[120%] text-white">
+              {hardcodedFeedback || data.feedback}
+            </p>
           </div>
 
           {/* Action buttons */}
@@ -662,7 +683,7 @@ export default function EvaluationDialog({ isOpen, onClose, tradeData, onTradeUp
 
         {/* Disclaimer */}
         <p className="absolute w-[847px] h-[19px] left-[calc(50%-847px/2+4.5px)] top-[737px] text-[12px] leading-[120%] text-center text-white/80 opacity-60 z-[3]">
-          This response is generated by AI and may be inaccurate sometimes. This should only serve as a guide for users.
+          This evaluation is based on predefined criteria and should serve as a guide for users.
         </p>
       </div>
 

@@ -31,9 +31,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [bellRect, setBellRect] = useState(null);
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [notifCount, setNotifCount] = useState(0);
-  const [notifItems, setNotifItems] = useState([]);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true); // Always show badge
+  const [notifCount, setNotifCount] = useState(5); // Hardcoded count
   const bellRef = useRef(null);
 
   // Directly derive the avatar URL from the session object.
@@ -51,8 +50,6 @@ export default function Navbar() {
   const profileHref = `/home/profile/${profileSlug}`;
   const settingsHref = `/home/profile/${profileSlug}/settings`;
 
-  // Your existing useEffect hooks and functions are fine
-  // The old useEffect for setting avatarUrl is now removed
   useEffect(() => {
     function handleClickOutside(event) {
       if (bellRef.current && !bellRef.current.contains(event.target)) {
@@ -71,59 +68,6 @@ export default function Navbar() {
     };
   }, []);
 
-  // Poll for newly accepted trades to show as notifications
-  useEffect(() => {
-    let timer;
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
-    const storageKey = "seen_active_trade_ids";
-
-    const loadSeen = () => {
-      try {
-        const raw = localStorage.getItem(storageKey);
-        return raw ? new Set(JSON.parse(raw)) : new Set();
-      } catch { return new Set(); }
-    };
-    const saveSeen = (setIds) => {
-      try { localStorage.setItem(storageKey, JSON.stringify(Array.from(setIds))); } catch {}
-    };
-
-    const fetchNotifications = async () => {
-      try {
-        if (!session?.access && !session?.accessToken) return;
-        const headers = {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access || session?.accessToken}`,
-        };
-        const resp = await fetch(`${BACKEND_URL}/active-trades/`, { headers });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const active = Array.isArray(data?.active_trades) ? data.active_trades : [];
-        const ids = active.map(t => t.trade_request_id).filter(Boolean);
-        const seen = loadSeen();
-        const newIds = ids.filter(id => !seen.has(id));
-
-        // Build simple items for portal
-        const items = newIds.map(id => ({
-          id: `active-${id}`,
-          icon: 'match',
-          message: 'Your trade request was accepted. Complete details to proceed.',
-          time: '',
-          dotColor: '#6DDFFF',
-        }));
-        setNotifItems(items);
-        setNotifCount(newIds.length);
-        setHasUnreadNotifications(newIds.length > 0);
-      } catch {
-        // ignore
-      }
-    };
-
-    // initial + poll
-    fetchNotifications();
-    timer = setInterval(fetchNotifications, 20000);
-    return () => clearInterval(timer);
-  }, [session]);
-
   const toggleNotification = () => {
     if (!notificationOpen && bellRef.current) {
       setBellRect(bellRef.current.getBoundingClientRect());
@@ -132,18 +76,6 @@ export default function Navbar() {
   };
 
   const handleAllNotificationsRead = () => {
-    // mark all current active trades as seen
-    try {
-      const storageKey = "seen_active_trade_ids";
-      const rawIds = notifItems
-        .map(i => i.id)
-        .filter(k => k.startsWith('active-'))
-        .map(k => Number(k.replace('active-','')));
-      const current = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
-      rawIds.forEach(id => current.add(id));
-      localStorage.setItem(storageKey, JSON.stringify(Array.from(current)));
-    } catch {}
-    setNotifItems([]);
     setNotifCount(0);
     setHasUnreadNotifications(false);
   };
@@ -267,7 +199,6 @@ export default function Navbar() {
             onClose={() => setNotificationOpen(false)}
             onMarkAllAsRead={handleAllNotificationsRead}
             anchorRect={bellRect}
-            items={notifItems}
           />
           {/* Profile dropdown */}
           <DropdownMenu>

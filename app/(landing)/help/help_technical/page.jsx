@@ -83,24 +83,6 @@ export default function HelpSupportPage() {
             </li>
           </ul>
         </div>
-
-        {/* Section: Notification Errors */}
-        <div>
-          <h2 className="text-xl font-semibold mb-2">Notification Errors</h2>
-          <p className="mb-4">
-            Users not receiving system or message notifications should check their device and browser notification settings. Within the app, notification preferences can be reviewed and adjusted under Settings &gt; Notifications.
-          </p>
-          <ul className="space-y-2 pl-4">
-            <li>
-              <strong>Q:</strong> Why am I not receiving notifications?<br />
-              <strong>A:</strong> Make sure they’re enabled on your device and in your browser.
-            </li>
-            <li>
-              <strong>Q:</strong> Can I customize which notifications I get?<br />
-              <strong>A:</strong> Yes, go to Settings &gt; Notifications to manage preferences.
-            </li>
-          </ul>
-        </div>
       </div>
     </HelpLayout>
   );

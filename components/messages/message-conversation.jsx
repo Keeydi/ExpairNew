@@ -264,7 +264,7 @@ export default function MessageConversation({ conversation, onSendMessage, onCon
                 </button>
               </Link>
               
-              <Tooltip content="Expair's tailored AI will evaluate your trade using task difficulty, time, and skills. Make sure to add all details before you can run the evaluation." position="left">
+              <Tooltip content="Expair's evaluation system will assess your trade using predefined criteria for task difficulty, time, and skills. Make sure to add all details before you can run the evaluation." position="left">
                 <button
                   onClick={() => {
                     setSelectedTrade({

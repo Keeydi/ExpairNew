@@ -1,0 +1,23 @@
+version: 1
+name: expair-backend
+services:
+- name: backend
+  source_dir: backend
+  github:
+    repo: Keeydi/ExpairNew
+    branch: main
+  run_command: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  routes:
+  - path: /
+  envs:
+  - key: DEBUG
+    value: "False"
+  - key: ALLOWED_HOSTS
+    value: "seal-app-67jgs.ondigitalocean.app,localhost,127.0.0.1"
+  - key: SECRET_KEY
+    value: "6156b777843623e7c8dedf920d3fb6670c1824e82bdbf647889c0b95e2e0701bd8a2abc4c0830b018b06fae403dfaa1ecb8ec6414906104e54f5e7e2bffe0202"
+  - key: DATABASE_URL
+    value: "postgresql://expair-db:password@app-e300597a-4633-4673-8807-04d733bb1aaa-do-user-26959219-0.e.db.ondigitalocean.com:25060/expair-db?sslmode=require"
