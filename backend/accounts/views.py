@@ -114,13 +114,18 @@ def messages_handler(request, conversation_id):
     }, status=201)
 
 @csrf_exempt
-@api_view(['POST']) 
+@api_view(['POST', 'GET']) 
 @permission_classes([AllowAny])
 def validate_field(request):
+    print(f"DEBUG: Method: {request.method}")
+    print(f"DEBUG: Request body: {request.body}")
+    print(f"DEBUG: Content-Type: {request.content_type}")
+    
+    if request.method == 'GET':
+        return JsonResponse({'message': 'validate-field endpoint is working', 'method': 'GET'})
+    
     if request.method == 'POST':
         try:
-            print(f"DEBUG: Request body: {request.body}")
-            print(f"DEBUG: Content-Type: {request.content_type}")
             data = json.loads(request.body)
             field_name = data.get('field')
             value = data.get('value')
@@ -138,10 +143,11 @@ def validate_field(request):
                 return JsonResponse({'error': 'Invalid field for validation.'}, status=400)
 
             return JsonResponse({'exists': exists})
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            print(f"DEBUG: JSON decode error: {e}")
             return JsonResponse({'error': 'Invalid JSON.'}, status=400)
 
-    return JsonResponse({'error': 'Only POST method is allowed.'}, status=405)
+    return JsonResponse({'error': 'Only POST and GET methods are allowed.'}, status=405)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
